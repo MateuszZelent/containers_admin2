@@ -51,11 +51,20 @@ class JobService:
 
     def get_jobs(self, user: User) -> List[Job]:
         """Get all jobs for a user."""
-        return (
+        jobs = (
             self.db.query(Job)
             .filter(Job.owner_id == user.id)
             .all()
         )
+        
+        # Ensure script field is populated
+        for job in jobs:
+            if job.script is None:
+                job.script = ""
+                self.db.add(job)
+        
+        self.db.commit()
+        return jobs
 
     def get_job_by_slurm_id(self, slurm_job_id: str) -> Optional[Job]:
         """Get a job by its SLURM job ID."""
@@ -133,14 +142,26 @@ class JobService:
         })
         return db_job
 
-    def delete_job(self, job: Job) -> None:
-        """Delete a job and close its tunnels."""
-        # Close any active SSH tunnels
-        tunnel_id = getattr(job, 'id', None)
-        if tunnel_id is not None:
-            self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
-        self.db.delete(job)
-        self.db.commit()
+    async def delete_job(self, job: Job) -> bool:
+        """Delete a job and close its tunnels. Also cancels the job in SLURM if it's still running."""
+        try:
+            # First try to cancel the job in SLURM
+            if job.job_id and job.status not in ["COMPLETED", "FAILED", "CANCELLED"]:
+                slurm_service = SlurmSSHService()
+                await slurm_service.cancel_job(job.job_id)
+
+            # Close any active SSH tunnels
+            tunnel_id = getattr(job, 'id', None)
+            if tunnel_id is not None:
+                self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
+
+            # Delete from database
+            self.db.delete(job)
+            self.db.commit()
+            return True
+        except Exception as e:
+            cluster_logger.error(f"Error deleting job {job.job_id}: {str(e)}")
+            return False
 
     @staticmethod
     async def monitor_job_status(
@@ -283,7 +304,7 @@ class JobService:
             "loginname": user.username,  # Dla kompatybilności z różnymi szablonami
             
             # Dodatkowe parametry wymagane przez szablon
-            "partition": "standard",     # Domyślna partycja
+            "partition": "proxima",     # Domyślna partycja
             "num_nodes": 1,              # Domyślna liczba węzłów
             "tasks_per_node": 1,         # Domyślna liczba zadań na węzeł
             "NEW_PORT": port,            # Ten sam port dla VS Code
@@ -312,7 +333,7 @@ class JobService:
             owner=user,
             port=port,
             status="PENDING",
-            partition="standard",  # Domyślna partycja
+            partition="proxima",  # Domyślna partycja
             password=password      # Zapisz hasło do późniejszego użycia
         )
         self.db.add(db_job)
@@ -358,7 +379,7 @@ class JobService:
             owner=user,
             port=port,
             status="PENDING",
-            partition=job_data.partition if hasattr(job_data, "partition") else "standard"
+            partition=job_data.partition if hasattr(job_data, "partition") else "proxima"
         )
         
         self.db.add(db_job)

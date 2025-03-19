@@ -27,8 +27,13 @@ fi
 target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
 
 ### 2. Tworzenie folderu i kopiowanie wzorcowej zawartości
-mkdir -p "$target_dir"
-cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+if [ -d "$target_dir" ] && [ "$(ls -A $target_dir)" ]; then
+    echo "Katalog $target_dir już istnieje i nie jest pusty - kontener jest reaktywowany"
+else
+    echo "Tworzenie nowego katalogu kontenera i kopiowanie plików wzorcowych..."
+    mkdir -p "$target_dir"
+    cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+fi
 
 # # Definiowanie nowego portu i hasła
 NEW_PORT={NEW_PORT}

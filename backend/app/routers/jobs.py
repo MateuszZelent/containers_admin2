@@ -1,20 +1,22 @@
 from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
+from caddy_api_client import CaddyAPIClient
 
 from app.core.auth import get_current_active_user, get_current_user
 from app.db.session import get_db
-from app.schemas.job import Job, JobCreate, JobPreview, JobSubmissionResponse, JobInDB, SSHTunnelInfo
+from app.schemas.job import JobCreate, JobPreview, JobSubmissionResponse, JobInDB, SSHTunnelInfo
+from app.schemas.job import Job as JobSchema
 from app.services.job import JobService
 from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
-from app.db.models import User as UserModel, User, Job as JobModel
+from app.db.models import User, Job
 
 router = APIRouter()
 
 @router.get("/status")
 async def check_cluster_status(
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, bool]:
     """
     Check if the SLURM cluster is reachable and running.
@@ -23,26 +25,64 @@ async def check_cluster_status(
     return await slurm_service.check_status()
 
 
-@router.get("/", response_model=List[Job])
-def get_jobs(
+@router.get("/", response_model=List[JobInDB])
+async def get_jobs(
     db: Session = Depends(get_db),
     skip: int = 0,
     limit: int = 100,
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
-    Retrieve jobs for current user.
+    Retrieve jobs for current user with current SLURM status.
+    Also handles cases where SLURM has active jobs that don't exist in database.
     """
-    jobs = JobService.get_multi_by_owner(
-        db=db, owner_id=current_user.id, skip=skip, limit=limit
-    )
-    return jobs
+    # Get jobs from database
+    job_service = JobService(db)
+    db_jobs = job_service.get_jobs(current_user)
+    db_jobs_map = {job.job_id: job for job in db_jobs}
+
+    # Get current SLURM status
+    slurm_service = SlurmSSHService()
+    active_jobs = await slurm_service.get_active_jobs()
+
+    if active_jobs:
+        for slurm_job in active_jobs:
+            job_id = slurm_job["job_id"]
+            
+            if job_id in db_jobs_map:
+                # Update existing job if status changed
+                db_job = db_jobs_map[job_id]
+                if db_job.status != slurm_job["state"]:
+                    db_job.status = slurm_job["state"]
+                    db_job.node = slurm_job["node"] if slurm_job["node"] != "(None)" else None
+                    db.add(db_job)
+            else:
+                # Create new job record for unknown SLURM job
+                new_job = Job(
+                    job_id=job_id,
+                    job_name=slurm_job["name"],
+                    status=slurm_job["state"],
+                    node=slurm_job["node"] if slurm_job["node"] != "(None)" else None,
+                    owner_id=current_user.id,
+                    partition="proxima",  # Default value
+                    num_cpus=int(slurm_job["cpus"]) if "cpus" in slurm_job else 1,
+                    memory_gb=1,  # Default value
+                    template_name="unknown",  # Since we don't know the original template
+                    script=""  # Empty script since we don't have the original
+                )
+                db.add(new_job)
+                db_jobs.append(new_job)
+
+        # Commit all changes
+        db.commit()
+
+    return db_jobs
 
 
 @router.get("/active-jobs")
 async def get_active_jobs(
     db: Session = Depends(get_db),
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """
     Get active jobs from SLURM for current user with extended status information.
@@ -74,7 +114,7 @@ async def get_active_jobs(
 
 @router.get("/templates")
 async def get_templates(
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> List[str]:
     """
     Get available job templates.
@@ -89,7 +129,7 @@ async def create_job(
     db: Session = Depends(get_db),
     job_in: JobCreate,
     background_tasks: BackgroundTasks,
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Create new job by submitting a template-based job to SLURM.
@@ -107,7 +147,7 @@ async def create_job(
             "memory_gb": job_in.memory_gb,
             "num_gpus": job_in.num_gpus,
             "time_limit": job_in.time_limit,
-            "partition": getattr(job_in, "partition", "standard"),
+            "partition": getattr(job_in, "partition", "proxima"),
             "num_nodes": getattr(job_in, "num_nodes", 1),
             "tasks_per_node": getattr(job_in, "tasks_per_node", 1),
         }
@@ -141,12 +181,12 @@ async def create_job(
     )
 
 
-@router.get("/{job_id}", response_model=Job)
+@router.get("/{job_id}", response_model=JobSchema)
 def get_job(
     *,
     db: Session = Depends(get_db),
     job_id: int,
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Get job by ID.
@@ -164,7 +204,7 @@ async def get_job_status(
     *,
     db: Session = Depends(get_db),
     job_id: int,
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """
     Get status of a specific job.
@@ -199,7 +239,7 @@ async def get_job_node(
     *,
     db: Session = Depends(get_db),
     job_id: int,
-    current_user: UserModel = Depends(get_current_active_user),
+    current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """
     Get the node where a job is running.
@@ -296,12 +336,12 @@ def close_job_tunnel(
 
 
 @router.delete("/{job_id}")
-def delete_job(
+async def delete_job(
     job_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user)
 ):
-    """Delete a job"""
+    """Delete a job and cancel it in SLURM if it's still running"""
     job_service = JobService(db)
     job = job_service.get_job(job_id)
     if not job:
@@ -314,5 +354,69 @@ def delete_job(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Not enough permissions"
         )
-    job_service.delete_job(job)
-    return {"message": "Job deleted successfully"}
+    
+    success = await job_service.delete_job(job)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete job"
+        )
+    
+    return {"message": "Job deleted and cancelled successfully"}
+
+
+@router.get("/{job_id}/code-server")
+async def get_code_server_url(
+    *,
+    db: Session = Depends(get_db),
+    job_id: int,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """
+    Get code-server URL for a job, creating SSH tunnel if needed and configuring Caddy.
+    """
+    job = JobService.get(db=db, job_id=job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    if not job.port or not job.node or job.status != "RUNNING":
+        raise HTTPException(status_code=400, detail="Job is not running or missing port/node info")
+    
+    # Create or get existing tunnel
+    tunnel_service = SSHTunnelService(db)
+    tunnel = await tunnel_service.get_or_create_tunnel(job)
+    if not tunnel:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Could not establish SSH tunnel. Please try again later."
+        )
+    
+    # Generate domain name using username and job_id
+    domain = f"{current_user.username}{job.id}.orion.zfns.eu.org"
+    
+    # Configure Caddy to route the domain to the local tunnel port
+    caddy_client = CaddyAPIClient()
+    success = caddy_client.add_domain_with_auto_tls(
+        domain=domain,
+        target="localhost",
+        target_port=tunnel.local_port
+    )
+    
+    if not success:
+        # If Caddy configuration fails, clean up the tunnel
+        tunnel_service.close_tunnel(tunnel.id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to configure domain routing"
+        )
+    
+    # Return the full URL to the frontend
+    return {
+        "url": f"https://{domain}",
+        "port": job.port,
+        "node": job.node,
+        "tunnel_port": tunnel.local_port,
+        "domain": domain
+    }

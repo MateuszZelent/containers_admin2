@@ -1,0 +1,88 @@
+{
+  "notifications": [
+    {
+      "title": "Your job SYAM-001 has completed",
+      "description": "1 hour ago"
+    },
+    {
+      "title": "You have a new message",
+      "description": "1 hour ago"
+    },
+    {
+      "title": "Your subscription is expiring soon!",
+      "description": "2 hours ago"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "TASK-8782",
+      "title": "You have a new message",
+      "status": "in_progress",
+      "label": "Documentation",
+      "priority": "medium"
+    },
+    {
+      "id": "TASK-7878",
+      "title": "Export data",
+      "status": "done",
+      "label": "Database",
+      "priority": "high"
+    },
+    {
+      "id": "TASK-7839",
+      "title": "Upload files to server",
+      "status": "todo",
+      "label": "Upload",
+      "priority": "low"
+    }
+  ],
+  "stats": [
+    {
+      "name": "Total Revenue",
+      "value": "$45,231.89",
+      "unit": "+20.1% from last month"
+    },
+    {
+      "name": "Subscriptions",
+      "value": "+2350",
+      "unit": "+180.1% from last month"
+    },
+    {
+      "name": "Sales",
+      "value": "+12,234",
+      "unit": "+19% from last month"
+    },
+    {
+      "name": "Active Now",
+      "value": "+573",
+      "unit": "+201 since last hour"
+    }
+  ],
+  "recentSales": [
+    {
+      "name": "John Doe",
+      "email": "john@example.com",
+      "sale": "$250.00"
+    },
+    {
+      "name": "Jane Smith",
+      "email": "jane@example.com",
+      "sale": "$120.00"
+    },
+    {
+      "name": "Mike Johnson",
+      "email": "mike@example.com",
+      "sale": "$450.00"
+    },
+    {
+      "name": "Sarah Williams",
+      "email": "sarah@example.com",
+      "sale": "$850.00"
+    },
+    {
+      "name": "Tom Brown",
+      "email": "tom@example.com",
+      "sale": "$350.00"
+    }
+  ]
+}

@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     # API settings
     API_V1_STR: str = "/api/v1"
     PROJECT_NAME: str = "SLURM Container Manager"
+    BASE_URL: Optional[str] = None  # Base URL for redirects, optional
     
     # Security settings
     SECRET_KEY: str = "your-secret-key-change-in-production"
@@ -29,7 +30,15 @@ class Settings(BaseSettings):
     TEMPLATE_DIR: str = "/home/kkingstoun/git/containers_admin2/backend/slurm_templates"
     
     # CORS
-    BACKEND_CORS_ORIGINS: List[str] = ["http://localhost", "http://localhost:8000", "http://localhost:3000"]
+    BACKEND_CORS_ORIGINS: List[str] = [
+        "http://localhost",
+        "http://localhost:8000",
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "https://amucontainers.orion.zfns.eu.org:3001",
+        "https://amucontainers.orion.zfns.eu.org:8000",
+        "https://amucontainers.orion.zfns.eu.org"
+    ]
     
     # Database
     DATABASE_URL: str = "sqlite:///./slurm_containers.db"

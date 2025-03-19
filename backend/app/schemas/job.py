@@ -26,13 +26,13 @@ class SSHTunnelInDB(SSHTunnelBase):
     updated_at: Optional[datetime]
 
     class Config:
-        orm_mode = True
+        from_attributes = True
 
 
 class JobBase(BaseModel):
     job_name: str = Field(..., description="Name of the job")
     template_name: str = Field(..., description="Name of the template to use (e.g., manga.template, syam.template)")
-    partition: str = Field(..., description="SLURM partition to use")
+    partition: str = Field(default="proxima", description="SLURM partition to use")
     num_nodes: int = Field(default=1, description="Number of nodes to allocate")
     tasks_per_node: int = Field(default=1, description="Number of tasks per node")
     num_cpus: int = Field(..., description="Number of CPUs per task")
@@ -66,14 +66,16 @@ class SSHTunnelInfo(BaseModel):
 
 class JobInDBBase(JobBase):
     id: int
-    job_id: str
-    status: str
+    job_id: str = Field(default="pending")
+    status: str = Field(default="PENDING")
     node: Optional[str] = None
     port: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
     owner_id: int
     tunnels: List[SSHTunnelInfo] = []
+    script: str = Field(default="")
+    password: Optional[str] = None
 
     class Config:
         from_attributes = True
@@ -84,8 +86,7 @@ class Job(JobInDBBase):
 
 
 class JobInDB(JobInDBBase):
-    script: str
-    password: Optional[str] = None
+    pass
 
 
 class JobPreview(BaseModel):

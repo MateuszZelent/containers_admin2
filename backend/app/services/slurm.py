@@ -163,10 +163,9 @@ class SlurmSSHService:
 
     async def get_active_jobs(self, username: str = None) -> List[Dict[str, str]]:
         """Get active jobs for the specified user."""
-        user_param = f"--user={username}" if username else "--me"
-        slurm_logger.debug(f"Fetching active jobs for user parameter: {user_param}")
+        slurm_logger.debug(f"Fetching active jobs")
         
-        output = await self._execute_async_command(f"squeue {user_param} -o '%A|%j|%T|%N|%C|%M' -h")
+        output = await self._execute_async_command(f"squeue --me -o '%A|%j|%T|%N|%C|%M' -h")
         
         jobs = []
         for line in output.strip().split("\n"):
@@ -181,7 +180,7 @@ class SlurmSSHService:
                     "memory": mem.strip()
                 }
                 # Filter only container jobs if needed
-                if "container_" in name or not jobs:  # Always include at least one job for testing
+                if "container_" in name:  # Always include at least one job for testing
                     jobs.append(job_info)
                     log_slurm_job(job_id.strip(), state.strip(), job_info)
         
@@ -268,8 +267,10 @@ class SlurmSSHService:
             "path": container_dir,
             "user": username
         })
-            
+        output = await self._execute_async_command(f"squeue --me -o '%A|%j|%T|%N|%C|%M' -h")
+        
         await self._execute_async_command(f"mkdir -p {container_dir}")
+
         
         # Create script file with timestamp
         script_filename = f"{container_dir}/container_job_{int(asyncio.get_event_loop().time())}.sh"
@@ -288,6 +289,7 @@ class SlurmSSHService:
         try:
             # Submit the job using sbatch
             slurm_logger.debug("Submitting job to SLURM using sbatch")
+            
             output = await self._execute_async_command(f"sbatch {script_filename}")
             
             # Parse job ID from output
@@ -378,3 +380,17 @@ class SlurmSSHService:
             
         cluster_logger.debug("Template successfully filled with all parameters")
         return template_content
+
+    async def cancel_job(self, job_id: str) -> bool:
+        """Cancel a SLURM job using scancel command."""
+        try:
+            slurm_logger.debug(f"Cancelling job {job_id}")
+            output = await self._execute_async_command(f"scancel {job_id}")
+            log_cluster_operation("Job Cancelled", {
+                "job_id": job_id,
+                "output": output if output else "No output"
+            })
+            return True
+        except Exception as e:
+            slurm_logger.error(f"Failed to cancel job {job_id}: {str(e)}")
+            return False

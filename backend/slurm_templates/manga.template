@@ -1,17 +1,14 @@
 #!/bin/bash
-#SBATCH --job-name="{job_name}"
-#SBATCH -p {partition}
+#SBATCH --job-name="container_{job_name}"
 #SBATCH --output={job_name}-%x.%J.%N.out
-#SBATCH -N {num_nodes}
+#SBATCH --ntasks={num_nodes}
 #SBATCH --tasks-per-node={tasks_per_node}
 #SBATCH --cpus-per-task={num_cpus}
 #SBATCH --time={time_limit}
-#SBATCH --ntasks={num_nodes}
-#SBATCH --cpus-per-task={num_cpus}
 #SBATCH --mem={memory_gb}G
 #SBATCH --gres=gpu:{num_gpus}
 #SBATCH --partition={partition}
-#SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/${USER}/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/${USER}/{loginname}"
+#SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/kkingstoun/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/kkingstoun/{loginname}"
 
 ### 1. Definiowanie "użytkownika" i katalogu docelowego
 localusername="{loggin_name}"
@@ -19,7 +16,7 @@ USERNAME="kkingstoun"
 SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
 export SINIMAGE_DIR
 
-if [ "$localusername" == {loggin_name}]; then
+if [ "$localusername" == "{loggin_name}"]; then
     echo "Zmienna localusername jest ustawiona na: $localusername"
 else
     echo "Zmienna localusername nie jest poprawnie ustawiona!"
@@ -27,8 +24,13 @@ fi
 target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
 
 ### 2. Tworzenie folderu i kopiowanie wzorcowej zawartości
-mkdir -p "$target_dir"
-cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+if [ -d "$target_dir" ] && [ "$(ls -A $target_dir)" ]; then
+    echo "Katalog $target_dir już istnieje i nie jest pusty - kontener jest reaktywowany"
+else
+    echo "Tworzenie nowego katalogu kontenera i kopiowanie plików wzorcowych..."
+    mkdir -p "$target_dir"
+    cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+fi
 
 # # Definiowanie nowego portu i hasła
 NEW_PORT={NEW_PORT}
