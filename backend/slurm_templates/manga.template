@@ -1,0 +1,133 @@
+#!/bin/bash
+#SBATCH --job-name="{job_name}"
+#SBATCH -p {partition}
+#SBATCH --output={job_name}-%x.%J.%N.out
+#SBATCH -N {num_nodes}
+#SBATCH --tasks-per-node={tasks_per_node}
+#SBATCH --cpus-per-task={num_cpus}
+#SBATCH --time={time_limit}
+#SBATCH --ntasks={num_nodes}
+#SBATCH --cpus-per-task={num_cpus}
+#SBATCH --mem={memory_gb}G
+#SBATCH --gres=gpu:{num_gpus}
+#SBATCH --partition={partition}
+#SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/${USER}/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/${USER}/{loginname}"
+
+### 1. Definiowanie "użytkownika" i katalogu docelowego
+localusername="{loggin_name}"
+USERNAME="kkingstoun"
+SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
+export SINIMAGE_DIR
+
+if [ "$localusername" == {loggin_name}]; then
+    echo "Zmienna localusername jest ustawiona na: $localusername"
+else
+    echo "Zmienna localusername nie jest poprawnie ustawiona!"
+fi
+target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
+
+### 2. Tworzenie folderu i kopiowanie wzorcowej zawartości
+mkdir -p "$target_dir"
+cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+
+# # Definiowanie nowego portu i hasła
+NEW_PORT={NEW_PORT}
+NEW_PASSWORD="{NEW_PASSWORD}"
+CONFIG_FILE="$target_dir/code-server/config.yaml"
+
+if [ -z "$USERNAME" ]; then
+    echo "Błąd: Zmienna USERNAME nie została ustawiona!"
+    exit 1
+fi
+
+if [ -z "$SINIMAGE_DIR" ]; then
+    echo "Błąd: Zmienna SINIMAGE_DIR nie została ustawiona!"
+    exit 1
+fi
+
+# Sprawdzenie, czy plik config.yaml istnieje, jeśli nie - tworzymy nowy
+if [ ! -f "$CONFIG_FILE" ]; then
+    echo "Plik $CONFIG_FILE nie istnieje. Tworzenie nowego..."
+    mkdir -p "$(dirname "$CONFIG_FILE")" || { echo "Błąd tworzenia katalogu dla $CONFIG_FILE"; exit 1; }
+    cat <<EOL > "$CONFIG_FILE"
+bind-addr: 0.0.0.0:$NEW_PORT
+password: $NEW_PASSWORD
+auth: password
+EOL
+else
+    echo "Modyfikacja istniejącego pliku $CONFIG_FILE..."
+    sed -i "s|^bind-addr: .*|bind-addr: 0.0.0.0:$NEW_PORT|" "$CONFIG_FILE"
+    sed -i "s|^password: .*|password: $NEW_PASSWORD|" "$CONFIG_FILE"
+    sed -i "s|^auth: .*|auth: password|" "$CONFIG_FILE"
+fi
+
+
+
+# Tworzymy katalog docelowy w SINIMAGE_DIR (jeśli nie istnieje)
+mkdir -p $SINIMAGE_DIR
+mkdir -p $SINIMAGE_DIR/.config
+mkdir -p $SINIMAGE_DIR/.local/cache/conda
+mkdir -p $SINIMAGE_DIR/.local/share/jupyter/runtime
+mkdir -p $SINIMAGE_DIR/.local/share/ipython
+mkdir -p $SINIMAGE_DIR/.local/etc/jupyter
+mkdir -p $SINIMAGE_DIR/.local/share/jupyter
+mkdir -p $SINIMAGE_DIR/.local/share/matplotlib
+mkdir -p $SINIMAGE_DIR/.local/cache
+mkdir -p $SINIMAGE_DIR/.local/etc/code-server
+mkdir -p $SINIMAGE_DIR/zfn_storage/mannga
+# # Załadowanie modułu obsługi GPU (jeśli to wymagane na klastrze)
+modprobe nvidia_uvm || echo "Nie udało się załadować nvidia_uvm (może nie być potrzebne)"
+mkdir -p "$SINIMAGE_DIR/.local/run"
+chmod 700 "$SINIMAGE_DIR/.local/run"
+
+export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+rclone mount \
+    --daemon \
+    -vv \
+    --fast-list \
+    --stats=1h \
+    --checkers=100 \
+    --uid=1000 \
+    --dir-perms=0777 \
+    --gid=1000 \
+    --attr-timeout=1s \
+    --dir-cache-time=5m \
+    --poll-interval=1m0s \
+    --cache-db-purge \
+    --cache-dir=/tmp/rclone \
+    --vfs-cache-poll-interval=1m \
+    --vfs-cache-max-age=1h0m0s \
+    --vfs-cache-max-size=0 \
+    --vfs-cache-mode=writes \
+    --allow-non-empty \
+    --buffer-size=16M \
+    --max-read-ahead=128k \
+    --vfs-read-chunk-size=50K \
+    --vfs-read-chunk-size-limit=128M \
+    zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
+
+
+### 4. Uruchomienie kontenera Singularity
+singularity run \
+  --nv \
+  --no-home \
+  --env SINIMAGE_DIR="$SINIMAGE_DIR" \
+  --env CODE_SERVER_WORKSPACE="$SINIMAGE_DIR" \
+  --env XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  --env VSCODE_IPC_HOOK_CLI="" \
+  --bind "$SINIMAGE_DIR":"$SINIMAGE_DIR":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
+  --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
+  --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":rw \
+  --bind "$target_dir/code-server/.local/share/code-server":"$SINIMAGE_DIR/.local/share/code-server":rw \
+  --bind "$target_dir/code-server/settings.json":"$SINIMAGE_DIR/.local/share/code-server/User/settings.json":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --disable-telemetry "$SINIMAGE_DIR"
+
