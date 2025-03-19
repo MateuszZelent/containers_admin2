@@ -11,6 +11,9 @@ dist/
 downloads/
 eggs/
 .eggs/
+.env
+backend/.env
+backend/slurm_containers.db
 lib/
 lib64/
 parts/
@@ -19,7 +22,12 @@ var/
 *.egg-info/
 .installed.cfg
 *.egg
-.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+.backend/.env
+.backend/slurm_containers.db
 .venv
 venv/
 ENV/
