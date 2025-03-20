@@ -29,12 +29,15 @@ interface DashboardLayoutProps {
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
-
+  
+  // Sprawdź token przy każdym renderowaniu layoutu
   useEffect(() => {
-    if (!authApi.isAuthenticated()) {
-      router.push("/login");
+    const token = localStorage.getItem('auth_token');
+    if (!token) {
+      // Jeśli nie ma tokenu, przekieruj na stronę logowania
+      window.location.href = '/login';
     }
-  }, [router]);
+  }, []);
 
   return (
     <div className="min-h-screen bg-background">

@@ -11,16 +11,7 @@ import { Toaster } from "@/components/ui/sonner";
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (authApi.isAuthenticated()) {
-      redirect("/dashboard");
-    }
-    setIsLoading(false);
-  }, []);
 
-  if (isLoading) {
-    return null; // lub możesz tu wyświetlić loader
-  }
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40">

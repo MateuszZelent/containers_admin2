@@ -1,5 +1,6 @@
 # Backend Python
 __pycache__/
+bckend/alembic/versions/__pycache__
 *.py[cod]
 *$py.class
 *.so

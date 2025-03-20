@@ -43,10 +43,22 @@ export function NavUser({
   const router = useRouter()
 
   const handleLogout = () => {
-    // Clear authentication token/data from localStorage
-    localStorage.removeItem('authToken') // adjust key name as needed
-    // Redirect to login page
-    router.push('/login')
+    // Debuguj - sprawdź co dokładnie jest w localStorage przed usunięciem
+    console.log('Local Storage before logout:', { ...localStorage });
+    
+    // Użyj bezpośredniego dostępu do localStorage przez window
+    window.localStorage.removeItem('auth_token');
+    
+    // Sprawdź inne możliwe nazwy tokenu używane w aplikacji
+    window.localStorage.removeItem('token');
+    window.localStorage.removeItem('jwt');
+    window.localStorage.removeItem('accessToken');
+    
+    // Debuguj - sprawdź po usunięciu
+    console.log('Local Storage after removing tokens:', { ...localStorage });
+    
+    // Wymuś pełne przeładowanie strony, aby odświeżyć stan aplikacji
+    window.location.href = '/login';
   }
 
   return (
@@ -64,52 +76,43 @@ export function NavUser({
               </Avatar>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{user.name}</span>
-                <span className="text-muted-foreground truncate text-xs">
-                  {user.email}
-                </span>
+                <span className="truncate text-xs">{user.email}</span>
               </div>
-              <IconDotsVertical className="ml-auto size-4" />
+              {!isMobile && <IconDotsVertical size={16} />}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent
-            className="w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            side={isMobile ? "bottom" : "right"}
-            align="end"
-            sideOffset={4}
-          >
-            <DropdownMenuLabel className="p-0 font-normal">
-              <div className="flex items-center gap-2 px-1 py-1.5 text-left text-sm">
-                <Avatar className="h-8 w-8 rounded-lg">
+          <DropdownMenuContent align="start" className="w-60 rounded-lg p-1.5">
+            <DropdownMenuLabel>
+              <div className="flex items-center gap-3">
+                <Avatar className="h-10 w-10 rounded-lg">
                   <AvatarImage src={user.avatar} alt={user.name} />
                   <AvatarFallback className="rounded-lg">CN</AvatarFallback>
                 </Avatar>
-                <div className="grid flex-1 text-left text-sm leading-tight">
+                <div className="grid flex-1 gap-0.5">
                   <span className="truncate font-medium">{user.name}</span>
-                  <span className="text-muted-foreground truncate text-xs">
-                    {user.email}
-                  </span>
+                  <span className="truncate text-xs">{user.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                <IconUserCircle />
-                Account
+                <IconUserCircle className="mr-2 h-4 w-4" />
+                Konto
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <IconCreditCard />
-                Billing
+                <IconCreditCard className="mr-2 h-4 w-4" />
+                Ustawienia
               </DropdownMenuItem>
               <DropdownMenuItem>
-                <IconNotification />
-                Notifications
+                <IconNotification className="mr-2 h-4 w-4" />
+                Powiadomienia
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
             <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout />
-              Log out
+              <IconLogout className="mr-2 h-4 w-4" />
+              Wyloguj
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

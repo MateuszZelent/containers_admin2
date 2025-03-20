@@ -1,23 +1,22 @@
 "use client";
 
 import { useEffect } from "react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api-client";
 
-export default function Home() {
+export default function LogoutPage() {
+  const router = useRouter();
+
   useEffect(() => {
-    // Sprawdź stan przed przekierowaniem
-    const checkAuth = () => {
-      if (authApi.isAuthenticated()) {
-        window.location.href = "/dashboard";
-      } else {
-        window.location.href = "/login";
-      }
+    const performLogout = async () => {
+      await authApi.logout();
+      
+      // Wymuszamy pełne przeładowanie strony
+      window.location.href = '/login';
     };
     
-    // Użyj window.location.href zamiast router.push aby wymusić pełne odświeżenie strony
-    checkAuth();
-  }, []);
+    performLogout();
+  }, [router]);
 
   return (
     <div className="flex h-screen w-full items-center justify-center">
@@ -25,7 +24,7 @@ export default function Home() {
         <div className="mb-4">
           <div className="inline-block h-8 w-8 animate-spin rounded-full border-4 border-solid border-current border-r-transparent" />
         </div>
-        <p>Przekierowywanie...</p>
+        <p>Wylogowywanie...</p>
       </div>
     </div>
   );
