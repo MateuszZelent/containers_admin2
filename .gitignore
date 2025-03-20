@@ -32,7 +32,8 @@ var/
 venv/
 ENV/
 .pytest_cache/
-
+*.pyc
+*.sh
 # Database
 *.db
 *.sqlite3
@@ -90,3 +91,4 @@ htmlcov/
 backend/.env
 backend/slurm_containers.db
 backend/slurm_containers.db
+backend/__pycache__/main.cpython-310.pyc

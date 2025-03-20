@@ -5,6 +5,8 @@ from typing import Optional
 class UserBase(BaseModel):
     username: str
     email: Optional[EmailStr] = None
+    first_name: Optional[str] = None
+    last_name: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -13,11 +15,14 @@ class UserCreate(UserBase):
 
 class UserUpdate(UserBase):
     password: Optional[str] = None
+    username: Optional[str] = None
+    email: Optional[EmailStr] = None
 
 
 class UserInDBBase(UserBase):
     id: Optional[int] = None
     is_active: bool = True
+    is_superuser: Optional[bool] = False
 
     class Config:
         from_attributes = True

@@ -67,7 +67,9 @@ async def create_first_user():
         user_in = UserCreate(
             username="admin",
             email="admin@example.com",
-            password="adminpassword"
+            password="adminpassword",
+            first_name="Admin",
+            last_name="User"
         )
         UserService.create(db=db, user_in=user_in)
         logger.info("[green]Admin user created successfully[/green]")
