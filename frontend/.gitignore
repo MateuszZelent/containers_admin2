@@ -9,7 +9,7 @@
 !.yarn/plugins
 !.yarn/releases
 !.yarn/versions
-
+slurm_containers.db
 # testing
 /coverage
 

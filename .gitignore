@@ -89,3 +89,4 @@ Thumbs.db
 htmlcov/
 backend/.env
 backend/slurm_containers.db
+backend/slurm_containers.db
