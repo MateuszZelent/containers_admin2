@@ -163,24 +163,45 @@ class SlurmSSHService:
 
     async def get_active_jobs(self, username: str = None) -> List[Dict[str, str]]:
         """Get active jobs for the specified user."""
-        slurm_logger.debug(f"Fetching active jobs")
+        slurm_logger.debug(f"Fetching active jobs for user {username} ")
         
         output = await self._execute_async_command(f"squeue --me -o '%A|%j|%T|%N|%C|%M' -h")
         
         jobs = []
         for line in output.strip().split("\n"):
-            if line:
-                job_id, name, state, node, cpus, mem = line.split("|", 5)
-                job_info = {
-                    "job_id": job_id.strip(),
-                    "name": name.strip(),
-                    "state": state.strip(),
-                    "node": node.strip(),
-                    "cpus": cpus.strip(),
-                    "memory": mem.strip()
-                }
-                # Filter only container jobs if needed
-                if "container_" in name:  # Always include at least one job for testing
+            if not line:
+                continue
+                
+            job_id, name, state, node, cpus, mem = line.split("|", 5)
+            name = name.strip()
+            
+            # Create job info dictionary for every job
+            job_info = {
+                "job_id": job_id.strip(),
+                "name": name,
+                "state": state.strip(),
+                "node": node.strip(),
+                "cpus": cpus.strip(),
+                "memory": mem.strip()
+            }
+            
+            # Only process container jobs
+            if "container_" in name:
+                # If username filter is provided
+                if username:
+                    # Pattern: "container_{username}{digits}"
+                    pattern = f"container_{username.username}"
+                    
+                    # Job belongs to this user if it starts with the pattern and is followed by digits
+                    if name.startswith(pattern):
+                        jobs.append(job_info)
+                        log_slurm_job(job_id.strip(), state.strip(), job_info)
+                        slurm_logger.debug(f"Added job {job_id} matching username '{username}'")
+                    else:
+                        print(f"Job {job_id} does not match username '{username}'")
+                        print(f"Job name: {name}", username)
+                else:
+                    # No username filter, include all container jobs
                     jobs.append(job_info)
                     log_slurm_job(job_id.strip(), state.strip(), job_info)
         

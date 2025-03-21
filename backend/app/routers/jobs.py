@@ -43,7 +43,7 @@ async def get_jobs(
 
     # Get current SLURM status
     slurm_service = SlurmSSHService()
-    active_jobs = await slurm_service.get_active_jobs()
+    active_jobs = await slurm_service.get_active_jobs(username=current_user)
 
     if active_jobs:
         for slurm_job in active_jobs:
@@ -100,14 +100,15 @@ async def get_active_jobs(
         job_id = job_info["job_id"]
         if job_id in db_jobs_map:
             db_job = db_jobs_map[job_id]
-            enhanced_jobs.append({
-                **job_info,
-                "name": db_job.job_name,
-                "template": db_job.template_name,
-                "created_at": db_job.created_at.isoformat(),
-                "updated_at": db_job.updated_at.isoformat() if db_job.updated_at else None,
-                "monitoring_active": True
-            })
+            if not current_user.username or job_info["name"].strip().startswith(f"{current_user.username}_"):
+                enhanced_jobs.append({
+                    **job_info,
+                    "name": db_job.job_name,
+                    "template": db_job.template_name,
+                    "created_at": db_job.created_at.isoformat(),
+                    "updated_at": db_job.updated_at.isoformat() if db_job.updated_at else None,
+                    "monitoring_active": True
+                })
     
     return enhanced_jobs
 
