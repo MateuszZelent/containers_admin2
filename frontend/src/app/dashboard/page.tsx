@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { jobsApi } from "@/lib/api-client";
-import { Plus, RefreshCcw, Code2 } from "lucide-react";
+import { Plus, RefreshCcw, Code2, Settings } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -130,6 +130,12 @@ export default function DashboardPage() {
             <Button size="sm">
               <Plus className="h-4 w-4 mr-2" />
               Nowe zadanie
+            </Button>
+          </Link>
+          <Link href="/dashboard/settings">
+            <Button variant="outline" size="sm">
+              <Settings className="h-4 w-4 mr-2" />
+              Ustawienia
             </Button>
           </Link>
         </div>

@@ -1,37 +1,51 @@
 "use client"
 
-import { IconCirclePlusFilled, IconMail, type Icon } from "@tabler/icons-react"
+import { usePathname } from "next/navigation"
+import Link from "next/link"
 
-import { Button } from "@/registry/new-york-v4/ui/button"
 import {
   SidebarGroup,
   SidebarGroupContent,
   SidebarMenu,
-  SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuButton,
 } from "@/registry/new-york-v4/ui/sidebar"
+
+interface NavItemProps {
+  title: string
+  url: string
+  icon: any
+  isActive?: boolean
+}
 
 export function NavMain({
   items,
+  className,
 }: {
-  items: {
-    title: string
-    url: string
-    icon?: Icon
-  }[]
+  items: NavItemProps[]
+  className?: string
 }) {
+  const pathname = usePathname()
+
   return (
-    <SidebarGroup>
-      <SidebarGroupContent className="flex flex-col gap-2">
+    <SidebarGroup className={className}>
+      <SidebarGroupContent>
         <SidebarMenu>
-          {items.map((item) => (
-            <SidebarMenuItem key={item.title}>
-              <SidebarMenuButton tooltip={item.title}>
-                {item.icon && <item.icon />}
-                <span>{item.title}</span>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+          {items.map((item) => {
+            const isActive = pathname === item.url || (item.url !== "/dashboard" && pathname.startsWith(item.url))
+            
+            return (
+              <SidebarMenuItem key={item.title}>
+                {/* Użycie komponentu Link do poprawnej nawigacji */}
+                <Link href={item.url} className="block w-full">
+                  <SidebarMenuButton isActive={isActive}>
+                    {item.icon && <item.icon />}
+                    {item.title}
+                  </SidebarMenuButton>
+                </Link>
+              </SidebarMenuItem>
+            )
+          })}
         </SidebarMenu>
       </SidebarGroupContent>
     </SidebarGroup>

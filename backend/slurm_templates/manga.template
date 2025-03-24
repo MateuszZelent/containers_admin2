@@ -15,13 +15,25 @@ localusername="{loggin_name}"
 USERNAME="kkingstoun"
 SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
 export SINIMAGE_DIR
+NEW_PORT={NEW_PORT}
+NEW_PASSWORD={NEW_PASSWORD}
 
-if [ "$localusername" == "{loggin_name}"]; then
+if [ "$localusername" == "{loggin_name}" ]; then
     echo "Zmienna localusername jest ustawiona na: $localusername"
 else
     echo "Zmienna localusername nie jest poprawnie ustawiona!"
 fi
 target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
+CONFIG_FILE="$target_dir/code-server/config.yaml"
+
+echo "Zmienna target_dir jest ustawiona na: $target_dir"
+echo "Zmienna SINIMAGE_DIR jest ustawiona na: $SINIMAGE_DIR"
+echo "Zmienna USERNAME jest ustawiona na: $USERNAME"
+echo "Zmienna localusername jest ustawiona na: $localusername"
+echo "Zmienna XDG_RUNTIME_DIR jest ustawiona na: $XDG_RUNTIME_DIR"
+echo "Zmienna NEW_PORT jest ustawiona na: $NEW_PORT"
+echo "Zmienna NEW_PASSWORD jest ustawiona na: $NEW_PASSWORD"
+echo "Zmienna CONFIG_FILE jest ustawiona na: $CONFIG_FILE"
 
 ### 2. Tworzenie folderu i kopiowanie wzorcowej zawartości
 if [ -d "$target_dir" ] && [ "$(ls -A $target_dir)" ]; then
@@ -33,9 +45,6 @@ else
 fi
 
 # # Definiowanie nowego portu i hasła
-NEW_PORT={NEW_PORT}
-NEW_PASSWORD="{NEW_PASSWORD}"
-CONFIG_FILE="$target_dir/code-server/config.yaml"
 
 if [ -z "$USERNAME" ]; then
     echo "Błąd: Zmienna USERNAME nie została ustawiona!"
@@ -53,7 +62,7 @@ if [ ! -f "$CONFIG_FILE" ]; then
     mkdir -p "$(dirname "$CONFIG_FILE")" || { echo "Błąd tworzenia katalogu dla $CONFIG_FILE"; exit 1; }
     cat <<EOL > "$CONFIG_FILE"
 bind-addr: 0.0.0.0:$NEW_PORT
-password: $NEW_PASSWORD
+password: abecadlo1234
 auth: password
 EOL
 else
@@ -61,6 +70,7 @@ else
     sed -i "s|^bind-addr: .*|bind-addr: 0.0.0.0:$NEW_PORT|" "$CONFIG_FILE"
     sed -i "s|^password: .*|password: $NEW_PASSWORD|" "$CONFIG_FILE"
     sed -i "s|^auth: .*|auth: password|" "$CONFIG_FILE"
+    echo "Zaktualizowano plik $CONFIG_FILE."
 fi
 
 
@@ -86,50 +96,59 @@ export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-rclone mount \
-    --daemon \
-    -vv \
-    --fast-list \
-    --stats=1h \
-    --checkers=100 \
-    --uid=1000 \
-    --dir-perms=0777 \
-    --gid=1000 \
-    --attr-timeout=1s \
-    --dir-cache-time=5m \
-    --poll-interval=1m0s \
-    --cache-db-purge \
-    --cache-dir=/tmp/rclone \
-    --vfs-cache-poll-interval=1m \
-    --vfs-cache-max-age=1h0m0s \
-    --vfs-cache-max-size=0 \
-    --vfs-cache-mode=writes \
-    --allow-non-empty \
-    --buffer-size=16M \
-    --max-read-ahead=128k \
-    --vfs-read-chunk-size=50K \
-    --vfs-read-chunk-size-limit=128M \
-    zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
+# rclone mount \
+#     --daemon \
+#     -vv \
+#     --fast-list \
+#     --stats=1h \
+#     --checkers=100 \
+#     --uid=1000 \
+#     --dir-perms=0777 \
+#     --gid=1000 \
+#     --attr-timeout=1s \
+#     --dir-cache-time=5m \
+#     --poll-interval=1m0s \
+#     --cache-db-purge \
+#     --cache-dir=/tmp/rclone \
+#     --vfs-cache-poll-interval=1m \
+#     --vfs-cache-max-age=1h0m0s \
+#     --vfs-cache-max-size=0 \
+#     --vfs-cache-mode=writes \
+#     --allow-non-empty \
+#     --buffer-size=16M \
+#     --max-read-ahead=128k \
+#     --vfs-read-chunk-size=50K \
+#     --vfs-read-chunk-size-limit=128M \
+#     zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
 
 
+
+if [ -f "$CONFIG_FILE" ]; then
+    echo "Displaying contents of $CONFIG_FILE:"
+    cat "$CONFIG_FILE"
+else
+    echo "File $CONFIG_FILE does not exist!"
+fi
+export PASSWORD="$NEW_PASSWORD"
+echo $SINIMAGE_DIR
 ### 4. Uruchomienie kontenera Singularity
 singularity run \
   --nv \
   --no-home \
-  --env SINIMAGE_DIR="$SINIMAGE_DIR" \
-  --env CODE_SERVER_WORKSPACE="$SINIMAGE_DIR" \
-  --env XDG_RUNTIME_DIR="$XDG_RUNTIME_DIR" \
+  --env SINIMAGE_DIR=$SINIMAGE_DIR \
+  --env CODE_SERVER_WORKSPACE=$SINIMAGE_DIR \
+  --env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
   --env VSCODE_IPC_HOOK_CLI="" \
-  --bind "$SINIMAGE_DIR":"$SINIMAGE_DIR":rw \
+  --env CODE_SERVER_CONFIG=$CONFIG_FILE \
+  --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
+  --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
   --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
   --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
   --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
   --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
-  --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":rw \
   --bind "$target_dir/code-server/.local/share/code-server":"$SINIMAGE_DIR/.local/share/code-server":rw \
   --bind "$target_dir/code-server/settings.json":"$SINIMAGE_DIR/.local/share/code-server/User/settings.json":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --disable-telemetry "$SINIMAGE_DIR"
-
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}

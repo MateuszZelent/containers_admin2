@@ -286,11 +286,13 @@ class JobService:
         port = self._find_free_port()
         
         # Generuj hasło dla VS Code
-        import secrets
-        import string
-        password_chars = string.ascii_letters + string.digits
-        password = ''.join(secrets.choice(password_chars) for _ in range(12))
-        
+        if user and user.code_server_password:
+            
+            password = user.code_server_password
+        else:
+            # Default or placeholder password
+            password = "defaultpassword"
+            
         # Przygotowanie parametrów do wypełnienia szablonu
         slurm_service = SlurmSSHService()
         params = {

@@ -24,9 +24,9 @@ import { jobsApi } from "@/lib/api-client";
 
 const formSchema = z.object({
   job_name: z.string().min(3, "Nazwa musi mieć co najmniej 3 znaki").max(50, "Nazwa nie może przekraczać 50 znaków"),
-  template_name: z.string().min(1, "Wybierz szablon"),
-  num_cpus: z.coerce.number().int().min(1, "Minimum 1 CPU").max(128, "Maksimum 128 CPU"),
-  memory_gb: z.coerce.number().int().min(1, "Minimum 1 GB").max(1024, "Maksimum 1024 GB"),
+  template_name: z.string().min(2, "Wybierz szablon"),
+  num_cpus: z.coerce.number().int().min(10, "Minimum 1 CPU").max(128, "Maksimum 128 CPU"),
+  memory_gb: z.coerce.number().int().min(24, "Minimum 1 GB").max(1024, "Maksimum 1024 GB"),
   num_gpus: z.coerce.number().int().min(0, "Minimum 0 GPU").max(16, "Maksimum 16 GPU"),
   time_limit: z.string().min(5, "Określ limit czasu (np. 24:00:00)"),
   preview: z.boolean().optional().default(false)
@@ -43,8 +43,8 @@ export default function SubmitJobPage() {
     defaultValues: {
       job_name: "",
       template_name: "",
-      num_cpus: 1,
-      memory_gb: 1,
+      num_cpus: 10,
+      memory_gb: 24,
       num_gpus: 0,
       time_limit: "24:00:00",
       preview: false

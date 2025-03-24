@@ -17,12 +17,14 @@ class UserUpdate(UserBase):
     password: Optional[str] = None
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+    code_server_password: Optional[str] = None  # Added this field
 
 
 class UserInDBBase(UserBase):
     id: Optional[int] = None
     is_active: bool = True
     is_superuser: Optional[bool] = False
+    code_server_password: Optional[str] = None  # Added this field
 
     class Config:
         from_attributes = True

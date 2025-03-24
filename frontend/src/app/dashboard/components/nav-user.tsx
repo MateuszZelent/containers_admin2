@@ -97,16 +97,8 @@ export function NavUser({
             <DropdownMenuSeparator />
             <DropdownMenuGroup>
               <DropdownMenuItem>
-                <IconUserCircle className="mr-2 h-4 w-4" />
-                Konto
-              </DropdownMenuItem>
-              <DropdownMenuItem>
                 <IconCreditCard className="mr-2 h-4 w-4" />
                 Ustawienia
-              </DropdownMenuItem>
-              <DropdownMenuItem>
-                <IconNotification className="mr-2 h-4 w-4" />
-                Powiadomienia
               </DropdownMenuItem>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />

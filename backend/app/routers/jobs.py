@@ -151,6 +151,9 @@ async def create_job(
             "partition": getattr(job_in, "partition", "proxima"),
             "num_nodes": getattr(job_in, "num_nodes", 1),
             "tasks_per_node": getattr(job_in, "tasks_per_node", 1),
+            "port": getattr(job_in, "port", "8666"),  # Add port to the template parameters
+            "code_server_password": getattr(job_in, "password", "Magnonics"),
+      
         }
         script_content = await slurm_service.fill_template(job_in.template_name, params)
         return JobPreview(script=script_content)

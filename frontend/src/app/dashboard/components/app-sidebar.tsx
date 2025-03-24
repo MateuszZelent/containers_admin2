@@ -18,6 +18,7 @@ import {
   IconSettings,
   IconUsers,
 } from "@tabler/icons-react"
+import { Cog } from "lucide-react"; // Import ikony ustawień
 
 import {
   Sidebar,
@@ -42,10 +43,14 @@ const data = {
   navMain: [
     {
       title: "Dashboard",
-      url: "#",
+      url: "/dashboard",
       icon: IconDashboard,
     },
-
+    {
+      title: "Ustawienia",
+      url: "/dashboard/settings",
+      icon: Cog,
+    },
   ],
   navClouds: [
     {

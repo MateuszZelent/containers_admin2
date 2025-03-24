@@ -20,7 +20,7 @@ class User(Base):
     jobs = relationship("Job", back_populates="owner")
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-
+    code_server_password = Column(String, nullable=True)
 
 class Job(Base):
     __tablename__ = "jobs"
@@ -38,8 +38,8 @@ class Job(Base):
     partition = Column(String, default="proxima")
     num_nodes = Column(Integer, default=1)
     tasks_per_node = Column(Integer, default=1)
-    num_cpus = Column(Integer, default=1)
-    memory_gb = Column(Integer, default=1)
+    num_cpus = Column(Integer, default=5)
+    memory_gb = Column(Integer, default=24)
     num_gpus = Column(Integer, default=0)
     time_limit = Column(String, default="24:00:00")
     script = Column(Text, default="")  # Store the generated script for reference

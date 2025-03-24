@@ -387,7 +387,7 @@ class SlurmSSHService:
         # Handle specific bash script cases
         if "if [ \"$localusername\" == {loggin_name}" in template_content:
             old_if = "if [ \"$localusername\" == {loggin_name}"
-            new_if = f"if [ \"$localusername\" == \"{params.get('loggin_name', '')}\""
+            new_if = f"if [ \"$localusername\" == \"{params.get('loggin_name','')}\""
             template_content = template_content.replace(old_if, new_if)
         
         # Check for any remaining placeholders that match our format (excluding bash variables)

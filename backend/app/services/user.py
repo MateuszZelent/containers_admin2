@@ -49,7 +49,7 @@ class UserService:
             hashed_password = get_password_hash(update_data["password"])
             del update_data["password"]
             update_data["hashed_password"] = hashed_password
-
+   
         for field, value in update_data.items():
             setattr(user, field, value)
 
