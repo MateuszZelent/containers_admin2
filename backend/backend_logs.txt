@@ -1,0 +1,1 @@
+{"level": "INFO", "time": "2025-03-24 21:26:58,341", "message": "Starting application..."}

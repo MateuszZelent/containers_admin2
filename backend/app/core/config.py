@@ -1,5 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List, Optional
+import os
 
 
 class Settings(BaseSettings):
@@ -41,7 +42,9 @@ class Settings(BaseSettings):
     ]
     
     # Database
-    DATABASE_URL: str = "sqlite:///./slurm_containers.db"
+    DATABASE_URL: str = os.getenv(
+        "DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/containers_admin"
+    )
     
     class Config:
         env_file = ".env"

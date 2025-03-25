@@ -1,10 +1,10 @@
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel
 from typing import Optional
 
-
+# Używaj wbudowanego str zamiast EmailStr
 class UserBase(BaseModel):
     username: str
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None  # Zmienione z EmailStr na str
     first_name: Optional[str] = None
     last_name: Optional[str] = None
 
@@ -16,7 +16,7 @@ class UserCreate(UserBase):
 class UserUpdate(UserBase):
     password: Optional[str] = None
     username: Optional[str] = None
-    email: Optional[EmailStr] = None
+    email: Optional[str] = None
     code_server_password: Optional[str] = None  # Added this field
 
 

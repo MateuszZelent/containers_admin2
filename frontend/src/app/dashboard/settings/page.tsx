@@ -110,10 +110,9 @@ const fetchSettings = async () => {
       await userApi.updateCurrentUser({ 
         code_server_password: values.code_server_password 
       })
-      setCurrentPassword(values.code_server_password)
       setIsEditing(false)
       toast.success("Hasło zostało zaktualizowane")
-      setCurrentPassword(updatedPassword)
+      setCurrentPassword(values.code_server_password)
     } catch (error: any) {
       toast.error (
         error.response?.data?.detail || "Wystąpił błąd podczas aktualizacji hasła"

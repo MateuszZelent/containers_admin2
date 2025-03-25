@@ -1,0 +1,85 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@db:5432/containers_admin
+      - SECRET_KEY=zmientomnabardziejzlozonehaslo
+      - LOG_LEVEL=DEBUG  # Dodaj poziom logowania
+    depends_on:
+      db:
+        condition: service_healthy  # Czekaj aż baza danych będzie healthy
+    networks:
+      - app-network
+    volumes:
+      - ./backend:/app
+    restart: unless-stopped
+    # Dodaj healthcheck
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
+    # Dodaj komendę z większą ilością logów
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --log-level debug
+    # Dodaj diagnostyczne narzędzia
+    cap_add:
+      - NET_ADMIN
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    ports:
+      - "3001:3000"
+    environment:
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - app-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    restart: unless-stopped
+
+  db:
+    image: postgres:13
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=containers_admin
+      - POSTGRES_HOST_AUTH_METHOD=trust
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./pg_hba.conf:/etc/postgresql/pg_hba.conf:ro
+    networks:
+      - app-network
+    restart: unless-stopped
+    command: 
+      - "postgres"
+      - "-c"
+      - "listen_addresses=*"
+    # Dodaj healthcheck dla bazy danych
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

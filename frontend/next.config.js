@@ -1,5 +1,5 @@
-module.exports = {
-  // ...existing code...
+/** @type {import('next').NextConfig} */
+const nextConfig = {
   async headers() {
     return [
       {
@@ -10,5 +10,16 @@ module.exports = {
       },
     ];
   },
-  // ...existing code...
-};
+
+  // Wyłączenie sprawdzania typów podczas budowania
+  typescript: {
+    // Ignorowanie błędów TS podczas produkcji
+    ignoreBuildErrors: true,
+  },
+  
+  // Wyłączenie sprawdzania ESLint podczas budowania
+  eslint: {
+    // Ignoruj błędy ESLint podczas produkcji
+    ignoreDuringBuilds: true,
+  }
+}

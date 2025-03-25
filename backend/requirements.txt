@@ -15,3 +15,10 @@ rich==13.7.0
 httpx==0.25.0
 caddy_api_client==0.2.4
 aiohttp>=3.8.0
+
+# Dodaj sterownik PostgreSQL
+psycopg2-binary==2.9.6
+
+# Dodaj na końcu istniejącego pliku
+email-validator>=2.0.0
+psycopg2-binary>=2.9.5

@@ -9,7 +9,7 @@ import { Plus, RefreshCcw, Code2, Settings } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
-import { Job } from "../../../lib/types";
+import { Job } from "@/lib/types";
 
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
