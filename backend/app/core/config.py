@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from typing import List, Optional
-
+import os
 
 class Settings(BaseSettings):
     # Debug settings
@@ -23,11 +23,12 @@ class Settings(BaseSettings):
     SLURM_PORT: int = 22
     SLURM_USER: Optional[str] = "kkingstoun"
     SLURM_PASSWORD: Optional[str] = None
-    SLURM_KEY_FILE: Optional[str] = "~/.ssh/id_rsa"
+    SLURM_KEY_FILE: Optional[str] = "/root/.ssh/id_rsa"  # Ścieżka w kontenerze
     
     # Container settings
-    CONTAINER_OUTPUT_DIR: str = "/mnt/storage_3/home/kkingstoun/containers"
-    TEMPLATE_DIR: str = "/home/kkingstoun/git/containers_admin2/backend/slurm_templates"
+    # Używaj wartości z .env lub zmiennych środowiskowych, z odpowiednimi wartościami domyślnymi
+    CONTAINER_OUTPUT_DIR: str = os.getenv("CONTAINER_OUTPUT_DIR", "/mnt/storage_3/home/kkingstoun/containers/run")
+    TEMPLATE_DIR: str = os.getenv("TEMPLATE_DIR", "/app/slurm_templates")
     
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
@@ -41,11 +42,10 @@ class Settings(BaseSettings):
     ]
     
     # Database
-    DATABASE_URL: str = "sqlite:///./slurm_containers.db"
+    DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/containers_admin"
     
     class Config:
         env_file = ".env"
         case_sensitive = True
-
 
 settings = Settings()

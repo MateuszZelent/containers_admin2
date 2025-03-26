@@ -1,0 +1,65 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: containers_admin_backend
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/containers_admin
+      - SECRET_KEY=zmientomnabardziejzlozonehaslo
+      - LOG_LEVEL=DEBUG
+      - SSH_KEY_PATH=/root/.ssh/id_rsa
+      # Konfiguracja ścieżek dla kontenerów
+      - CONTAINER_OUTPUT_DIR=/mnt/storage_3/home/kkingstoun/containers/run
+      - TEMPLATE_DIR=/app/slurm_templates
+    volumes:
+      - ./backend:/app
+      - /app/__pycache__
+      # Montowanie klucza SSH z hosta do kontenera
+      - ~/.ssh/id_rsa:/root/.ssh/id_rsa:ro
+      - ~/.ssh/known_hosts:/root/.ssh/known_hosts:ro
+      # Montowanie ścieżki do plików kontenerów
+      - /mnt/storage_3:/mnt/storage_3:ro
+    restart: unless-stopped
+    depends_on:
+      - postgres
+    networks:
+      - postgres_network
+      - app_network
+
+  postgres:
+    image: postgres:13
+    container_name: containers_admin_postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=containers_admin
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init-scripts:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+    networks:
+      - postgres_network
+
+volumes:
+  postgres_data:
+    name: containers_admin_postgres_data
+
+networks:
+  postgres_network:
+    name: containers_admin_network
+    
+  app_network:
+    driver: bridge

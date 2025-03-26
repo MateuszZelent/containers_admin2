@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -50,8 +51,21 @@ def read_root():
     return {"message": "Welcome to the SLURM Container Manager API"}
 
 @app.get("/health")
-def health_check():
-    return {"status": "healthy"}
+async def health_check(db: Session = Depends(get_db)):
+    try:
+        # Sprawdź połączenie z bazą danych
+        result = db.execute(text("SELECT 1")).scalar()
+        return {
+            "status": "ok", 
+            "database_connection": True,
+            "database_result": result
+        }
+    except Exception as e:
+        return {
+            "status": "error", 
+            "database_connection": False, 
+            "error": str(e)
+        }
 
 # Create a first user if no users exist (useful for first run)
 @app.on_event("startup")

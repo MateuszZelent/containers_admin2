@@ -8,20 +8,19 @@ Base = declarative_base()
 
 class User(Base):
     __tablename__ = "users"
-
     id = Column(Integer, primary_key=True, index=True)
-    username = Column(String, unique=True, index=True)
-    first_name = Column(String, nullable=True)
-    last_name = Column(String, nullable=True)
-    hashed_password = Column(String)
-    email = Column(String, unique=True, index=True)
+    username = Column(String(50), unique=True, index=True)
+    email = Column(String(100), unique=True, index=True, nullable=True)
+    first_name = Column(String(50), nullable=True)
+    last_name = Column(String(50), nullable=True)
+    hashed_password = Column(String(255))
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
-    jobs = relationship("Job", back_populates="owner")
+    code_server_password = Column(String(255), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now())
-    code_server_password = Column(String, nullable=True)
-
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    jobs = relationship("Job", back_populates="owner")
+    
 class Job(Base):
     __tablename__ = "jobs"
 
@@ -33,6 +32,7 @@ class Job(Base):
     node = Column(String, nullable=True)  # Node where the job is running
     port = Column(Integer, nullable=True)  # Port for the container
     password = Column(String, nullable=True)  # Password for code-server
+    owner = relationship("User", back_populates="jobs")
     
     # SLURM job parameters
     partition = Column(String, default="proxima")
