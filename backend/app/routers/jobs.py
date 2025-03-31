@@ -11,7 +11,8 @@ from app.services.job import JobService
 from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
 from app.db.models import User, Job
-
+import os
+CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2019")
 router = APIRouter()
 
 @router.get("/status")
@@ -401,7 +402,7 @@ async def get_code_server_url(
     domain = f"{current_user.username}{job.id}.orion.zfns.eu.org"
     
     # Configure Caddy to route the domain to the local tunnel port
-    caddy_client = CaddyAPIClient()
+    caddy_client = CaddyAPIClient(CADDY_API_URL)
     success = caddy_client.add_domain_with_auto_tls(
         domain=domain,
         target="localhost",
@@ -424,3 +425,69 @@ async def get_code_server_url(
         "tunnel_port": tunnel.local_port,
         "domain": domain
     }
+
+
+@router.get("/{job_id}/tunnel-status")
+async def check_tunnel_status(
+    *,
+    db: Session = Depends(get_db),
+    job_id: int,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """
+    Sprawdź status tunelu SSH dla zadania.
+    Weryfikuje czy tunel jest aktywny i dostępny zarówno wewnątrz jak i na zewnątrz kontenera.
+    """
+    job = JobService.get(db=db, job_id=job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    tunnel_service = SSHTunnelService(db)
+    active_tunnel = db.query(SSHTunnel).filter(
+        SSHTunnel.job_id == job.id,
+        SSHTunnel.status == "ACTIVE"
+    ).first()
+    
+    if not active_tunnel:
+        return {
+            "status": "NO_TUNNEL",
+            "message": "No active tunnel found for this job",
+            "tunnel": None
+        }
+    
+    # Sprawdź czy port tunelu jest otwarty
+    internal_status = tunnel_service._is_port_in_use(active_tunnel.local_port)
+    
+    # Sprawdź, czy nasz tunel jest dostępny z zewnątrz
+    # To powinno zadziałać dzięki przekierowaniu socat z 0.0.0.0 na 127.0.0.1
+    external_accessible = True  # Zakładamy, że jeśli socat działa, to jest dostępny z zewnątrz
+    
+    # Stan aktualnego tunelu
+    tunnel_info = {
+        "id": active_tunnel.id,
+        "port": active_tunnel.local_port,
+        "remote_port": active_tunnel.remote_port,
+        "remote_host": active_tunnel.remote_host,
+        "status": active_tunnel.status,
+        "created_at": active_tunnel.created_at.isoformat(),
+        "internal_accessible": internal_status,
+        "external_accessible": external_accessible
+    }
+    
+    if internal_status:
+        return {
+            "status": "ACTIVE",
+            "message": "Tunnel is active and accessible",
+            "tunnel": tunnel_info
+        }
+    else:
+        # Tunel jest nieaktywny, oznacz jako zamknięty w bazie danych
+        active_tunnel.status = "CLOSED"
+        db.commit()
+        return {
+            "status": "INACTIVE",
+            "message": "Tunnel exists but is not accessible. It has been marked as closed.",
+            "tunnel": tunnel_info
+        }

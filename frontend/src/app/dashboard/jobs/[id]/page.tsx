@@ -3,11 +3,12 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { RefreshCcw, ArrowLeft, Link2 } from "lucide-react";
+import { RefreshCcw, ArrowLeft, Link2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { jobsApi } from "@/lib/api-client";
+import { Badge } from "@/components/ui/badge";
 
 interface JobDetails {
   id: number;
@@ -37,6 +38,21 @@ interface SSHTunnel {
   created_at: string;
 }
 
+interface TunnelStatus {
+  status: string;
+  message: string;
+  tunnel?: {
+    id: number;
+    port: number;
+    remote_port: number;
+    remote_host: string;
+    status: string;
+    created_at: string;
+    internal_accessible: boolean;
+    external_accessible: boolean;
+  }
+}
+
 export default function JobDetailPage({ params }: { params: { id: string } }) {
   const router = useRouter();
   const jobId = parseInt(params.id);
@@ -44,8 +60,10 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const [job, setJob] = useState<JobDetails | null>(null);
   const [jobStatus, setJobStatus] = useState<any | null>(null);
   const [tunnels, setTunnels] = useState<SSHTunnel[]>([]);
+  const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [codeServerURL, setCodeServerURL] = useState<string | null>(null);
 
   // Pobierz szczegóły zadania i aktualne tunele SSH
   useEffect(() => {
@@ -67,6 +85,16 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       try {
         const tunnelsResponse = await jobsApi.getJobTunnels(jobId);
         setTunnels(tunnelsResponse.data);
+
+        // Jeśli istnieją tunele, sprawdź ich status
+        if (tunnelsResponse.data.length > 0) {
+          try {
+            const tunnelStatusResponse = await jobsApi.checkTunnelStatus(jobId);
+            setTunnelStatus(tunnelStatusResponse.data);
+          } catch (error) {
+            console.error("Błąd podczas sprawdzania statusu tunelu:", error);
+          }
+        }
       } catch (error) {
         console.error("Błąd podczas pobierania tuneli SSH:", error);
         setTunnels([]);
@@ -108,6 +136,20 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     } catch (error: any) {
       toast.error(
         error.response?.data?.detail || "Nie udało się zamknąć tunelu SSH"
+      );
+      console.error(error);
+    }
+  };
+
+  // Pobierz URL do Code Server
+  const getCodeServerURL = async () => {
+    try {
+      const response = await jobsApi.getCodeServerUrl(jobId);
+      setCodeServerURL(response.data.url);
+      toast.success("Adres do Code Server został wygenerowany");
+    } catch (error: any) {
+      toast.error(
+        error.response?.data?.detail || "Nie udało się uzyskać dostępu do Code Server"
       );
       console.error(error);
     }
@@ -268,9 +310,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
-            <CardTitle>Tunele SSH</CardTitle>
+            <CardTitle>Tunele SSH i przekierowania portów</CardTitle>
             <CardDescription>
-              Zarządzaj tunelami SSH do połączenia z kontenerem
+              Zarządzaj tunelami SSH i przekierowaniami portów do połączenia z kontenerem
             </CardDescription>
           </div>
           <Button 
@@ -289,52 +331,135 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                 : "Brak aktywnych tuneli SSH. Kliknij 'Utwórz tunel', aby połączyć się z kontenerem."}
             </p>
           ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr className="border-b">
-                    <th className="text-left py-2">ID</th>
-                    <th className="text-left py-2">Port lokalny</th>
-                    <th className="text-left py-2">Port zdalny</th>
-                    <th className="text-left py-2">Host zdalny</th>
-                    <th className="text-left py-2">Status</th>
-                    <th className="text-left py-2">Utworzono</th>
-                    <th className="text-left py-2">Akcje</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tunnels.map((tunnel) => (
-                    <tr key={tunnel.id} className="border-b hover:bg-muted/50">
-                      <td className="py-2">{tunnel.id}</td>
-                      <td className="py-2">{tunnel.local_port}</td>
-                      <td className="py-2">{tunnel.remote_port}</td>
-                      <td className="py-2">{tunnel.remote_host}</td>
-                      <td className="py-2">
-                        <span className={`inline-block px-2 py-1 text-xs rounded-full 
-                          ${tunnel.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
-                          {tunnel.status}
-                        </span>
-                      </td>
-                      <td className="py-2">{formatDate(tunnel.created_at)}</td>
-                      <td className="py-2">
-                        <Button 
-                          variant="outline" 
-                          size="sm" 
-                          onClick={() => closeTunnel(tunnel.id)}
-                        >
-                          Zamknij
-                        </Button>
-                      </td>
+            <div>
+              {tunnelStatus && (
+                <div className="mb-4 p-4 rounded-md bg-muted">
+                  <h4 className="font-medium mb-2">Status tunelu</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center gap-2">
+                      <span>Stan:</span>
+                      <Badge variant={tunnelStatus.status === 'ACTIVE' ? 'success' : 'destructive'}>
+                        {tunnelStatus.status === 'ACTIVE' ? 'Aktywny' : 'Nieaktywny'}
+                      </Badge>
+                    </div>
+                    <div>
+                      <span>Komunikat: {tunnelStatus.message}</span>
+                    </div>
+                    {tunnelStatus.tunnel && (
+                      <>
+                        <div className="flex items-center gap-2">
+                          <span>Dostępny w kontenerze:</span>
+                          <Badge variant={tunnelStatus.tunnel.internal_accessible ? 'success' : 'destructive'}>
+                            {tunnelStatus.tunnel.internal_accessible ? 'Tak' : 'Nie'}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span>Dostępny na zewnątrz kontenera:</span>
+                          <Badge variant={tunnelStatus.tunnel.external_accessible ? 'success' : 'destructive'}>
+                            {tunnelStatus.tunnel.external_accessible ? 'Tak' : 'Nie'}
+                          </Badge>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse">
+                  <thead>
+                    <tr className="border-b">
+                      <th className="text-left py-2">ID</th>
+                      <th className="text-left py-2">Port zewnętrzny</th>
+                      <th className="text-left py-2">Port wewnętrzny</th>
+                      <th className="text-left py-2">Host zdalny</th>
+                      <th className="text-left py-2">Status</th>
+                      <th className="text-left py-2">Utworzono</th>
+                      <th className="text-left py-2">Akcje</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
+                  </thead>
+                  <tbody>
+                    {tunnels.map((tunnel) => (
+                      <tr key={tunnel.id} className="border-b hover:bg-muted/50">
+                        <td className="py-2">{tunnel.id}</td>
+                        <td className="py-2">
+                          <span className="font-mono bg-muted px-1 py-0.5 rounded" 
+                                title="Port dostępny w przeglądarce i z zewnątrz kontenera">
+                            {tunnel.local_port}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <span className="font-mono bg-muted px-1 py-0.5 rounded" 
+                                title="Port wewnętrzny tunelu SSH w kontenerze">
+                            {tunnel.remote_port}
+                          </span>
+                        </td>
+                        <td className="py-2">{tunnel.remote_host}</td>
+                        <td className="py-2">
+                          <span className={`inline-block px-2 py-1 text-xs rounded-full 
+                            ${tunnel.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                            {tunnel.status}
+                          </span>
+                        </td>
+                        <td className="py-2">{formatDate(tunnel.created_at)}</td>
+                        <td className="py-2">
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={() => closeTunnel(tunnel.id)}
+                          >
+                            Zamknij
+                          </Button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+              
+              {/* Diagram wizualizujący przekierowanie portów */}
+              <div className="mt-4 p-4 bg-muted/30 rounded-md">
+                <h4 className="font-medium mb-2">Schemat przekierowania portów</h4>
+                <div className="relative p-4 flex justify-center items-center">
+                  {/* Tworzenie wizualizacji przekierowania portów */}
+                  <div className="flex items-center space-x-2">
+                    <div className="border rounded-md px-3 py-2 bg-card">
+                      <div className="text-xs font-medium">Zewnętrzny świat</div>
+                      <div className="text-xs mt-1">0.0.0.0:{tunnels[0]?.local_port}</div>
+                    </div>
+                    
+                    <div className="text-muted-foreground">→</div>
+                    
+                    <div className="border rounded-md px-3 py-2 bg-card">
+                      <div className="text-xs font-medium">Docker (socat)</div>
+                      <div className="text-xs mt-1">Port: {tunnels[0]?.local_port}</div>
+                    </div>
+                    
+                    <div className="text-muted-foreground">→</div>
+                    
+                    <div className="border rounded-md px-3 py-2 bg-card">
+                      <div className="text-xs font-medium">Tunel SSH</div>
+                      <div className="text-xs mt-1">127.0.0.1:wewnętrzny</div>
+                    </div>
+                    
+                    <div className="text-muted-foreground">→</div>
+                    
+                    <div className="border rounded-md px-3 py-2 bg-card">
+                      <div className="text-xs font-medium">Klaster SLURM</div>
+                      <div className="text-xs mt-1">{tunnels[0]?.remote_host}:{tunnels[0]?.remote_port}</div>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-col items-start space-y-2">
           <p className="text-xs text-muted-foreground">
             Tunele SSH umożliwiają bezpieczne połączenie z usługami uruchomionymi w kontenerze poprzez przekierowanie portów.
+          </p>
+          <p className="text-xs text-muted-foreground">
+            <span className="font-medium">Technologia:</span> Użyto kombinacji tunelowania SSH oraz narzędzia socat do przekierowania portów na zewnątrz kontenera.
           </p>
         </CardFooter>
       </Card>
@@ -351,14 +476,57 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
               Możesz połączyć się z interfejsem webowym kontenera:
             </p>
             
+            <div className="flex flex-col md:flex-row gap-4">
+              <div className="bg-muted p-4 rounded-md flex-1">
+                <p className="font-medium mb-2">Bezpośredni dostęp przez tunel:</p>
+                <p className="mt-2">
+                  URL: <code className="bg-background p-1 rounded">http://localhost:{tunnels.length > 0 ? tunnels[0].local_port : job.port}</code>
+                </p>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Wymaga aktywnego tunelu SSH.
+                </p>
+              </div>
+              
+              <div className="bg-muted p-4 rounded-md flex-1">
+                <div className="flex justify-between items-center mb-2">
+                  <p className="font-medium">Dostęp przez subdomenę (Caddy):</p>
+                  <Button 
+                    variant="outline" 
+                    size="sm"
+                    disabled={tunnels.length === 0 || !tunnelStatus?.tunnel?.internal_accessible}
+                    onClick={getCodeServerURL}
+                  >
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Generuj URL
+                  </Button>
+                </div>
+                
+                {codeServerURL ? (
+                  <div className="mt-2">
+                    <p>
+                      URL: <a href={codeServerURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                        {codeServerURL}
+                      </a>
+                    </p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Bezpieczny dostęp przez HTTPS z automatycznym certyfikatem.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground mt-2">
+                    Kliknij "Generuj URL", aby utworzyć bezpieczny adres dostępowy.
+                  </p>
+                )}
+              </div>
+            </div>
+
             <div className="bg-muted p-4 rounded-md">
-              <p className="font-medium">Dostęp przez przeglądarkę:</p>
-              <p className="mt-2">
-                URL: <code className="bg-background p-1 rounded">https://amucontainers.orion.zfns.eu.org:{job.port}</code>
-              </p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Wymaga aktywnego tunelu SSH na port {job.port}.
-              </p>
+              <p className="font-medium mb-2">Jak to działa:</p>
+              <ol className="list-decimal list-inside text-sm space-y-1">
+                <li>SSH tworzy tunel do kontenera na klastrze SLURM</li>
+                <li>Socat przekierowuje połączenia z portu zewnętrznego do lokalnego tunelu SSH</li>
+                <li>Caddy tworzy bezpieczny endpoint z certyfikatem SSL</li>
+              </ol>
             </div>
           </CardContent>
           <CardFooter>

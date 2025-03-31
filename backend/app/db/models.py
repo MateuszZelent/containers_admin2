@@ -57,11 +57,12 @@ class SSHTunnel(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"))
-    local_port = Column(Integer)  # Port na serwerze aplikacji
+    external_port = Column(Integer)  # Port dostępny z zewnątrz (socat)
+    internal_port = Column(Integer)  # Wewnętrzny port tunelu SSH
     remote_port = Column(Integer)  # Port na węźle obliczeniowym
+    remote_host = Column(String)  # Węzeł na którym działa kontener
     node = Column(String)  # Węzeł na którym działa kontener
-    tunnel_pid = Column(Integer, nullable=True)  # PID procesu tunelu SSH
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
     status = Column(String)  # ACTIVE, INACTIVE, FAILED
-    job = relationship("Job", back_populates="tunnels")
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
+    job = relationship("Job", back_populates="tunnels")

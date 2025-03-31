@@ -1,0 +1,20 @@
+{
+    # Global configuration for Caddy in container
+    admin 0.0.0.0:2019  # Make Admin API accessible from any IP within Docker network
+    
+    # Disable automatic HTTPS since we're behind a proxy
+    auto_https off
+    
+    # Define servers section with proper trusted proxies
+    servers {
+        trusted_proxies static private_ranges
+    }
+}
+
+# Default site - will respond to all requests not matched elsewhere
+:80 {
+    respond "SLURM Container Manager - Caddy Container" 200
+}
+
+# Import dynamic route configurations
+import /etc/caddy/sites/*

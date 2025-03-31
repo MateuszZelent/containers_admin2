@@ -8,6 +8,8 @@ RUN apt-get update && apt-get install -y \
     postgresql-client \
     gcc \
     libpq-dev \
+    socat \
+    lsof \
     netcat-openbsd \
     openssh-client \
     && rm -rf /var/lib/apt/lists/*

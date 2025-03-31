@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     CONTAINER_OUTPUT_DIR: str = os.getenv("CONTAINER_OUTPUT_DIR", "/mnt/storage_3/home/kkingstoun/containers/run")
     TEMPLATE_DIR: str = os.getenv("TEMPLATE_DIR", "/app/slurm_templates")
     
+    # Caddy API configuration - use environment variable with docker service name as default
+    CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2019")
+    
     # CORS
     BACKEND_CORS_ORIGINS: List[str] = [
         "http://localhost",

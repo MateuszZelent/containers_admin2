@@ -9,6 +9,8 @@ from app.core.logging import cluster_logger
 from app.core.config import settings
 from app.schemas.job import SSHTunnelInfo
 from datetime import datetime
+import socket
+import time
 
 class SSHTunnelService:
     MIN_PORT = 8600
@@ -19,7 +21,14 @@ class SSHTunnelService:
 
     def find_free_local_port(self) -> int:
         """Find a free port on the local machine between MIN_PORT and MAX_PORT"""
-        used_ports = set(tunnel.local_port for tunnel in self.db.query(SSHTunnel).all())
+        # Zbierz wszystkie używane porty (zarówno external_port jak i internal_port)
+        used_ports = set()
+        for tunnel in self.db.query(SSHTunnel).all():
+            if hasattr(tunnel, 'external_port') and tunnel.external_port:
+                used_ports.add(tunnel.external_port)
+            if hasattr(tunnel, 'internal_port') and tunnel.internal_port:
+                used_ports.add(tunnel.internal_port)
+                
         while True:
             port = random.randint(self.MIN_PORT, self.MAX_PORT)
             if port not in used_ports and not self._is_port_in_use(port):
@@ -30,31 +39,51 @@ class SSHTunnelService:
         if not job.port or not job.node:
             return None
 
-        local_port = self.find_free_local_port()
-        if not local_port:
+        # Najpierw znajdźmy port dla tunelu SSH wewnątrz kontenera
+        internal_port = self.find_free_local_port()
+        if not internal_port:
             return None
 
+        # Znajdź drugi wolny port do przekierowania za pomocą socat - będzie dostępny z zewnątrz
+        external_port = self.find_free_local_port()
+        if not external_port:
+            return None
+        
+        # Ustanów tunel SSH do hosta SLURM
         success = self._establish_ssh_tunnel(
-            local_port=local_port,
+            local_port=internal_port,
             remote_port=job.port,
             remote_host=settings.SLURM_HOST,
             node=job.node
         )
-        
         if not success:
             return None
-            
+        
+        # Uruchom socat do przekierowania portu z 0.0.0.0:external_port na 127.0.0.1:internal_port
+        socat_success = self._start_socat_forwarder(
+            external_port=external_port,
+            internal_port=internal_port
+        )
+                
+        if not socat_success:
+            # Jeśli socat się nie powiódł, zamknij tunel SSH
+            self._kill_ssh_tunnel(internal_port)
+            return None
+        
         # Create timestamp for the tunnel
         now = datetime.utcnow()
 
         tunnel = SSHTunnel(
             job_id=job.id,
-            local_port=local_port,
+            external_port=external_port,  # Port dla socata (dostępny z zewnątrz)
+            internal_port=internal_port,  # Wewnętrzny port SSH (tylko localhost)
             remote_port=job.port,
+            remote_host=job.node,
             node=job.node,
             status="ACTIVE",
             created_at=now
         )
+        
         self.db.add(tunnel)
         self.db.commit()
         self.db.refresh(tunnel)
@@ -62,11 +91,12 @@ class SSHTunnelService:
         return SSHTunnelInfo(
             id=tunnel.id,
             job_id=tunnel.job_id,
-            local_port=local_port,
+            local_port=external_port, # Używamy external_port jako local_port w zwracanym obiekcie
             remote_port=tunnel.remote_port,
-            node=tunnel.node,  # Add the node field
+            remote_host=tunnel.remote_host,
+            node=tunnel.node,
             status=tunnel.status,
-            created_at=tunnel.created_at  # Add the created_at field
+            created_at=tunnel.created_at
         )
 
     def close_tunnel(self, tunnel_id: int) -> bool:
@@ -75,7 +105,12 @@ class SSHTunnelService:
         if not tunnel:
             return False
 
-        self._kill_ssh_tunnel(tunnel.local_port)
+        # Zamknij proces socat
+        self._kill_socat_forwarder(tunnel.external_port)
+        
+        # Zamknij proces SSH
+        self._kill_ssh_tunnel(tunnel.internal_port)
+        
 
         tunnel.status = "closed"
         self.db.commit()
@@ -101,8 +136,9 @@ class SSHTunnelService:
         return [SSHTunnelInfo(
             id=tunnel.id,
             job_id=tunnel.job_id,
-            local_port=tunnel.local_port,
+            local_port=tunnel.external_port,  # Używamy external_port jako local_port
             remote_port=tunnel.remote_port,
+            remote_host=tunnel.remote_host,
             node=tunnel.node,
             status=tunnel.status,
             created_at=tunnel.created_at
@@ -119,7 +155,8 @@ class SSHTunnelService:
             port += 1
         return None
 
-    def _is_port_in_use(self, port: int) -> bool:
+    def _is_port_in_use(self, port: int, check_external: bool = False) -> bool:
+        
         """
         Check if a port is in use with proper timeout and error handling.
         
@@ -129,15 +166,13 @@ class SSHTunnelService:
         Returns:
             bool: True if port is in use, False otherwise
         """
-        import socket
         try:
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.5)  # Set 500ms timeout
-                result = s.connect_ex(('127.0.0.1', port))
+                s.settimeout(0.5)
+                address = '0.0.0.0' if check_external else '127.0.0.1'
+                result = s.connect_ex((address, port))
                 return result == 0
         except (socket.timeout, socket.error):
-            # If we get any socket error, assume the port is in use
-            # to be on the safe side
             return True
 
     def _establish_ssh_tunnel(self, local_port: int, remote_port: int, remote_host: str, node: str) -> bool:
@@ -193,7 +228,12 @@ class SSHTunnelService:
         """Remove a dead tunnel from database and kill its process"""
         tunnel = self.db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
         if tunnel:
-            self._kill_ssh_tunnel(tunnel.local_port)
+            # Zabij procesy tunelu SSH i socat używając właściwych portów
+            if hasattr(tunnel, 'internal_port') and tunnel.internal_port:
+                self._kill_ssh_tunnel(tunnel.internal_port)
+            if hasattr(tunnel, 'external_port') and tunnel.external_port:
+                self._kill_socat_forwarder(tunnel.external_port)
+                
             tunnel.status = "DEAD"
             self.db.commit()
 
@@ -214,13 +254,17 @@ class SSHTunnelService:
         
         if existing_tunnel:
             # Test if existing tunnel works
-            is_working = await self.test_tunnel(existing_tunnel.local_port, existing_tunnel.node)
+            is_working = False
+            if hasattr(existing_tunnel, 'external_port') and existing_tunnel.external_port:
+                is_working = await self.test_tunnel(existing_tunnel.external_port, existing_tunnel.node)
+            
             if is_working:
                 return SSHTunnelInfo(
                     id=existing_tunnel.id,
                     job_id=existing_tunnel.job_id,
-                    local_port=existing_tunnel.local_port,
+                    local_port=existing_tunnel.external_port,  # Używamy external_port jako local_port
                     remote_port=existing_tunnel.remote_port,
+                    remote_host=existing_tunnel.remote_host,
                     node=existing_tunnel.node,
                     status=existing_tunnel.status,
                     created_at=existing_tunnel.created_at
@@ -229,49 +273,49 @@ class SSHTunnelService:
                 # Clean up dead tunnel
                 self._cleanup_dead_tunnel(existing_tunnel.id)
         
-        # Create new tunnel
-        local_port = self.find_free_local_port()
-        if not local_port:
-            return None
+        # Jeśli nie ma aktywnego tunelu lub istniejący nie działa, utwórz nowy
+        return self.create_tunnel(job)
+
+    def _start_socat_forwarder(self, external_port: int, internal_port: int) -> bool:
+        """Start socat process to forward external port to internal localhost port."""
+        try:
+            # Użyj socat do przekierowania portu z 0.0.0.0:external_port na 127.0.0.1:internal_port
+            # Jawnie określamy nasłuchiwanie na 0.0.0.0 aby być dostępnym z innych kontenerów
+            cmd = [
+                'socat',
+                f'TCP-LISTEN:{external_port},reuseaddr,fork',
+                f'TCP:127.0.0.1:{internal_port}'
+            ]
+            cluster_logger.info(f"Starting socat forwarder: {' '.join(cmd)}")
             
-        success = self._establish_ssh_tunnel(
-            local_port=local_port,
-            remote_port=job.port,
-            remote_host=settings.SLURM_HOST,
-            node=job.node
-        )
-        
-        if not success:
-            return None
+            # Uruchom socat w tle
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                start_new_session=True  # Utwórz nową sesję, aby proces działał w tle
+            )
             
-        # Test the new tunnel
-        await asyncio.sleep(1)  # Give the tunnel a second to establish
-        is_working = await self.test_tunnel(local_port, job.node)
-        if not is_working:
-            self._kill_ssh_tunnel(local_port)
-            return None
+            # Krótkie opóźnienie, aby upewnić się, że socat został uruchomiony
+            time.sleep(1)
             
-        # Create timestamp for the tunnel
-        now = datetime.utcnow()
+            # Sprawdź, czy proces działa
+            if process.poll() is not None:
+                # Proces zakończył się - błąd
+                stdout, stderr = process.communicate()
+                cluster_logger.error(f"Socat forwarder failed: {stderr.decode('utf-8')}")
+                return False
+                
+            return True
+        except Exception as e:
+            cluster_logger.error(f"Error starting socat forwarder: {str(e)}")
+            return False     
         
-        tunnel = SSHTunnel(
-            job_id=job.id,
-            local_port=local_port,
-            remote_port=job.port,
-            node=job.node,
-            status="ACTIVE",
-            created_at=now
-        )
-        self.db.add(tunnel)
-        self.db.commit()
-        self.db.refresh(tunnel)
-        
-        return SSHTunnelInfo(
-            id=tunnel.id,
-            job_id=tunnel.job_id,
-            local_port=local_port,
-            remote_port=tunnel.remote_port,
-            node=tunnel.node,
-            status=tunnel.status,
-            created_at=tunnel.created_at
-        )
+    def _kill_socat_forwarder(self, port: int):
+        """Kill socat process forwarding the specified port."""
+        try:
+            # Znajdź proces socat używający tego portu i zakończ go
+            cmd = f"lsof -ti:{port} | grep socat | xargs kill -9 2>/dev/null || true"
+            cluster_logger.info(f"Killing socat forwarder: {cmd}")
+        except Exception as e:
+            cluster_logger.error(f"Error while killing socat forwarder: {e}")

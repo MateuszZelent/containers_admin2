@@ -4,8 +4,10 @@ from datetime import datetime
 
 
 class SSHTunnelBase(BaseModel):
-    local_port: int = Field(..., description="Port on the application server")
+    # Zachowujemy local_port dla kompatybilności z frontendem, ale zmieniamy jego znaczenie
+    local_port: int = Field(..., description="External port visible outside the container (from socat)")
     remote_port: int = Field(..., description="Port on the compute node")
+    remote_host: str = Field(..., description="Host where the container is running")
     node: str = Field(..., description="Node where the container is running")
     status: str = Field(..., description="Status of the SSH tunnel")
 
@@ -54,8 +56,10 @@ class JobUpdate(BaseModel):
 
 class SSHTunnelInfo(BaseModel):
     id: int
-    local_port: int
+    job_id: int
+    local_port: int  # Zachowane dla kompatybilności z frontendem - odpowiada external_port
     remote_port: int
+    remote_host: Optional[str] = None
     node: str
     status: str
     created_at: datetime

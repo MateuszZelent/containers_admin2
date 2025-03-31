@@ -8,6 +8,7 @@ services:
     container_name: containers_admin_backend
     ports:
       - "8000:8000"
+      - "8600-8700:8600-8700"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/containers_admin
       - SECRET_KEY=zmientomnabardziejzlozonehaslo
@@ -41,7 +42,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # - postgres_data2:/var/lib/postgresql/data
       - ./init-scripts:/docker-entrypoint-initdb.d
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U postgres"]
@@ -54,8 +55,8 @@ services:
       - postgres_network
 
 volumes:
-  postgres_data:
-    name: containers_admin_postgres_data
+  postgres_data2:
+    name: containers_admin_postgres_data2
 
 networks:
   postgres_network:

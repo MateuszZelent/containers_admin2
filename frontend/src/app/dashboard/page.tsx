@@ -192,7 +192,7 @@ export default function DashboardPage() {
                         <span className="ml-1">{job.node}</span>
                       </p>
                     )}
-                    {job.port && <p>Port aplikacji: {job.port}</p>}
+                    {job.port && <p>Port aplikacji na klastrze: {job.port}</p>}
                     
                     {/* Enhanced tunnel information */}
                     {jobTunnels[job.id]?.length > 0 && (
@@ -208,9 +208,22 @@ export default function DashboardPage() {
                               <span>{tunnel.status === 'ACTIVE' ? 'Aktywny' : 
                                      tunnel.status === 'DEAD' ? 'Nieaktywny' : 'Łączenie...'}</span>
                             </p>
-                            <p>Port lokalny: {tunnel.local_port}</p>
-                            <p>Węzeł: {tunnel.node}</p>
-                            <p>Utworzony: {new Date(tunnel.created_at).toLocaleString()}</p>
+                            <div className="text-xs border-l-2 border-muted-foreground/20 pl-2 mt-1 space-y-1">
+                              <p className="font-medium">Przekierowanie portów:</p>
+                              <p title="Port dostępny w przeglądarce i z zewnątrz kontenera">
+                                Port zewnętrzny: <span className="font-mono bg-background px-1 rounded">{tunnel.local_port}</span>
+                              </p>
+                              <p title="Port wewnętrzny tunelu SSH w kontenerze">
+                                Port wewnętrzny: <span className="font-mono bg-background px-1 rounded">{tunnel.remote_port}</span>
+                              </p>
+                              <p>
+                                Host: <span className="font-mono">{tunnel.remote_host}</span>
+                              </p>
+                              <p className="text-[10px] text-muted-foreground mt-1">
+                                <span className="font-medium">Schemat:</span> 0.0.0.0:{tunnel.local_port} → 127.0.0.1:wewnętrzny → {tunnel.remote_host}:{tunnel.remote_port}
+                              </p>
+                            </div>
+                            <p className="text-xs">Utworzony: {new Date(tunnel.created_at).toLocaleString()}</p>
                           </div>
                         ))}
                       </div>
