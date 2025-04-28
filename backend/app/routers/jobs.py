@@ -56,7 +56,7 @@ async def get_jobs(
                 if db_job.status != slurm_job["state"]:
                     db_job.status = slurm_job["state"]
                     db_job.node = slurm_job["node"] if slurm_job["node"] != "(None)" else None
-                    db.add(db_job)
+                db.add(db_job)
             else:
                 # Create new job record for unknown SLURM job
                 new_job = Job(
@@ -139,12 +139,12 @@ async def create_job(
     """
     slurm_service = SlurmSSHService()
     job_service = JobService(db)
-    
+    job_name = f"container_{current_user.username}_{job_in.job_name}"
     # Submit job to SLURM or preview template
     if job_in.preview:
         # Just fill the template and return it without submitting
         params = {
-            "job_name": job_in.job_name,
+            "job_name": job_name,
             "num_cpus": job_in.num_cpus,
             "memory_gb": job_in.memory_gb,
             "num_gpus": job_in.num_gpus,
@@ -161,7 +161,7 @@ async def create_job(
     
     # Submit the job
     job = await job_service.submit_job(
-        job_name=job_in.job_name,
+        job_name=job_name,
         template_name=job_in.template_name,
         num_cpus=job_in.num_cpus,
         memory_gb=job_in.memory_gb,

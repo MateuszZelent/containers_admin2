@@ -16,8 +16,7 @@ RUN apt-get update && apt-get install -y \
 
 # Kopiowanie i instalacja zależności Pythona
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && pip install email-validator psycopg2-binary
+RUN pip install --no-cache-dir -r requirements.txt 
 
 # Kopiowanie kodu aplikacji
 COPY . .

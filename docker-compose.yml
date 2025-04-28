@@ -7,6 +7,7 @@ services:
       dockerfile: Dockerfile
     container_name: containers_admin_backend
     ports:
+      - "5678:5678"  # Port debuggera
       - "8000:8000"
       - "8600-8700:8600-8700"
     environment:
@@ -34,7 +35,7 @@ services:
 
   postgres:
     image: postgres:13
-    container_name: containers_admin_postgres
+    container_name: containers_admin_postgres_new
     environment:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres

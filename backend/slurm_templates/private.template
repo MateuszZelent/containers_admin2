@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="container_{job_name}"
+#SBATCH --job-name="{job_name}"
 #SBATCH --output={job_name}-%x.%J.%N.out
 #SBATCH --ntasks={num_nodes}
 #SBATCH --tasks-per-node={tasks_per_node}

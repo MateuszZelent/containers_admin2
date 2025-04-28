@@ -9,7 +9,11 @@ from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
 from app.routers import auth, users, jobs
+import debugpy
 
+# Ustaw punkt nasłuchiwania debuggera
+debugpy.listen(("0.0.0.0", 5678))  # Port 5678
+print("Debugger is active. Waiting for client to attach...")
 # Create database tables
 Base.metadata.create_all(bind=engine)
 

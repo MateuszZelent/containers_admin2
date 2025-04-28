@@ -1,5 +1,5 @@
 #!/bin/bash
-#SBATCH --job-name="container_{job_name}"
+#SBATCH --job-name="{job_name}"
 #SBATCH --output={job_name}-%x.%J.%N.out
 #SBATCH --ntasks={num_nodes}
 #SBATCH --tasks-per-node={tasks_per_node}
@@ -96,32 +96,32 @@ export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-# rclone mount \
-#     --daemon \
-#     -vv \
-#     --fast-list \
-#     --stats=1h \
-#     --checkers=100 \
-#     --uid=1000 \
-#     --dir-perms=0777 \
-#     --gid=1000 \
-#     --attr-timeout=1s \
-#     --dir-cache-time=5m \
-#     --poll-interval=1m0s \
-#     --cache-db-purge \
-#     --cache-dir=/tmp/rclone \
-#     --vfs-cache-poll-interval=1m \
-#     --vfs-cache-max-age=1h0m0s \
-#     --vfs-cache-max-size=0 \
-#     --vfs-cache-mode=writes \
-#     --allow-non-empty \
-#     --buffer-size=16M \
-#     --max-read-ahead=128k \
-#     --vfs-read-chunk-size=50K \
-#     --vfs-read-chunk-size-limit=128M \
-#     zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
+rclone mount \
+    --daemon \
+    -vv \
+    --fast-list \
+    --stats=1h \
+    --checkers=100 \
+    --uid=1000 \
+    --dir-perms=0777 \
+    --gid=1000 \
+    --attr-timeout=1s \
+    --dir-cache-time=5m \
+    --poll-interval=1m0s \
+    --cache-db-purge \
+    --cache-dir=/tmp/rclone \
+    --vfs-cache-poll-interval=1m \
+    --vfs-cache-max-age=1h0m0s \
+    --vfs-cache-max-size=0 \
+    --vfs-cache-mode=writes \
+    --allow-non-empty \
+    --buffer-size=16M \
+    --max-read-ahead=128k \
+    --vfs-read-chunk-size=50K \
+    --vfs-read-chunk-size-limit=128M \
+    zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
 
-
+# echo "$(cat /mnt/local/kkingstoun/admin/.local/etc/code-server/config.yaml)"
 
 if [ -f "$CONFIG_FILE" ]; then
     echo "Displaying contents of $CONFIG_FILE:"
@@ -131,14 +131,17 @@ else
 fi
 export PASSWORD="$NEW_PASSWORD"
 echo $SINIMAGE_DIR
+
 ### 4. Uruchomienie kontenera Singularity
 singularity run \
   --nv \
   --no-home \
+  --containall \
   --env SINIMAGE_DIR=$SINIMAGE_DIR \
   --env CODE_SERVER_WORKSPACE=$SINIMAGE_DIR \
   --env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
   --env VSCODE_IPC_HOOK_CLI="" \
+  --env PASSWORD=$PASSWORD \
   --env CODE_SERVER_CONFIG=$CONFIG_FILE \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
@@ -147,8 +150,10 @@ singularity run \
   --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
   --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
+  --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":ro \
   --bind "$target_dir/code-server/.local/share/code-server":"$SINIMAGE_DIR/.local/share/code-server":rw \
   --bind "$target_dir/code-server/settings.json":"$SINIMAGE_DIR/.local/share/code-server/User/settings.json":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
+  --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
   /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}

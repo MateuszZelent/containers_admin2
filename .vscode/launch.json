@@ -17,6 +17,22 @@
             "jinja": true,
             "python": "/home/kkingstoun/software/anaconda3/bin/python",
             "cwd": "${workspaceFolder}/backend"
-        }
+        },
+
+        {
+            "name": "Python: Attach to Container",
+            "type": "python",
+            "request": "attach",
+            "connect": {
+              "host": "localhost",
+              "port": 5678
+            },
+            "pathMappings": [
+              {
+                "localRoot": "${workspaceFolder}/backend",  // Ścieżka lokalna
+                "remoteRoot": "/app"  // Ścieżka w kontenerze
+              }
+            ]
+          }
     ]
 }

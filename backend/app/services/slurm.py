@@ -202,7 +202,7 @@ class SlurmSSHService:
                         print(f"Job name: {name}", username)
                 else:
                     # No username filter, include all container jobs
-                    jobs.append(job_info)
+                    # jobs.append(job_info)
                     log_slurm_job(job_id.strip(), state.strip(), job_info)
         
         slurm_logger.debug(f"Found {len(jobs)} active jobs")

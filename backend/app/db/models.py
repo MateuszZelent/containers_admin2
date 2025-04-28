@@ -57,6 +57,7 @@ class SSHTunnel(Base):
     
     id = Column(Integer, primary_key=True, index=True)
     job_id = Column(Integer, ForeignKey("jobs.id"))
+    local_port = Column(Integer)  # Port lokalny (socat)
     external_port = Column(Integer)  # Port dostępny z zewnątrz (socat)
     internal_port = Column(Integer)  # Wewnętrzny port tunelu SSH
     remote_port = Column(Integer)  # Port na węźle obliczeniowym

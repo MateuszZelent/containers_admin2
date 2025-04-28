@@ -15,3 +15,7 @@ rich==13.7.0
 httpx==0.25.0
 caddy_api_client==0.2.4
 aiohttp>=3.8.0
+debugpy==1.6.7
+email-validator 
+psycopg2-binary 
+debugpy

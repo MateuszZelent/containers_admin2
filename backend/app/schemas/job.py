@@ -57,7 +57,7 @@ class JobUpdate(BaseModel):
 class SSHTunnelInfo(BaseModel):
     id: int
     job_id: int
-    local_port: int  # Zachowane dla kompatybilności z frontendem - odpowiada external_port
+    local_port: Optional[int]
     remote_port: int
     remote_host: Optional[str] = None
     node: str
