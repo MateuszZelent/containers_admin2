@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 from caddy_api_client import CaddyAPIClient
-
+from app.core.logging import cluster_logger
 from app.core.auth import get_current_active_user, get_current_user
 from app.db.session import get_db
 from app.schemas.job import JobCreate, JobPreview, JobSubmissionResponse, JobInDB, SSHTunnelInfo
@@ -86,32 +86,49 @@ async def get_active_jobs(
     current_user: User = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """
-    Get active jobs from SLURM for current user with extended status information.
+    Get active jobs (specifically RUNNING jobs) from SLURM for current user with extended status information.
     """
-    slurm_service = SlurmSSHService()
-    active_jobs = await slurm_service.get_active_jobs()
-    
-    # Get all jobs from database for the current user
-    db_jobs = JobService.get_multi_by_owner(db=db, owner_id=current_user.id)
-    db_jobs_map = {job.job_id: job for job in db_jobs}
-    
-    # Enhance active jobs with database information
-    enhanced_jobs = []
-    for job_info in active_jobs:
-        job_id = job_info["job_id"]
-        if job_id in db_jobs_map:
-            db_job = db_jobs_map[job_id]
-            if not current_user.username or job_info["name"].strip().startswith(f"{current_user.username}_"):
-                enhanced_jobs.append({
-                    **job_info,
-                    "name": db_job.job_name,
-                    "template": db_job.template_name,
-                    "created_at": db_job.created_at.isoformat(),
-                    "updated_at": db_job.updated_at.isoformat() if db_job.updated_at else None,
-                    "monitoring_active": True
-                })
-    
-    return enhanced_jobs
+    try:
+        slurm_service = SlurmSSHService()
+        # FIX: Extract username string from User object
+        username = current_user.username
+        cluster_logger.debug(f"Fetching active jobs for user: {username}")
+        
+        # Pass username string instead of User object
+        active_jobs = await slurm_service.get_active_jobs(username=username)
+        
+        # Get all jobs from database for the current user
+        db_jobs = JobService.get_multi_by_owner(db=db, owner_id=current_user.id)
+        db_jobs_map = {job.job_id: job for job in db_jobs}
+        
+        # Enhance active jobs with database information
+        enhanced_jobs = []
+        for job_info in active_jobs:
+            job_id = job_info["job_id"]
+            
+            # If it's in the user's DB jobs, it belongs to them
+            if job_id in db_jobs_map:
+                db_job = db_jobs_map[job_id]
+                
+                # Only include RUNNING jobs in results
+                if job_info["state"] == "RUNNING":
+                    enhanced_jobs.append({
+                        **job_info,
+                        "name": db_job.job_name,
+                        "template": db_job.template_name,
+                        "created_at": db_job.created_at.isoformat(),
+                        "updated_at": db_job.updated_at.isoformat() if db_job.updated_at else None,
+                        "monitoring_active": True
+                    })
+        
+        return enhanced_jobs
+    except Exception as e:
+        # Improve error handling with logging
+        cluster_logger.error(f"Error fetching active jobs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch active jobs: {str(e)}"
+        )
 
 
 @router.get("/templates")

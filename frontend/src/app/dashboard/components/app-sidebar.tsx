@@ -1,22 +1,13 @@
 "use client"
 
 import * as React from "react"
+import { useState, useEffect } from "react"
 import {
   IconCamera,
-  IconChartBar,
   IconDashboard,
-  IconDatabase,
   IconFileAi,
   IconFileDescription,
-  IconFileWord,
-  IconFolder,
-  IconHelp,
   IconInnerShadowTop,
-  IconListDetails,
-  IconReport,
-  IconSearch,
-  IconSettings,
-  IconUsers,
 } from "@tabler/icons-react"
 import { Cog } from "lucide-react"; // Import ikony ustawień
 
@@ -29,17 +20,12 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/registry/new-york-v4/ui/sidebar"
-import { NavDocuments } from "@/app/dashboard/components/nav-documents"
 import { NavMain } from "@/app//dashboard/components/nav-main"
-import { NavSecondary } from "@/app/dashboard/components/nav-secondary"
 import { NavUser } from "@/app/dashboard/components/nav-user"
+import { userApi } from "@/lib/api-client" // Import the user API client
 
+// Default data with navigation items
 const data = {
-  user: {
-    name: "Mateusz Zelent",
-    email: "mateusz.zelent@amu.edu.pl",
-    avatar: "/avatars/shadcn.jpg",
-  },
   navMain: [
     {
       title: "Dashboard",
@@ -100,16 +86,44 @@ const data = {
       ],
     },
   ],
-  navSecondary: [
-    {
-      title: "Settingsss",
-      url: "#",
-      icon: IconSettings,
-    },
-  ],
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
+  // State for user data
+  const [userData, setUserData] = useState({
+    name: "",
+    email: "",
+    avatar: "/avatars/shadcn.jpg", // Default avatar
+  });
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch user data when component mounts
+  useEffect(() => {
+    const fetchUserData = async () => {
+      try {
+        setIsLoading(true);
+        
+        // Use the userApi client instead of direct axios call
+        const response = await userApi.getCurrentUser();
+        
+        // Update user data state
+        if (response && response.data) {
+          setUserData({
+            name: response.data.full_name || response.data.username || "User",
+            email: response.data.email || "",
+            avatar: "/avatars/shadcn.jpg" // Use default avatar as API might not provide one
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching user data:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchUserData();
+  }, []);
+
   return (
     <Sidebar collapsible="offcanvas" {...props}>
       <SidebarHeader>
@@ -129,10 +143,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
-        {/* <NavSecondary items={data.navSecondary} className="mt-auto" /> */}
       </SidebarContent>
       <SidebarFooter>
-        <NavUser user={data.user} />
+        {!isLoading && <NavUser user={userData} />}
       </SidebarFooter>
     </Sidebar>
   )

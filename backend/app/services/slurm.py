@@ -164,48 +164,87 @@ class SlurmSSHService:
     async def get_active_jobs(self, username: str = None) -> List[Dict[str, str]]:
         """Get active jobs for the specified user."""
         slurm_logger.debug(f"Fetching active jobs for user {username} ")
-        
-        output = await self._execute_async_command(f"squeue --me -o '%A|%j|%T|%N|%C|%M' -h")
-        
+
+        # Format string definition (for reference):
+        # %A: Job ID          (0) | %P: Partition      (1) | %j: Job name        (2) | %u: User           (3)
+        # %T: Job state       (4) | %m: MemReq         (5) | %M: Time Used      (6) | %L: Time Left      (7)
+        # %D: Node Count      (8) | %N: Node list      (9) | %S: Start time     (10)| %R: Reason         (11)
+        # %b: MinMemGeneric   (12)| %V: Submission time(13)
+        squeue_format = '%A|%P|%j|%u|%T|%m|%M|%L|%D|%N|%S|%R|%b|%V'
+        expected_fields = len(squeue_format.split('|')) # Oczekujemy 14 pól
+
+        # Użyjemy --me tylko jeśli username nie jest podany, w przeciwnym razie filtrujemy po username
+        # UWAGA: Filtrowanie po nazwie zadania jest mniej niezawodne niż użycie opcji SLURM.
+        # Rozważ użycie `squeue -u {username} ...` jeśli to możliwe i bardziej odpowiednie.
+        # Obecna logika filtruje PO pobraniu, co może być nieefektywne.
+        # Zostawiam logikę filtrowania po nazwie, jak była, ale zwracam uwagę na potencjalne problemy.
+        command = f"squeue --me -o '{squeue_format}' -h" # Nadal pobiera dla --me, filtruje później
+        output = await self._execute_async_command(command)
+
         jobs = []
         for line in output.strip().split("\n"):
             if not line:
                 continue
-                
-            job_id, name, state, node, cpus, mem = line.split("|", 5)
-            name = name.strip()
-            
-            # Create job info dictionary for every job
+
+            parts = line.split("|")
+            # Bardziej rygorystyczne sprawdzenie liczby pól
+            if len(parts) != expected_fields:
+                slurm_logger.warning(f"Unexpected number of fields ({len(parts)} instead of {expected_fields}) in squeue output line: {line}")
+                continue
+
+            # --- Poprawione przypisanie wartości do zmiennych ---
+            job_id          = parts[0].strip()
+            partition       = parts[1].strip()
+            name            = parts[2].strip()
+            user            = parts[3].strip()
+            state           = parts[4].strip()
+            memory_requested= parts[5].strip()  # %m - Pamięć wymagana (np. --mem)
+            time_used       = parts[6].strip()  # %M - Czas użyty
+            time_left       = parts[7].strip()  # %L - Czas pozostały
+            node_count      = parts[8].strip()  # %D - Liczba węzłów
+            node            = parts[9].strip()  # %N - Lista węzłów
+            start_time      = parts[10].strip() # %S - Czas startu
+            reason          = parts[11].strip() # %R - Powód (jeśli istnieje)
+            # parts[12] (%b) - Min memory per CPU/generic - ignorujemy na razie, chyba że jest potrzebne
+            submit_time     = parts[13].strip() # %V - Czas zgłoszenia
+
+            # --- Tworzenie słownika job_info z poprawnymi danymi ---
             job_info = {
-                "job_id": job_id.strip(),
+                "job_id": job_id,
+                "partition": partition,
                 "name": name,
-                "state": state.strip(),
-                "node": node.strip(),
-                "cpus": cpus.strip(),
-                "memory": mem.strip()
+                "user": user,
+                "state": state,
+                "memory_requested": memory_requested, # Używamy %m jako głównego wskaźnika pamięci  
+                "time_used": time_used,       # Dodano poprawne pole 'time_used'
+                "time_left": time_left,
+                "node_count": node_count,
+                "node": node,
+                "start_time": start_time if start_time != "N/A" else None, # Lepsze radzenie sobie z N/A
+                "submit_time": submit_time if submit_time else None,
+                "reason": reason if reason else None
             }
-            
+
+            # Logika filtrowania pozostaje taka sama (z zastrzeżeniami wspomnianymi wyżej)
             # Only process container jobs
             if "container_" in name:
                 # If username filter is provided
                 if username:
-                    # Pattern: "container_{username}{digits}"
-                    pattern = f"container_{username.username}"
-                    
-                    # Job belongs to this user if it starts with the pattern and is followed by digits
+                    # Pattern: "container_{username}{digits}" or "container_{username}_..."
+                    # Bądźmy bardziej elastyczni z wzorcem
+                    pattern = f"container_{username}"
                     if name.startswith(pattern):
                         jobs.append(job_info)
-                        log_slurm_job(job_id.strip(), state.strip(), job_info)
+                        log_slurm_job(job_id, state, job_info)
                         slurm_logger.debug(f"Added job {job_id} matching username '{username}'")
                     else:
-                        print(f"Job {job_id} does not match username '{username}'")
-                        print(f"Job name: {name}", username)
+                        slurm_logger.debug(f"Job {job_id} name '{name}' does not match username pattern '{pattern}'")
                 else:
                     # No username filter, include all container jobs
-                    # jobs.append(job_info)
-                    log_slurm_job(job_id.strip(), state.strip(), job_info)
-        
-        slurm_logger.debug(f"Found {len(jobs)} active jobs")
+                    log_slurm_job(job_id, state, job_info)
+                    jobs.append(job_info)
+
+        slurm_logger.debug(f"Found {len(jobs)} matching jobs")
         return jobs
 
     async def get_job_node(self, job_id: str) -> Optional[str]:

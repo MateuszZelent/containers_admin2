@@ -11,6 +11,65 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Job } from "../../../lib/types";
 
+// Live countdown timer component
+const LiveTimer = ({ initialTime }: { initialTime: string }) => {
+  const [timeRemaining, setTimeRemaining] = useState<string>(initialTime);
+  const [seconds, setSeconds] = useState<number>(0);
+  
+  useEffect(() => {
+    // Parse the initial time (format: "12:21:18")
+    const timeParts = initialTime.split(':');
+    if (timeParts.length !== 3) return;
+    
+    let totalSeconds = 
+      parseInt(timeParts[0]) * 3600 + // hours
+      parseInt(timeParts[1]) * 60 +   // minutes
+      parseInt(timeParts[2]);         // seconds
+    
+    setSeconds(totalSeconds);
+    
+    // Update every second
+    const interval = setInterval(() => {
+      if (totalSeconds <= 0) {
+        clearInterval(interval);
+        return;
+      }
+      
+      totalSeconds -= 1;
+      setSeconds(totalSeconds);
+      
+      // Format the time
+      const hours = Math.floor(totalSeconds / 3600);
+      const minutes = Math.floor((totalSeconds % 3600) / 60);
+      const secs = totalSeconds % 60;
+      
+      setTimeRemaining(
+        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
+      );
+    }, 1000);
+    
+    return () => clearInterval(interval);
+  }, [initialTime]);
+  
+  // Determine color based on remaining time
+  const getTimeColor = () => {
+    if (seconds < 300) return "text-red-500"; // Less than 5 minutes
+    if (seconds < 1800) return "text-amber-500"; // Less than 30 minutes
+    return "text-green-500";
+  };
+  
+  return (
+    <span className={`font-mono ${getTimeColor()}`}>{timeRemaining}</span>
+  );
+};
+
+// Format date string to more readable format
+const formatDate = (dateString: string) => {
+  if (!dateString) return "N/A";
+  const date = new Date(dateString);
+  return date.toLocaleString();
+};
+
 export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
@@ -43,6 +102,7 @@ export default function DashboardPage() {
   const fetchActiveJobs = async () => {
     try {
       const response = await jobsApi.getActiveJobs();
+      console.log(response);
       setActiveJobs(response.data);
     } catch (error) {
       console.error(error);
@@ -184,15 +244,60 @@ export default function DashboardPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-xs text-muted-foreground space-y-1">
-                    <p>ID: {job.id}</p>
-                    <p>Partycja: {job.partition}</p>
-                    {job.node && (
-                      <p className="flex items-center">
-                        <span className="font-medium">Węzeł:</span>
-                        <span className="ml-1">{job.node}</span>
-                      </p>
+                    <div className="grid grid-cols-2 gap-1">
+                      <p><span className="font-medium">ID:</span> {job.id}</p>
+                      <p><span className="font-medium">SLURM ID:</span> {job.job_id}</p>
+                      <p><span className="font-medium">Partycja:</span> {job.partition}</p>
+                      <p><span className="font-medium">Szablon:</span> {job.template_name}</p>
+                    </div>
+                    
+                    {/* Resource allocation */}
+                    <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                      <h4 className="font-medium mb-1">Zasoby:</h4>
+                      <div className="grid grid-cols-2 gap-1">
+                        <p><span className="font-medium">CPU:</span> {job.num_cpus}</p>
+                        <p><span className="font-medium">Pamięć:</span> {job.memory_gb}GB</p>
+                        <p><span className="font-medium">GPU:</span> {job.num_gpus}</p>
+                        {job.node && <p><span className="font-medium">Węzeł:</span> {job.node}</p>}
+                      </div>
+                    </div>
+                    
+                    {/* Timing information - only show for running jobs */}
+                    {job.status === "RUNNING" && (
+                      <div className="mt-2 p-2 bg-muted/50 rounded-md">
+                        <h4 className="font-medium mb-1">Czas:</h4>
+                        <div className="space-y-1">
+                          {/* If we have time_left from active jobs data */}
+                          {activeJobs.find(aj => aj.job_id === job.job_id)?.time_left && (
+                            <p>
+                              <span className="font-medium">Pozostało:</span>{" "}
+                              <LiveTimer initialTime={activeJobs.find(aj => aj.job_id === job.job_id)?.time_left} />
+                            </p>
+                          )}
+                          {/* If we have time_used from active jobs data */}
+                          {activeJobs.find(aj => aj.job_id === job.job_id)?.time_used && (
+                            <p>
+                              <span className="font-medium">Czas użyty:</span>{" "}
+                              <span className="font-mono">{activeJobs.find(aj => aj.job_id === job.job_id)?.time_used}</span>
+                            </p>
+                          )}
+                          {activeJobs.find(aj => aj.job_id === job.job_id)?.start_time && (
+                            <p>
+                              <span className="font-medium">Start:</span>{" "}
+                              {formatDate(activeJobs.find(aj => aj.job_id === job.job_id)?.start_time)}
+                            </p>
+                          )}
+                          {activeJobs.find(aj => aj.job_id === job.job_id)?.submit_time && (
+                            <p>
+                              <span className="font-medium">Zgłoszenie:</span>{" "}
+                              {formatDate(activeJobs.find(aj => aj.job_id === job.job_id)?.submit_time)}
+                            </p>
+                          )}
+                        </div>
+                      </div>
                     )}
-                    {job.port && <p>Port aplikacji na klastrze: {job.port}</p>}
+                    
+                    {job.port && <p><span className="font-medium">Port aplikacji:</span> {job.port}</p>}
                     
                     {/* Enhanced tunnel information */}
                     {jobTunnels[job.id]?.length > 0 && (
@@ -275,8 +380,10 @@ export default function DashboardPage() {
                         <th className="text-left py-2">Nazwa</th>
                         <th className="text-left py-2">Status</th>
                         <th className="text-left py-2">Węzeł</th>
-                        <th className="text-left py-2">CPU</th>
+                        <th className="text-left py-2">Liczba węzłów</th>
+                        <th className="text-left py-2">Pozostały czas</th>
                         <th className="text-left py-2">Pamięć</th>
+                        <th className="text-left py-2">Data startu</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -291,8 +398,12 @@ export default function DashboardPage() {
                             </span>
                           </td>
                           <td className="py-2">{job.node === '(None)' ? 'Nie przypisano' : job.node}</td>
-                          <td className="py-2">{job.cpus}</td>
-                          <td className="py-2">{job.memory}</td>
+                          <td className="py-2">{job.node_count}</td>
+                          <td className="py-2 font-mono">
+                            {job.state === 'RUNNING' ? <LiveTimer initialTime={job.time_left} /> : job.time_left}
+                          </td>
+                          <td className="py-2">{job.memory_requested || job.memory}</td>
+                          <td className="py-2">{formatDate(job.start_time)}</td>
                         </tr>
                       ))}
                     </tbody>
