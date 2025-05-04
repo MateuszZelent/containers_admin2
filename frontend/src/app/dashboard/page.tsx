@@ -10,6 +10,12 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Job } from "../../../lib/types";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 // Live countdown timer component
 const LiveTimer = ({ initialTime }: { initialTime: string }) => {
@@ -336,17 +342,34 @@ export default function DashboardPage() {
                   </div>
                   
                   <div className="mt-4 flex justify-end space-x-2">
-                    {job.status === "RUNNING" && job.node && job.port && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => openCodeServer(job)}
-                        disabled={isLoading}
-                      >
-                        <Code2 className="h-4 w-4 mr-2" />
-                        Code Server
-                      </Button>
-                    )}
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openCodeServer(job)}
+                              disabled={isLoading || job.status !== "RUNNING" || !job.node || !job.port}
+                            >
+                              <Code2 className="h-4 w-4 mr-2" />
+                              Code Server
+                            </Button>
+                          </span>
+                        </TooltipTrigger>
+                        <TooltipContent>
+                          {job.status !== "RUNNING" ? (
+                            <p>Kontener musi być w stanie <span className="font-semibold">RUNNING</span> aby móc uruchomić Code Server</p>
+                          ) : !job.node ? (
+                            <p>Brak przypisanego węzła obliczeniowego</p>
+                          ) : !job.port ? (
+                            <p>Brak przypisanego portu dla aplikacji</p>
+                          ) : (
+                            <p>Otwórz interfejs Code Server w nowej karcie</p>
+                          )}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
                     <Button 
                       variant="destructive" 
                       size="sm"
