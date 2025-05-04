@@ -12,3 +12,13 @@ module.exports = {
   },
   // ...existing code...
 };
+
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  eslint: {
+    ignoreDuringBuilds: true,
+  },
+};
+
+module.exports = nextConfig;

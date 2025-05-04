@@ -6,6 +6,7 @@
 #SBATCH --cpus-per-task={num_cpus}
 #SBATCH --time={time_limit}
 #SBATCH --mem={memory_gb}G
+#SBATCH --exclude=gpu21
 #SBATCH --gres=gpu:{num_gpus}
 #SBATCH --partition={partition}
 #SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/kkingstoun/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/kkingstoun/{loginname}"

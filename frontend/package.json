@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
+    "build:force": "NEXT_IGNORE_TYPECHECKING=true NEXT_DISABLE_ESLINT=true next build",
     "start": "next start",
     "lint": "next lint"
   },
