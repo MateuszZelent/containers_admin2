@@ -11,8 +11,37 @@ import { Toaster } from "@/components/ui/sonner";
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(true);
 
-
-
+  // Add logic to check for redirect after successful login
+  const handleLoginSuccess = () => {
+    // Check if there's a stored redirect path
+    const redirectPath = localStorage.getItem('login_redirect');
+    
+    if (redirectPath) {
+      // Clear the stored path
+      localStorage.removeItem('login_redirect');
+      // Redirect to the stored path
+      window.location.href = redirectPath;
+    } else {
+      // Default redirect to dashboard
+      window.location.href = '/dashboard';
+    }
+  };
+  
+  // Modify your login form submission to use the new handler
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    // ...existing login logic...
+    
+    try {
+      // ...existing authentication code...
+      
+      // After successful login, use the new redirect handler
+      handleLoginSuccess();
+    } catch (error) {
+      // ...existing error handling...
+    }
+  };
+  
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-muted/40">
       <Toaster position="top-center" />
@@ -34,7 +63,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <LoginForm />
+            <LoginForm onSubmit={handleSubmit} />
           </CardContent>
           <CardFooter className="flex flex-col">
             <p className="px-8 text-center text-sm text-muted-foreground">

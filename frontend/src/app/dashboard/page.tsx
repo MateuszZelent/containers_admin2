@@ -17,20 +17,36 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 
-// Live countdown timer component
+// Live countdown timer component with support for day-based time format
 const LiveTimer = ({ initialTime }: { initialTime: string }) => {
   const [timeRemaining, setTimeRemaining] = useState<string>(initialTime);
   const [seconds, setSeconds] = useState<number>(0);
   
   useEffect(() => {
-    // Parse the initial time (format: "12:21:18")
-    const timeParts = initialTime.split(':');
-    if (timeParts.length !== 3) return;
+    let totalSeconds = 0;
     
-    let totalSeconds = 
-      parseInt(timeParts[0]) * 3600 + // hours
-      parseInt(timeParts[1]) * 60 +   // minutes
-      parseInt(timeParts[2]);         // seconds
+    // Check if format includes days (e.g. "6-23:54:34")
+    if (initialTime.includes('-')) {
+      const [dayPart, timePart] = initialTime.split('-');
+      const days = parseInt(dayPart);
+      const timeParts = timePart.split(':');
+      
+      // Add days to total seconds calculation
+      totalSeconds = 
+        days * 24 * 3600 + // days to seconds
+        parseInt(timeParts[0]) * 3600 + // hours
+        parseInt(timeParts[1]) * 60 +   // minutes
+        parseInt(timeParts[2]);         // seconds
+    } else {
+      // Original format "HH:MM:SS"
+      const timeParts = initialTime.split(':');
+      if (timeParts.length !== 3) return;
+      
+      totalSeconds = 
+        parseInt(timeParts[0]) * 3600 + // hours
+        parseInt(timeParts[1]) * 60 +   // minutes
+        parseInt(timeParts[2]);         // seconds
+    }
     
     setSeconds(totalSeconds);
     
@@ -44,14 +60,20 @@ const LiveTimer = ({ initialTime }: { initialTime: string }) => {
       totalSeconds -= 1;
       setSeconds(totalSeconds);
       
-      // Format the time
-      const hours = Math.floor(totalSeconds / 3600);
+      // Format the time to include days if necessary
+      const days = Math.floor(totalSeconds / (24 * 3600));
+      const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
       const minutes = Math.floor((totalSeconds % 3600) / 60);
       const secs = totalSeconds % 60;
       
-      setTimeRemaining(
-        `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`
-      );
+      let formattedTime = '';
+      if (days > 0) {
+        formattedTime = `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      } else {
+        formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+      }
+      
+      setTimeRemaining(formattedTime);
     }, 1000);
     
     return () => clearInterval(interval);
@@ -85,6 +107,9 @@ export default function DashboardPage() {
   const [jobTunnels, setJobTunnels] = useState<Record<number, any>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
+  // Debug state to track job statuses
+  const [statusDebug, setStatusDebug] = useState<Record<number, string>>({});
+
   // Pobierz zadania i status klastra przy pierwszym renderowaniu
   useEffect(() => {
     fetchJobs();
@@ -107,11 +132,38 @@ export default function DashboardPage() {
     };
   }, [autoRefreshEnabled]);
 
+  // Function to check if a job can use Code Server
+  const canUseCodeServer = (job: Job): boolean => {
+    // Basic strict check - job must be RUNNING and have node and port
+    const isRunning = job.status === "RUNNING";
+    const hasNode = !!job.node;
+    const hasPort = !!job.port;
+    
+    // Log for debugging - helps identify why a button might be disabled
+    console.debug(`Job ${job.id} can use Code Server: ${isRunning && hasNode && hasPort}`, {
+      status: job.status,
+      isRunning,
+      hasNode,
+      hasPort
+    });
+    
+    return isRunning && hasNode && hasPort;
+  };
+
   // Pobierz wszystkie zadania
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
       const response = await jobsApi.getJobs();
+      
+      // Create a debug status object
+      const statusObj: Record<number, string> = {};
+      response.data.forEach((job: any) => {
+        statusObj[job.id] = job.status;
+        console.debug(`Job ${job.id}: status='${job.status}', node=${job.node}, port=${job.port}`);
+      });
+      
+      setStatusDebug(statusObj);
       setJobs(response.data);
       return response;
     } catch (error) {
@@ -216,6 +268,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-6">
+      {/* Header with title and action buttons */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Panel zarządzania zadaniami</h1>
         <div className="flex gap-2 items-center">
@@ -287,6 +340,7 @@ export default function DashboardPage() {
                   </Badge>
                 </CardHeader>
                 <CardContent>
+                  {/* Card content with job details */}
                   <div className="text-xs text-muted-foreground space-y-1">
                     <div className="grid grid-cols-2 gap-1">
                       <p><span className="font-medium">ID:</span> {job.id}</p>
@@ -379,6 +433,7 @@ export default function DashboardPage() {
                     )}
                   </div>
                   
+                  {/* Code Server button */}
                   <div className="mt-4 flex justify-end space-x-2">
                     <TooltipProvider>
                       <Tooltip>
@@ -388,7 +443,7 @@ export default function DashboardPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => openCodeServer(job)}
-                              disabled={isLoading || job.status !== "RUNNING" || !job.node || !job.port}
+                              disabled={!canUseCodeServer(job) || isLoading}
                             >
                               <Code2 className="h-4 w-4 mr-2" />
                               Code Server
@@ -396,12 +451,8 @@ export default function DashboardPage() {
                           </span>
                         </TooltipTrigger>
                         <TooltipContent>
-                          {job.status !== "RUNNING" ? (
-                            <p>Kontener musi być w stanie <span className="font-semibold">RUNNING</span> aby móc uruchomić Code Server</p>
-                          ) : !job.node ? (
-                            <p>Brak przypisanego węzła obliczeniowego</p>
-                          ) : !job.port ? (
-                            <p>Brak przypisanego portu dla aplikacji</p>
+                          { job.status !== "RUNNING" ? (
+                            <p>Status: <span className="font-semibold">{job.status}</span>. Musi być "RUNNING" aby uruchomić Code Server</p>
                           ) : (
                             <p>Otwórz interfejs Code Server w nowej karcie</p>
                           )}
@@ -422,6 +473,7 @@ export default function DashboardPage() {
           </div>
         </TabsContent>
         <TabsContent value="active" className="mt-4">
+          {/* Active jobs table */}
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Aktywne zadania</CardTitle>
@@ -475,6 +527,8 @@ export default function DashboardPage() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+    
     </div>
   );
 }
