@@ -80,8 +80,10 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJobs, setActiveJobs] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, any>>({});
+  const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   // Pobierz zadania i status klastra przy pierwszym renderowaniu
   useEffect(() => {
@@ -90,15 +92,32 @@ export default function DashboardPage() {
     checkClusterStatus();
   }, []);
 
+  // Set up auto refresh every 10 seconds
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+
+    if (autoRefreshEnabled) {
+      intervalId = setInterval(() => {
+        refreshData(false); // Silent refresh (no toast)
+      }, 10000);
+    }
+
+    return () => {
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [autoRefreshEnabled]);
+
   // Pobierz wszystkie zadania
   const fetchJobs = async () => {
     setIsLoading(true);
     try {
       const response = await jobsApi.getJobs();
       setJobs(response.data);
+      return response;
     } catch (error) {
       toast.error("Nie udało się pobrać listy zadań");
       console.error(error);
+      throw error;
     } finally {
       setIsLoading(false);
     }
@@ -108,10 +127,11 @@ export default function DashboardPage() {
   const fetchActiveJobs = async () => {
     try {
       const response = await jobsApi.getActiveJobs();
-      console.log(response);
       setActiveJobs(response.data);
+      return response;
     } catch (error) {
       console.error(error);
+      throw error;
     }
   };
 
@@ -120,9 +140,11 @@ export default function DashboardPage() {
     try {
       const response = await jobsApi.getClusterStatus();
       setClusterStatus(response.data);
+      return response;
     } catch (error) {
       setClusterStatus({ connected: false, slurm_running: false });
       console.error(error);
+      throw error;
     }
   };
 
@@ -149,11 +171,20 @@ export default function DashboardPage() {
   }, [jobs]);
 
   // Odśwież dane
-  const refreshData = () => {
-    fetchJobs();
-    fetchActiveJobs();
-    checkClusterStatus();
-    toast.success("Dane zostały odświeżone");
+  const refreshData = (showToast = true) => {
+    setIsRefreshing(true);
+    
+    Promise.all([fetchJobs(), fetchActiveJobs(), checkClusterStatus()])
+      .then(() => {
+        if (showToast) toast.success("Dane zostały odświeżone");
+      })
+      .catch((error) => {
+        console.error("Error refreshing data:", error);
+        if (showToast) toast.error("Błąd podczas odświeżania danych");
+      })
+      .finally(() => {
+        setTimeout(() => setIsRefreshing(false), 500); // Add small delay for animation
+      });
   };
 
   const handleDelete = async (jobId: number) => {
@@ -187,10 +218,17 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">Panel zarządzania zadaniami</h1>
-        <div className="flex gap-2">
-          <Button onClick={refreshData} variant="outline" size="sm">
-            <RefreshCcw className="h-4 w-4 mr-2" />
-            Odśwież
+        <div className="flex gap-2 items-center">
+          <Button 
+            onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)} 
+            variant={autoRefreshEnabled ? "default" : "outline"}
+            size="sm"
+          >
+            Auto {autoRefreshEnabled ? "Wł" : "Wył"}
+          </Button>
+          <Button onClick={() => refreshData(true)} variant="outline" size="sm" disabled={isRefreshing}>
+            <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
+            {isRefreshing ? "Odświeżanie..." : "Odśwież"}
           </Button>
           <Link href="/dashboard/submit-job">
             <Button size="sm">
