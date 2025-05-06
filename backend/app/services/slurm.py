@@ -323,10 +323,10 @@ class SlurmSSHService:
         if container_dir.startswith("~"):
             container_dir = container_dir.replace("~", f"/home/{username}")
         
-        log_cluster_operation("Creating Container Directory", {favicon.ico
-            "path": container_dir,
-            "user": username
-        })
+        # log_cluster_operation("Creating Container Directory", {favicon.ico
+        #     "path": container_dir,
+        #     "user": username
+        # })
         
         # Create directory without unnecessary output
         await self._execute_async_command(f"mkdir -p {container_dir}")
