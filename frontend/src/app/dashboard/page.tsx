@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { jobsApi } from "@/lib/api-client";
-import { Plus, RefreshCcw, Code2, Settings } from "lucide-react";
+import { Plus, RefreshCcw, Code2, Settings, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -16,80 +16,33 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { JobCard } from "./components/job-card";
+import { LiveTimer } from "./components/live-timer";
 
-// Live countdown timer component with support for day-based time format
-const LiveTimer = ({ initialTime }: { initialTime: string }) => {
-  const [timeRemaining, setTimeRemaining] = useState<string>(initialTime);
-  const [seconds, setSeconds] = useState<number>(0);
-  
-  useEffect(() => {
-    let totalSeconds = 0;
-    
-    // Check if format includes days (e.g. "6-23:54:34")
-    if (initialTime.includes('-')) {
-      const [dayPart, timePart] = initialTime.split('-');
-      const days = parseInt(dayPart);
-      const timeParts = timePart.split(':');
-      
-      // Add days to total seconds calculation
-      totalSeconds = 
-        days * 24 * 3600 + // days to seconds
-        parseInt(timeParts[0]) * 3600 + // hours
-        parseInt(timeParts[1]) * 60 +   // minutes
-        parseInt(timeParts[2]);         // seconds
-    } else {
-      // Original format "HH:MM:SS"
-      const timeParts = initialTime.split(':');
-      if (timeParts.length !== 3) return;
-      
-      totalSeconds = 
-        parseInt(timeParts[0]) * 3600 + // hours
-        parseInt(timeParts[1]) * 60 +   // minutes
-        parseInt(timeParts[2]);         // seconds
-    }
-    
-    setSeconds(totalSeconds);
-    
-    // Update every second
-    const interval = setInterval(() => {
-      if (totalSeconds <= 0) {
-        clearInterval(interval);
-        return;
-      }
-      
-      totalSeconds -= 1;
-      setSeconds(totalSeconds);
-      
-      // Format the time to include days if necessary
-      const days = Math.floor(totalSeconds / (24 * 3600));
-      const hours = Math.floor((totalSeconds % (24 * 3600)) / 3600);
-      const minutes = Math.floor((totalSeconds % 3600) / 60);
-      const secs = totalSeconds % 60;
-      
-      let formattedTime = '';
-      if (days > 0) {
-        formattedTime = `${days}d ${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      } else {
-        formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-      }
-      
-      setTimeRemaining(formattedTime);
-    }, 1000);
-    
-    return () => clearInterval(interval);
-  }, [initialTime]);
-  
-  // Determine color based on remaining time
-  const getTimeColor = () => {
-    if (seconds < 300) return "text-red-500"; // Less than 5 minutes
-    if (seconds < 1800) return "text-amber-500"; // Less than 30 minutes
-    return "text-green-500";
-  };
-  
-  return (
-    <span className={`font-mono ${getTimeColor()}`}>{timeRemaining}</span>
-  );
-};
+// Define interface for tunnel data
+interface TunnelData {
+  id: number;
+  local_port: number;
+  remote_port: number;
+  remote_host: string;
+  status: string;
+  created_at: string;
+}
+
+// Define interface for active job data
+interface ActiveJobData {
+  job_id: string;
+  name: string;
+  state: string;
+  node: string;
+  node_count: number;
+  time_left: string;
+  time_used?: string;
+  memory_requested?: string;
+  memory?: string;
+  start_time?: string;
+  submit_time?: string;
+}
 
 // Format date string to more readable format
 const formatDate = (dateString: string) => {
@@ -99,25 +52,131 @@ const formatDate = (dateString: string) => {
 };
 
 export default function DashboardPage() {
+  // Main state
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [activeJobs, setActiveJobs] = useState<any[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [activeJobs, setActiveJobs] = useState<ActiveJobData[]>([]);
+  
+  // Loading states
+  const [isJobsLoading, setIsJobsLoading] = useState(false);
+  const [isActiveJobsLoading, setIsActiveJobsLoading] = useState(false);
+  const [isClusterStatusLoading, setIsClusterStatusLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  // Operation states
+  const [processingJobs, setProcessingJobs] = useState<Record<number, boolean>>({});
+  
+  // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
-  const [jobTunnels, setJobTunnels] = useState<Record<number, any>>({});
+  const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
-  // Debug state to track job statuses
-  const [statusDebug, setStatusDebug] = useState<Record<number, string>>({});
+  // Create a map of active jobs for efficient lookup
+  const activeJobsMap = useMemo(() => {
+    const map = new Map<string, ActiveJobData>();
+    activeJobs.forEach((job) => {
+      map.set(job.job_id, job);
+    });
+    return map;
+  }, [activeJobs]);
 
-  // Pobierz zadania i status klastra przy pierwszym renderowaniu
-  useEffect(() => {
-    fetchJobs();
-    fetchActiveJobs();
-    checkClusterStatus();
+  // Fetch jobs with better error handling
+  const fetchJobs = useCallback(async () => {
+    setIsJobsLoading(true);
+    try {
+      const response = await jobsApi.getJobs();
+      setJobs(response.data);
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się pobrać listy zadań";
+      toast.error(errorMessage);
+      console.error("Error fetching jobs:", error);
+      throw error;
+    } finally {
+      setIsJobsLoading(false);
+    }
   }, []);
 
-  // Set up auto refresh every 10 seconds
+  // Fetch active jobs with error handling
+  const fetchActiveJobs = useCallback(async () => {
+    setIsActiveJobsLoading(true);
+    try {
+      const response = await jobsApi.getActiveJobs();
+      setActiveJobs(response.data);
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się pobrać aktywnych zadań";
+      console.error("Error fetching active jobs:", error);
+      // Not showing toast to avoid overwhelming the user with multiple error messages
+      // during a single refresh operation - main error will come from refreshData
+      throw error;
+    } finally {
+      setIsActiveJobsLoading(false);
+    }
+  }, []);
+
+  // Check cluster status with error handling
+  const checkClusterStatus = useCallback(async () => {
+    setIsClusterStatusLoading(true);
+    try {
+      const response = await jobsApi.getClusterStatus();
+      setClusterStatus(response.data);
+      return response;
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się sprawdzić statusu klastra";
+      console.error("Error checking cluster status:", error);
+      setClusterStatus({ connected: false, slurm_running: false });
+      throw error;
+    } finally {
+      setIsClusterStatusLoading(false);
+    }
+  }, []);
+
+  // Fetch tunnel information with improved error handling
+  const fetchTunnelInfo = useCallback(async (jobId: number) => {
+    try {
+      const response = await jobsApi.getJobTunnels(jobId);
+      setJobTunnels(prev => ({
+        ...prev,
+        [jobId]: response.data
+      }));
+    } catch (error: any) {
+      console.error(`Error fetching tunnel info for job ${jobId}:`, error);
+      // Not showing toast to avoid potential spam if multiple jobs fail
+    }
+  }, []);
+
+  // Fetch all tunnel information for running jobs
+  const fetchAllTunnels = useCallback(() => {
+    jobs.forEach(job => {
+      if (job.status === "RUNNING" && job.node && job.port) {
+        fetchTunnelInfo(job.id);
+      }
+    });
+  }, [jobs, fetchTunnelInfo]);
+
+  // Initial data fetching
+  useEffect(() => {
+    const initialFetch = async () => {
+      try {
+        await Promise.all([
+          fetchJobs(),
+          fetchActiveJobs(),
+          checkClusterStatus()
+        ]);
+      } catch (error) {
+        console.error("Error during initial data fetch:", error);
+      }
+    };
+    
+    initialFetch();
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
+
+  // Fetch tunnels when jobs change
+  useEffect(() => {
+    fetchAllTunnels();
+  }, [fetchAllTunnels]);
+
+  // Auto-refresh timer
   useEffect(() => {
     let intervalId: NodeJS.Timeout;
 
@@ -132,124 +191,61 @@ export default function DashboardPage() {
     };
   }, [autoRefreshEnabled]);
 
-  // Function to check if a job can use Code Server
-  const canUseCodeServer = (job: Job): boolean => {
-    // Basic strict check - job must be RUNNING and have node and port
+  // Check if a job can use Code Server
+  const canUseCodeServer = useCallback((job: Job): boolean => {
+    // Strict check - job must be RUNNING and have node and port
     const isRunning = job.status === "RUNNING";
     const hasNode = !!job.node;
     const hasPort = !!job.port;
     
-    // Log for debugging - helps identify why a button might be disabled
-    console.debug(`Job ${job.id} can use Code Server: ${isRunning && hasNode && hasPort}`, {
-      status: job.status,
-      isRunning,
-      hasNode,
-      hasPort
-    });
-    
     return isRunning && hasNode && hasPort;
-  };
+  }, []);
 
-  // Pobierz wszystkie zadania
-  const fetchJobs = async () => {
-    setIsLoading(true);
-    try {
-      const response = await jobsApi.getJobs();
-      
-      // Create a debug status object
-      const statusObj: Record<number, string> = {};
-      response.data.forEach((job: any) => {
-        statusObj[job.id] = job.status;
-        console.debug(`Job ${job.id}: status='${job.status}', node=${job.node}, port=${job.port}`);
-      });
-      
-      setStatusDebug(statusObj);
-      setJobs(response.data);
-      return response;
-    } catch (error) {
-      toast.error("Nie udało się pobrać listy zadań");
-      console.error(error);
-      throw error;
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  // Pobierz aktywne zadania
-  const fetchActiveJobs = async () => {
-    try {
-      const response = await jobsApi.getActiveJobs();
-      setActiveJobs(response.data);
-      return response;
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
-  };
-
-  // Sprawdź status klastra
-  const checkClusterStatus = async () => {
-    try {
-      const response = await jobsApi.getClusterStatus();
-      setClusterStatus(response.data);
-      return response;
-    } catch (error) {
-      setClusterStatus({ connected: false, slurm_running: false });
-      console.error(error);
-      throw error;
-    }
-  };
-
-  // Add function to fetch tunnel information
-  const fetchTunnelInfo = async (jobId: number) => {
-    try {
-      const response = await jobsApi.getJobTunnels(jobId);
-      setJobTunnels(prev => ({
-        ...prev,
-        [jobId]: response.data
-      }));
-    } catch (error) {
-      console.error('Error fetching tunnel info:', error);
-    }
-  };
-
-  // Add effect to fetch tunnel info when jobs change
-  useEffect(() => {
-    jobs.forEach(job => {
-      if (job.status === "RUNNING") {
-        fetchTunnelInfo(job.id);
-      }
-    });
-  }, [jobs]);
-
-  // Odśwież dane
-  const refreshData = (showToast = true) => {
+  // Refresh all data
+  const refreshData = useCallback(async (showToast = true) => {
     setIsRefreshing(true);
     
-    Promise.all([fetchJobs(), fetchActiveJobs(), checkClusterStatus()])
-      .then(() => {
-        if (showToast) toast.success("Dane zostały odświeżone");
-      })
-      .catch((error) => {
-        console.error("Error refreshing data:", error);
-        if (showToast) toast.error("Błąd podczas odświeżania danych");
-      })
-      .finally(() => {
-        setTimeout(() => setIsRefreshing(false), 500); // Add small delay for animation
-      });
-  };
-
-  const handleDelete = async (jobId: number) => {
     try {
-      await jobsApi.deleteJob(jobId)
-      setJobs(jobs.filter(job => job.id !== jobId))
-      toast.success("Kontener został usunięty")
+      await Promise.all([
+        fetchJobs(), 
+        fetchActiveJobs(), 
+        checkClusterStatus()
+      ]);
+      
+      if (showToast) toast.success("Dane zostały odświeżone");
     } catch (error) {
-      toast.error("Nie udało się usunąć kontenera")
+      console.error("Error refreshing data:", error);
+      if (showToast) toast.error("Błąd podczas odświeżania danych");
+    } finally {
+      // No artificial delay - respond immediately to improve UX
+      setIsRefreshing(false);
     }
-  }
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
 
-  const openCodeServer = async (job: Job) => {
+  // Delete a job with loading state
+  const handleDelete = useCallback(async (jobId: number) => {
+    // Set processing state for this job
+    setProcessingJobs(prev => ({ ...prev, [jobId]: true }));
+    
+    try {
+      await jobsApi.deleteJob(jobId);
+      setJobs(prev => prev.filter(job => job.id !== jobId));
+      toast.success("Kontener został usunięty");
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się usunąć kontenera";
+      toast.error(errorMessage);
+      console.error(`Error deleting job ${jobId}:`, error);
+    } finally {
+      // Clear processing state
+      setProcessingJobs(prev => ({ ...prev, [jobId]: false }));
+    }
+  }, []);
+
+  // Open Code Server with loading state
+  const openCodeServer = useCallback(async (job: Job) => {
+    // Set processing state for this job
+    setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
+    
     try {
       toast.loading("Establishing connection...");
       const response = await jobsApi.getCodeServerUrl(job.id);
@@ -260,17 +256,25 @@ export default function DashboardPage() {
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || "Could not open Code Server";
       toast.error(errorMessage);
-      console.error('Code Server error:', error);
+      console.error(`Code Server error for job ${job.id}:`, error);
     } finally {
       toast.dismiss();
+      // Clear processing state
+      setProcessingJobs(prev => ({ ...prev, [job.id]: false }));
     }
-  };
+  }, []);
+
+  // Determine if any data is loading
+  const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
 
   return (
     <div className="space-y-6">
       {/* Header with title and action buttons */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Panel zarządzania zadaniami</h1>
+        <h1 className="text-3xl font-bold">
+          Panel zarządzania zadaniami
+          {isAnyLoading && <span className="inline-block ml-2 align-middle"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></span>}
+        </h1>
         <div className="flex gap-2 items-center">
           <Button 
             onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)} 
@@ -279,7 +283,12 @@ export default function DashboardPage() {
           >
             Auto {autoRefreshEnabled ? "Wł" : "Wył"}
           </Button>
-          <Button onClick={() => refreshData(true)} variant="outline" size="sm" disabled={isRefreshing}>
+          <Button 
+            onClick={() => refreshData(true)} 
+            variant="outline" 
+            size="sm" 
+            disabled={isRefreshing || isAnyLoading}
+          >
             <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
             {isRefreshing ? "Odświeżanie..." : "Odśwież"}
           </Button>
@@ -304,8 +313,13 @@ export default function DashboardPage() {
           <CardTitle>Status klastra</CardTitle>
         </CardHeader>
         <CardContent>
-          {!clusterStatus ? (
-            <p>Sprawdzanie statusu klastra...</p>
+          {isClusterStatusLoading && !clusterStatus ? (
+            <div className="flex items-center">
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              <p>Sprawdzanie statusu klastra...</p>
+            </div>
+          ) : !clusterStatus ? (
+            <p className="text-amber-500">Nie można uzyskać statusu klastra</p>
           ) : (
             <div className="flex gap-4">
               <div className="flex items-center">
@@ -325,158 +339,56 @@ export default function DashboardPage() {
       <Tabs defaultValue="all" className="w-full">
         <TabsList>
           <TabsTrigger value="all">Wszystkie zadania</TabsTrigger>
-          <TabsTrigger value="active">Aktywne zadania</TabsTrigger>
+          <TabsTrigger value="active">Widok listy</TabsTrigger>
         </TabsList>
         <TabsContent value="all" className="mt-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-            {jobs.map((job) => (
-              <Card key={job.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    {job.job_name}
-                  </CardTitle>
-                  <Badge variant={job.status === "RUNNING" ? "default" : "secondary"}>
-                    {job.status}
-                  </Badge>
-                </CardHeader>
-                <CardContent>
-                  {/* Card content with job details */}
-                  <div className="text-xs text-muted-foreground space-y-1">
-                    <div className="grid grid-cols-2 gap-1">
-                      <p><span className="font-medium">ID:</span> {job.id}</p>
-                      <p><span className="font-medium">SLURM ID:</span> {job.job_id}</p>
-                      <p><span className="font-medium">Partycja:</span> {job.partition}</p>
-                      <p><span className="font-medium">Szablon:</span> {job.template_name}</p>
+          {isJobsLoading && jobs.length === 0 ? (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {Array(3).fill(0).map((_, i) => (
+                <Card key={i} className="relative overflow-hidden">
+                  <div className="animate-pulse bg-muted/50 absolute inset-0" />
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <div className="h-5 w-32 bg-muted rounded" />
+                    <div className="h-5 w-20 bg-muted rounded" />
+                  </CardHeader>
+                  <CardContent>
+                    <div className="space-y-3">
+                      <div className="h-4 w-full bg-muted rounded" />
+                      <div className="h-4 w-3/4 bg-muted rounded" />
+                      <div className="h-20 w-full bg-muted rounded" />
+                      <div className="h-8 w-full bg-muted rounded" />
                     </div>
-                    
-                    {/* Resource allocation */}
-                    <div className="mt-2 p-2 bg-muted/50 rounded-md">
-                      <h4 className="font-medium mb-1">Zasoby:</h4>
-                      <div className="grid grid-cols-2 gap-1">
-                        <p><span className="font-medium">CPU:</span> {job.num_cpus}</p>
-                        <p><span className="font-medium">Pamięć:</span> {job.memory_gb}GB</p>
-                        <p><span className="font-medium">GPU:</span> {job.num_gpus}</p>
-                        {job.node && <p><span className="font-medium">Węzeł:</span> {job.node}</p>}
-                      </div>
-                    </div>
-                    
-                    {/* Timing information - only show for running jobs */}
-                    {job.status === "RUNNING" && (
-                      <div className="mt-2 p-2 bg-muted/50 rounded-md">
-                        <h4 className="font-medium mb-1">Czas:</h4>
-                        <div className="space-y-1">
-                          {/* If we have time_left from active jobs data */}
-                          {activeJobs.find(aj => aj.job_id === job.job_id)?.time_left && (
-                            <p>
-                              <span className="font-medium">Pozostało:</span>{" "}
-                              <LiveTimer initialTime={activeJobs.find(aj => aj.job_id === job.job_id)?.time_left} />
-                            </p>
-                          )}
-                          {/* If we have time_used from active jobs data */}
-                          {activeJobs.find(aj => aj.job_id === job.job_id)?.time_used && (
-                            <p>
-                              <span className="font-medium">Czas użyty:</span>{" "}
-                              <span className="font-mono">{activeJobs.find(aj => aj.job_id === job.job_id)?.time_used}</span>
-                            </p>
-                          )}
-                          {activeJobs.find(aj => aj.job_id === job.job_id)?.start_time && (
-                            <p>
-                              <span className="font-medium">Start:</span>{" "}
-                              {formatDate(activeJobs.find(aj => aj.job_id === job.job_id)?.start_time)}
-                            </p>
-                          )}
-                          {activeJobs.find(aj => aj.job_id === job.job_id)?.submit_time && (
-                            <p>
-                              <span className="font-medium">Zgłoszenie:</span>{" "}
-                              {formatDate(activeJobs.find(aj => aj.job_id === job.job_id)?.submit_time)}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    )}
-                    
-                    {job.port && <p><span className="font-medium">Port aplikacji:</span> {job.port}</p>}
-                    
-                    {/* Enhanced tunnel information */}
-                    {jobTunnels[job.id]?.length > 0 && (
-                      <div className="mt-2 p-2 bg-muted rounded-md">
-                        <p className="font-medium mb-1">Tunel SSH:</p>
-                        {jobTunnels[job.id].map((tunnel: any) => (
-                          <div key={tunnel.id} className="space-y-1">
-                            <p className="flex items-center">
-                              <span className={`h-2 w-2 rounded-full mr-2 ${
-                                tunnel.status === 'ACTIVE' ? 'bg-green-500' : 
-                                tunnel.status === 'DEAD' ? 'bg-red-500' : 'bg-gray-500'
-                              }`}/>
-                              <span>{tunnel.status === 'ACTIVE' ? 'Aktywny' : 
-                                     tunnel.status === 'DEAD' ? 'Nieaktywny' : 'Łączenie...'}</span>
-                            </p>
-                            <div className="text-xs border-l-2 border-muted-foreground/20 pl-2 mt-1 space-y-1">
-                              <p className="font-medium">Przekierowanie portów:</p>
-                              <p title="Port dostępny w przeglądarce i z zewnątrz kontenera">
-                                Port zewnętrzny: <span className="font-mono bg-background px-1 rounded">{tunnel.local_port}</span>
-                              </p>
-                              <p title="Port wewnętrzny tunelu SSH w kontenerze">
-                                Port wewnętrzny: <span className="font-mono bg-background px-1 rounded">{tunnel.remote_port}</span>
-                              </p>
-                              <p>
-                                Host: <span className="font-mono">{tunnel.remote_host}</span>
-                              </p>
-                              <p className="text-[10px] text-muted-foreground mt-1">
-                                <span className="font-medium">Schemat:</span> 0.0.0.0:{tunnel.local_port} → 127.0.0.1:wewnętrzny → {tunnel.remote_host}:{tunnel.remote_port}
-                              </p>
-                            </div>
-                            <p className="text-xs">Utworzony: {new Date(tunnel.created_at).toLocaleString()}</p>
-                          </div>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* Code Server button */}
-                  <div className="mt-4 flex justify-end space-x-2">
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => openCodeServer(job)}
-                              disabled={job.status != "RUNNING"}
-                            >
-                              <Code2 className="h-4 w-4 mr-2" />
-                              Code Server
-                            </Button>
-                          </span>
-                        </TooltipTrigger>
-                        <TooltipContent>
-                          { job.status !== "RUNNING" ? (
-                            <p>Status: <span className="font-semibold">{job.status}</span>. Musi być "RUNNING" aby uruchomić Code Server</p>
-                          ) : (
-                            <p>Otwórz interfejs Code Server w nowej karcie </p>
-                          )}
-                        </TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                    <Button 
-                      variant="destructive" 
-                      size="sm"
-                      onClick={() => handleDelete(job.id)}
-                    >
-                      Usuń
-                    </Button>
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : jobs.length === 0 ? (
+            <div className="text-center py-10 text-muted-foreground">
+              <p>Brak zadań. Utwórz nowe zadanie, aby rozpocząć pracę.</p>
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+              {jobs.map((job) => (
+                <JobCard 
+                  key={job.id}
+                  job={job}
+                  activeJobData={activeJobsMap.get(job.job_id)}
+                  tunnels={jobTunnels[job.id] || []}
+                  isProcessing={processingJobs[job.id] || false}
+                  onDelete={() => handleDelete(job.id)}
+                  onOpenCodeServer={() => openCodeServer(job)}
+                  canUseCodeServer={canUseCodeServer(job)}
+                  formatDate={formatDate}
+                />
+              ))}
+            </div>
+          )}
         </TabsContent>
         <TabsContent value="active" className="mt-4">
           {/* Active jobs table */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Aktywne zadania</CardTitle>
+              <CardTitle>Lista zadań</CardTitle>
               <CardDescription>
                 Zadania aktualnie wykonywane na klastrze
               </CardDescription>
