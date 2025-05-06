@@ -20,64 +20,156 @@ class SSHTunnelService:
         self.db = db
         # Track PIDs of processes we start for better cleanup
         self._processes: Dict[int, int] = {}  # {port: pid}
+        # Don't create asyncio.Lock at initialization time
+        self._cleanup_lock = None
+        # Track last cleanup time to avoid too frequent cleanups
+        self._last_cleanup_time = datetime.min
+        # Track cleanup in progress
+        self._cleanup_in_progress = False
+
+    def _get_cleanup_lock(self):
+        """Get the cleanup lock lazily, only when needed in an async context."""
+        if self._cleanup_lock is None:
+            try:
+                # Only create the lock when we're in an async context
+                loop = asyncio.get_running_loop()
+                self._cleanup_lock = asyncio.Lock()
+            except RuntimeError:
+                # We're not in an async context, so we don't need a lock
+                pass
+        return self._cleanup_lock
 
     async def cleanup_inactive_tunnels(self) -> int:
         """
         Scan database for inactive tunnels and clean them up.
         Returns the number of cleaned tunnels.
+        
+        This method uses a lock to prevent concurrent execution
+        which could lead to database conflicts or resource issues.
         """
+        # Prevent concurrent execution of cleanup
+        if self._cleanup_in_progress:
+            cluster_logger.info("Cleanup already in progress, skipping")
+            return 0
+            
+        # Check if last cleanup was recent (within 10 seconds)
+        time_since_last_cleanup = datetime.utcnow() - self._last_cleanup_time
+        if time_since_last_cleanup < timedelta(seconds=10):
+            cluster_logger.info(f"Last cleanup was {time_since_last_cleanup.total_seconds():.1f}s ago, skipping")
+            return 0
+
+        # Set the cleanup flag and update timestamp
+        self._cleanup_in_progress = True
+        self._last_cleanup_time = datetime.utcnow()
+        
+        try:
+            # Get the lock (if we're in an async context)
+            lock = self._get_cleanup_lock()
+            if lock:
+                async with lock:
+                    return await self._do_cleanup_inactive_tunnels()
+            else:
+                # We're not in an async context, just proceed without lock
+                return await self._do_cleanup_inactive_tunnels()
+        except Exception as e:
+            cluster_logger.error(f"Error during cleanup of inactive tunnels: {str(e)}")
+            return 0
+        finally:
+            self._cleanup_in_progress = False
+            
+    async def _do_cleanup_inactive_tunnels(self) -> int:
+        """
+        Internal method that does the actual cleanup work.
+        """
+        cleanup_start_time = time.time()
         cluster_logger.info("Starting cleanup of inactive tunnels")
         cleaned_count = 0
         
-        # First check tunnels marked as ACTIVE but actually not working
-        active_tunnels = self.db.query(SSHTunnel).filter(SSHTunnel.status == "ACTIVE").all()
-        cluster_logger.info(f"Found {len(active_tunnels)} tunnels marked as ACTIVE in database")
-        
-        for tunnel in active_tunnels:
-            if not hasattr(tunnel, 'external_port') or not tunnel.external_port:
-                continue
+        try:
+            # First check tunnels marked as ACTIVE but actually not working
+            active_tunnels = self.db.query(SSHTunnel).filter(SSHTunnel.status == "ACTIVE").all()
+            cluster_logger.info(f"Found {len(active_tunnels)} tunnels marked as ACTIVE in database")
+            
+            for tunnel in active_tunnels:
+                if not hasattr(tunnel, 'external_port') or not tunnel.external_port:
+                    continue
+                    
+                # Check if the port is actually in use - retry up to 3 times with backoff
+                port_in_use = False
+                for attempt in range(3):
+                    try:
+                        port_in_use = await self._is_port_in_use_async(tunnel.external_port, check_external=True)
+                        if port_in_use:
+                            break
+                        # Wait a bit between retries (exponential backoff)
+                        if attempt < 2:
+                            await asyncio.sleep(0.5 * (2 ** attempt))
+                    except Exception as e:
+                        cluster_logger.warning(f"Error checking port {tunnel.external_port} on attempt {attempt+1}: {str(e)}")
                 
-            # Check if the port is actually in use
-            if not await self._is_port_in_use_async(tunnel.external_port, check_external=True):
-                cluster_logger.info(f"Tunnel id={tunnel.id} with port {tunnel.external_port} is marked ACTIVE but not in use - DELETING")
-                # Instead of just marking as DEAD, actually delete the tunnel
-                await self._kill_tunnel_processes_async(tunnel)
-                self.db.delete(tunnel)
-                cleaned_count += 1
-        
-        # Clean up old tunnels (older than 12 hours)
-        old_time = datetime.utcnow() - timedelta(hours=12)
-        old_tunnels = (
-            self.db.query(SSHTunnel)
-            .filter(SSHTunnel.created_at < old_time)
-            .all()
-        )
-        
-        for tunnel in old_tunnels:
-            cluster_logger.info(f"Deleting old tunnel id={tunnel.id} created at {tunnel.created_at}")
-            await self._kill_tunnel_processes_async(tunnel)
-            self.db.delete(tunnel)
-            cleaned_count += 1
-        
-        # Clean up any tunnels marked as DEAD or closed
-        dead_tunnels = (
-            self.db.query(SSHTunnel)
-            .filter(SSHTunnel.status.in_(["DEAD", "closed"]))
-            .all()
-        )
-        
-        for tunnel in dead_tunnels:
-            cluster_logger.info(f"Deleting tunnel id={tunnel.id} with status={tunnel.status}")
-            self.db.delete(tunnel)
-            cleaned_count += 1
-        
-        # Commit all deletions
-        if cleaned_count > 0:
-            self.db.commit()
-            cluster_logger.info(f"Deleted {cleaned_count} inactive tunnels")
-        
-        return cleaned_count
-        
+                if not port_in_use:
+                    cluster_logger.info(f"Tunnel id={tunnel.id} with port {tunnel.external_port} is marked ACTIVE but not in use - DELETING")
+                    try:
+                        # Instead of just marking as DEAD, actually delete the tunnel
+                        await self._kill_tunnel_processes_async(tunnel)
+                        self.db.delete(tunnel)
+                        cleaned_count += 1
+                    except Exception as e:
+                        cluster_logger.error(f"Failed to delete tunnel id={tunnel.id}: {str(e)}")
+            
+            # Clean up old tunnels (older than 12 hours)
+            old_time = datetime.utcnow() - timedelta(hours=12)
+            old_tunnels = (
+                self.db.query(SSHTunnel)
+                .filter(SSHTunnel.created_at < old_time)
+                .all()
+            )
+            
+            for tunnel in old_tunnels:
+                cluster_logger.info(f"Deleting old tunnel id={tunnel.id} created at {tunnel.created_at}")
+                try:
+                    await self._kill_tunnel_processes_async(tunnel)
+                    self.db.delete(tunnel)
+                    cleaned_count += 1
+                except Exception as e:
+                    cluster_logger.error(f"Failed to delete old tunnel id={tunnel.id}: {str(e)}")
+            
+            # Clean up any tunnels marked as DEAD or closed
+            dead_tunnels = (
+                self.db.query(SSHTunnel)
+                .filter(SSHTunnel.status.in_(["DEAD", "closed"]))
+                .all()
+            )
+            
+            for tunnel in dead_tunnels:
+                cluster_logger.info(f"Deleting tunnel id={tunnel.id} with status={tunnel.status}")
+                try:
+                    # No need to kill processes for already dead/closed tunnels
+                    self.db.delete(tunnel)
+                    cleaned_count += 1
+                except Exception as e:
+                    cluster_logger.error(f"Failed to delete dead tunnel id={tunnel.id}: {str(e)}")
+            
+            # Commit all deletions
+            if cleaned_count > 0:
+                self.db.commit()
+                cluster_logger.info(f"Deleted {cleaned_count} inactive tunnels")
+            
+            cleanup_duration = time.time() - cleanup_start_time
+            cluster_logger.info(f"Cleanup completed in {cleanup_duration:.2f} seconds")
+            return cleaned_count
+            
+        except Exception as e:
+            cluster_logger.error(f"Error during tunnel cleanup: {str(e)}")
+            # Try to commit any successful deletions
+            if cleaned_count > 0:
+                try:
+                    self.db.commit()
+                    cluster_logger.info(f"Committed {cleaned_count} deletions despite error")
+                except Exception as commit_error:
+                    cluster_logger.error(f"Failed to commit after cleanup error: {str(commit_error)}")
+            return cleaned_count
+            
     async def _kill_tunnel_processes_async(self, tunnel):
         """Kill processes for a tunnel before deleting it (async version)"""
         try:
@@ -288,14 +380,14 @@ class SSHTunnelService:
         return [SSHTunnelInfo(
             id=tunnel.id,
             job_id=tunnel.job_id,
-            local_port=tunnel.external_port,
+            local_port=tunnel.external_port,  # Use external_port as the local_port for frontend
             remote_port=tunnel.remote_port,
             remote_host=tunnel.remote_host,
             node=tunnel.node,
             status=tunnel.status,
             created_at=tunnel.created_at
         ) for tunnel in tunnels]
-
+    
     async def _is_port_in_use_async(self, port: int, check_external: bool = True) -> bool:
         """
         Check if a port is in use with proper timeout and error handling (async version).

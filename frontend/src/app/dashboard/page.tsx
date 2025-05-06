@@ -132,18 +132,38 @@ export default function DashboardPage() {
   }, []);
 
   // Fetch tunnel information with improved error handling
-  const fetchTunnelInfo = useCallback(async (jobId: number) => {
-    try {
-      const response = await jobsApi.getJobTunnels(jobId);
-      setJobTunnels(prev => ({
-        ...prev,
-        [jobId]: response.data
-      }));
-    } catch (error: any) {
-      console.error(`Error fetching tunnel info for job ${jobId}:`, error);
-      // Not showing toast to avoid potential spam if multiple jobs fail
+const fetchTunnelInfo = useCallback(async (jobId: number) => {
+  try {
+    const response = await jobsApi.getJobTunnels(jobId);
+    setJobTunnels(prev => ({
+      ...prev,
+      [jobId]: response.data
+    }));
+  } catch (error: any) {
+    console.error(`Error fetching tunnel info for job ${jobId}:`, error); // Zachowaj ogólne logowanie
+
+    if (axios.isAxiosError(error)) {
+      if (error.response) {
+        // Serwer odpowiedział błędem
+        if (error.response.status === 500) {
+          toast.error(`Wystąpił wewnętrzny błąd serwera przy pobieraniu tuneli dla zadania ${jobId}. Prosimy spróbować później.`);
+          // Możesz też zapisać gdzieś, że dla tego joba nie udało się pobrać tuneli
+          // np. setJobTunnelsError(jobId, true);
+        } else {
+          // Inne błędy serwera (np. 400, 404)
+          const message = error.response.data?.detail || `Błąd serwera (${error.response.status}) przy pobieraniu tuneli.`;
+          toast.error(message);
+        }
+      } else if (error.request) {
+        toast.error(`Brak odpowiedzi od serwera przy próbie pobrania tuneli dla zadania ${jobId}.`);
+      } else {
+        toast.error(`Błąd konfiguracji żądania tuneli dla zadania ${jobId}.`);
+      }
+    } else {
+      toast.error(`Wystąpił nieoczekiwany błąd przy pobieraniu tuneli dla zadania ${jobId}.`);
     }
-  }, []);
+  }
+}, [/* zależności */]);
 
   // Fetch all tunnel information for running jobs
   const fetchAllTunnels = useCallback(() => {

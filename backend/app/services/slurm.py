@@ -68,7 +68,7 @@ class SlurmSSHService:
                     ) as conn:
                         ssh_logger.debug("SSH connection established successfully")
                         result = await conn.run(command)
-                        ssh_logger.debug(f"Command output:\n{result.stdout}")
+                        # ssh_logger.debug(f"Command output:\n{result.stdout}")
                         return result.stdout
                 except asyncssh.Error as key_error:
                     ssh_logger.error(f"Key-based authentication failed: {str(key_error)}")
@@ -237,8 +237,8 @@ class SlurmSSHService:
                         jobs.append(job_info)
                         # log_slurm_job(job_id, state, job_info)
                         slurm_logger.debug(f"Added job {job_id} matching username '{username}'")
-                    else:
-                        slurm_logger.debug(f"Job {job_id} name '{name}' does not match username pattern '{pattern}'")
+                    # else:
+                        # slurm_logger.debug(f"Job {job_id} name '{name}' does not match username pattern '{pattern}'")
                 else:
                     # No username filter, include all container jobs
                     # log_slurm_job(job_id, state, job_info)
@@ -323,12 +323,12 @@ class SlurmSSHService:
         if container_dir.startswith("~"):
             container_dir = container_dir.replace("~", f"/home/{username}")
         
-        log_cluster_operation("Creating Container Directory", {
+        log_cluster_operation("Creating Container Directory", {favicon.ico
             "path": container_dir,
             "user": username
         })
-        output = await self._execute_async_command(f"squeue --me -o '%A|%j|%T|%N|%C|%M' -h")
         
+        # Create directory without unnecessary output
         await self._execute_async_command(f"mkdir -p {container_dir}")
 
         

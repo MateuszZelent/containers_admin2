@@ -16,7 +16,7 @@ slurm_containers.db
 # next.js
 /.next/
 /out/
-
+*backup*
 # production
 /build
 
