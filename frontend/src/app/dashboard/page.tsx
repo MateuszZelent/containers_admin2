@@ -443,7 +443,7 @@ export default function DashboardPage() {
                               variant="outline"
                               size="sm"
                               onClick={() => openCodeServer(job)}
-                              disabled={!canUseCodeServer(job) || isLoading}
+                              disabled={job.status != "RUNNING"}
                             >
                               <Code2 className="h-4 w-4 mr-2" />
                               Code Server
@@ -454,7 +454,7 @@ export default function DashboardPage() {
                           { job.status !== "RUNNING" ? (
                             <p>Status: <span className="font-semibold">{job.status}</span>. Musi być "RUNNING" aby uruchomić Code Server</p>
                           ) : (
-                            <p>Otwórz interfejs Code Server w nowej karcie</p>
+                            <p>Otwórz interfejs Code Server w nowej karcie </p>
                           )}
                         </TooltipContent>
                       </Tooltip>

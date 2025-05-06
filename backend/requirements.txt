@@ -19,3 +19,4 @@ debugpy==1.6.7
 email-validator 
 psycopg2-binary 
 debugpy
+tenacity>=8.2.0  # Add retry functionality

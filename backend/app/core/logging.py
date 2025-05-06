@@ -1,6 +1,7 @@
 import logging
 import sys
-from typing import Optional
+from typing import Optional, Dict, Any
+import json
 
 from rich.console import Console
 from rich.logging import RichHandler
@@ -58,6 +59,15 @@ cluster_logger = get_logger("cluster")
 slurm_logger = get_logger("slurm")
 ssh_logger = get_logger("ssh")
 
+# Add the database logger
+db_logger = logging.getLogger("db")
+db_logger.setLevel(logging.INFO)
+
+# Configure the logger with the same handlers as other loggers
+# This assumes the existing code already sets up handlers for other loggers
+for handler in logging.getLogger().handlers:
+    db_logger.addHandler(handler)
+
 def log_command(logger: logging.Logger, command: str, sensitive: bool = False) -> None:
     """Log a command execution with proper formatting."""
     if sensitive:
@@ -87,3 +97,11 @@ def log_cluster_operation(operation: str, details: dict) -> None:
         f"[bold]Cluster Operation:[/bold] {operation}\n" +
         "\n".join(f"  [cyan]{k}:[/cyan] {v}" for k, v in details.items())
     )
+
+# Add a specific log function for database operations
+def log_db_operation(operation: str, details: Dict[str, Any] = None) -> None:
+    """Log a database operation with optional details."""
+    log_message = f"DB: {operation}"
+    if details:
+        log_message += f" | {json.dumps(details, indent=2)}"
+    db_logger.info(log_message)

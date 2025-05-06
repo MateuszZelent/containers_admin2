@@ -53,11 +53,11 @@ class SlurmSSHService:
     async def _execute_async_command(self, command: str) -> str:
         """Execute a command via asyncssh."""
         try:
-            log_command(ssh_logger, command)
-            log_ssh_connection(self.host, self.username, using_key=bool(self.key_file))
+            # log_command(ssh_logger, command)
+            # log_ssh_connection(self.host, self.username, using_key=bool(self.key_file))
             
             if self.key_file:
-                ssh_logger.debug(f"Using key file: {self.key_file}")
+                # ssh_logger.debug(f"Using key file: {self.key_file}")
                 try:
                     async with asyncssh.connect(
                         host=self.host,
@@ -105,12 +105,12 @@ class SlurmSSHService:
 
     def _execute_command(self, command: str) -> str:
         """Execute a command via paramiko (synchronous)."""
-        log_command(ssh_logger, command)
+        # log_command(ssh_logger, command)
         client = paramiko.SSHClient()
         client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
         
         try:
-            log_ssh_connection(self.host, self.username, using_key=bool(self.key_file))
+            # log_ssh_connection(self.host, self.username, using_key=bool(self.key_file))
             
             if self.key_file:
                 client.connect(
@@ -138,7 +138,7 @@ class SlurmSSHService:
                     status_code=500, detail=f"Command execution error: {error}"
                 )
             
-            ssh_logger.debug(f"Command output:\n{output}")
+            # ssh_logger.debug(f"Command output:\n{output}")
             return output
         except Exception as e:
             ssh_logger.error(f"SSH command execution failed: {str(e)}")
@@ -235,13 +235,13 @@ class SlurmSSHService:
                     pattern = f"container_{username}"
                     if name.startswith(pattern):
                         jobs.append(job_info)
-                        log_slurm_job(job_id, state, job_info)
+                        # log_slurm_job(job_id, state, job_info)
                         slurm_logger.debug(f"Added job {job_id} matching username '{username}'")
                     else:
                         slurm_logger.debug(f"Job {job_id} name '{name}' does not match username pattern '{pattern}'")
                 else:
                     # No username filter, include all container jobs
-                    log_slurm_job(job_id, state, job_info)
+                    # log_slurm_job(job_id, state, job_info)
                     jobs.append(job_info)
 
         slurm_logger.debug(f"Found {len(jobs)} matching jobs")

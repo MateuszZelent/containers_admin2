@@ -27,6 +27,37 @@ export default function LoginPage() {
     }
   };
   
+  // Przykładowa funkcja obsługi logowania
+  const handleLogin = async (values) => {
+    try {
+      // ...existing login logic...
+      
+      // Po pomyślnym zalogowaniu, zapisz dane użytkownika
+      if (response && response.data) {
+        const userData = response.data;
+        
+        // Dodaj pełne imię i nazwisko jeśli mamy te dane
+        if (!userData.full_name && (userData.first_name || userData.last_name)) {
+          const firstName = userData.first_name || '';
+          const lastName = userData.last_name || '';
+          userData.full_name = `${firstName} ${lastName}`.trim();
+        }
+        
+        // Zapisz token
+        localStorage.setItem('auth_token', userData.token || userData.access_token);
+        
+        // Zapisz dane użytkownika
+        localStorage.setItem('user_data', JSON.stringify(userData));
+        localStorage.setItem('user_data_timestamp', Date.now().toString());
+        
+        // Przekieruj użytkownika
+        window.location.href = '/dashboard';
+      }
+    } catch (error) {
+      // ...error handling...
+    }
+  };
+  
   // Modify your login form submission to use the new handler
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -36,7 +67,7 @@ export default function LoginPage() {
       // ...existing authentication code...
       
       // After successful login, use the new redirect handler
-      handleLoginSuccess();
+      handleLogin();
     } catch (error) {
       // ...existing error handling...
     }

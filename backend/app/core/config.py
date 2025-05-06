@@ -24,7 +24,8 @@ class Settings(BaseSettings):
     SLURM_USER: Optional[str] = "kkingstoun"
     SLURM_PASSWORD: Optional[str] = None
     SLURM_KEY_FILE: Optional[str] = "/root/.ssh/id_rsa"  # Ścieżka w kontenerze
-    
+    SLURM_LOG_LEVEL: str = "ERROR"  # Temporarily set to ERROR to disable most SLURM logs
+
     # Container settings
     # Używaj wartości z .env lub zmiennych środowiskowych, z odpowiednimi wartościami domyślnymi
     CONTAINER_OUTPUT_DIR: str = os.getenv("CONTAINER_OUTPUT_DIR", "/mnt/storage_3/home/kkingstoun/containers/run")
