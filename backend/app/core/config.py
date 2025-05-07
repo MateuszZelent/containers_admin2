@@ -48,6 +48,13 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://postgres:postgres@postgres:5432/containers_admin"
     
+    # Admin user settings (with defaults)
+    ADMIN_USERNAME: str = os.getenv("ADMIN_USERNAME", "admin")
+    ADMIN_EMAIL: str = os.getenv("ADMIN_EMAIL", "admin@admin.pl")
+    ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "password")
+    ADMIN_FIRST_NAME: str = os.getenv("ADMIN_FIRST_NAME", "Admin")
+    ADMIN_LAST_NAME: str = os.getenv("ADMIN_LAST_NAME", "Admin")
+    
     class Config:
         env_file = ".env"
         case_sensitive = True

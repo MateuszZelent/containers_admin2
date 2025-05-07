@@ -18,7 +18,7 @@ print("Debugger is active. Waiting for client to attach...")
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,
+    title=settings.PROJECT_NAME,    
     openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
@@ -79,15 +79,15 @@ async def create_first_user():
     
     logger.info("Checking for initial admin user...")
     db = next(get_db())
-    user = UserService.get_by_username(db=db, username="admin")
+    user = UserService.get_by_username(db=db, username=settings.ADMIN_USERNAME)
     if not user:
         logger.info("Creating initial admin user...")
         user_in = UserCreate(
-            username="admin",
-            email="admin@example.com",
-            password="adminpassword",
-            first_name="Admin",
-            last_name="User"
+            username=settings.ADMIN_USERNAME,
+            email=settings.ADMIN_EMAIL,
+            password=settings.ADMIN_PASSWORD,
+            first_name=settings.ADMIN_FIRST_NAME,
+            last_name=settings.ADMIN_LAST_NAME
         )
         UserService.create(db=db, user_in=user_in)
         logger.info("[green]Admin user created successfully[/green]")

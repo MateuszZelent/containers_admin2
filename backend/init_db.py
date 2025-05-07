@@ -9,6 +9,7 @@ from app.db.session import engine, get_db
 from app.db.models import Base
 from app.services.user import UserService
 from app.schemas.user import UserCreate
+from app.core.config import settings
 
 
 def init_db() -> None:
@@ -24,12 +25,14 @@ def init_db() -> None:
     if result == 0:
         print("Creating initial admin user...")
         user_in = UserCreate(
-            username="admin",
-            email="admin@example.com",
-            password="adminpassword"  # Change this in production!
+            username=settings.ADMIN_USERNAME,
+            email=settings.ADMIN_EMAIL,
+            password=settings.ADMIN_PASSWORD,
+            first_name=settings.ADMIN_FIRST_NAME,
+            last_name=settings.ADMIN_LAST_NAME
         )
         UserService.create(db=db, user_in=user_in)
-        print("Admin user created. Username: admin, Password: adminpassword")
+        print(f"Admin user created. Username: {settings.ADMIN_USERNAME}")
     else:
         print("Database already initialized with users.")
 

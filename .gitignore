@@ -13,6 +13,8 @@ downloads/
 eggs/
 .eggs/
 .env
+.env.*
+!.env.example
 backend/.env
 backend/slurm_containers.db
 lib/
