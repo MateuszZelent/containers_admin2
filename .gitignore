@@ -18,7 +18,9 @@ eggs/
 backend/.env
 backend/slurm_containers.db
 lib/
+# Upewniamy się, że pliki lib w src i registry nie są ignorowane
 !frontend/src/lib
+!frontend/src/registry/*/lib
 lib64/
 parts/
 sdist/
