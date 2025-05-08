@@ -110,18 +110,28 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   // Odśwież dane
   const refreshData = () => {
     fetchData();
-    toast.success("Dane zostały odświeżone");
+    toast.success("Dane zostały odświeżone", {
+      duration: 3000,
+      closeButton: true
+    });
   };
 
   // Utwórz tunel SSH
   const createTunnel = async () => {
     try {
       await jobsApi.createJobTunnel(jobId);
-      toast.success("Tunel SSH został utworzony");
+      toast.success("Tunel SSH został utworzony", {
+        duration: 5000,
+        closeButton: true
+      });
       fetchData();  // Odśwież dane
     } catch (error: any) {
       toast.error(
-        error.response?.data?.detail || "Nie udało się utworzyć tunelu SSH"
+        error.response?.data?.detail || "Nie udało się utworzyć tunelu SSH",
+        {
+          duration: 5000,
+          closeButton: true
+        }
       );
       console.error(error);
     }
@@ -131,11 +141,18 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const closeTunnel = async (tunnelId: number) => {
     try {
       await jobsApi.closeJobTunnel(jobId, tunnelId);
-      toast.success("Tunel SSH został zamknięty");
+      toast.success("Tunel SSH został zamknięty", {
+        duration: 5000,
+        closeButton: true
+      });
       fetchData();  // Odśwież dane
     } catch (error: any) {
       toast.error(
-        error.response?.data?.detail || "Nie udało się zamknąć tunelu SSH"
+        error.response?.data?.detail || "Nie udało się zamknąć tunelu SSH",
+        {
+          duration: 5000,
+          closeButton: true
+        }
       );
       console.error(error);
     }
@@ -146,10 +163,17 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     try {
       const response = await jobsApi.getCodeServerUrl(jobId);
       setCodeServerURL(response.data.url);
-      toast.success("Adres do Code Server został wygenerowany");
+      toast.success("Adres do Code Server został wygenerowany", {
+        duration: 5000,
+        closeButton: true
+      });
     } catch (error: any) {
       toast.error(
-        error.response?.data?.detail || "Nie udało się uzyskać dostępu do Code Server"
+        error.response?.data?.detail || "Nie udało się uzyskać dostępu do Code Server",
+        {
+          duration: 5000,
+          closeButton: true
+        }
       );
       console.error(error);
     }

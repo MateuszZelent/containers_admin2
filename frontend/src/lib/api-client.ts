@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { toast } from "sonner"; // Dodajemy import toast
 
 // Configuration
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amucontainers.orion.zfns.eu.org";
@@ -46,11 +47,10 @@ apiClient.interceptors.response.use(
       console.error('Axios Request Config:', {
         url: error.config.url,
         method: error.config.method,
-        headers: error.config.headers, // Może być duże, ale ważne
-        data: error.config.data,       // Dane wysłane z żądaniem
+        headers: error.config.headers,
+        data: error.config.data,
         timeout: error.config.timeout,
         baseURL: error.config.baseURL,
-        // Możesz dodać inne interesujące Cię pola z config
       });
     } else {
       console.error('Axios Request Config: IS UNDEFINED OR NULL');
@@ -60,18 +60,50 @@ apiClient.interceptors.response.use(
       console.error('Axios Response:', {
         status: error.response.status,
         statusText: error.response.statusText,
-        headers: error.response.headers, // Nagłówki odpowiedzi
-        data: error.response.data,       // Ciało odpowiedzi (tutaj będzie błąd z serwera)
+        headers: error.response.headers,
+        data: error.response.data,
       });
 
       if (error.response.status === 401 || error.response.status === 403) {
-        // ... (twoja logika przekierowania)
+        // Sprawdź czy komunikat błędu zawiera "Could not validate credentials"
+        const errorDetail = error.response.data?.detail;
+        if (typeof errorDetail === 'string' && errorDetail.includes("Could not validate credentials")) {
+          console.error('Authentication error: Token invalid or expired');
+          
+          // Wyloguj użytkownika - wyczyść localStorage
+          localStorage.removeItem('auth_token');
+          localStorage.removeItem('user_data');
+          localStorage.removeItem('user_data_timestamp');
+          
+          // Powiadom użytkownika
+          if (typeof window !== "undefined") {
+            toast.error("Sesja wygasła. Wymagane ponowne logowanie.", {
+              duration: 8000,
+              closeButton: true
+            });
+          }
+          
+          // Przekieruj na stronę logowania
+          if (typeof window !== "undefined") {
+            // Zachowaj aktualną ścieżkę, aby móc wrócić po zalogowaniu
+            const currentPath = window.location.pathname;
+            if (currentPath !== '/login' && !currentPath.includes('/logout')) {
+              localStorage.setItem('login_redirect', currentPath);
+            }
+            
+            // Przekieruj na stronę logowania
+            window.location.href = '/login';
+          }
+        }
       } else if (error.response.status === 500) {
         // Specjalna obsługa dla błędu 500
         console.error('INTERNAL SERVER ERROR (500). Response data:', error.response.data);
         // Tutaj możesz wyświetlić użytkownikowi generyczny komunikat
         if (typeof window !== "undefined") {
-          toast.error("Wystąpił wewnętrzny błąd serwera. Spróbuj ponownie później.");
+          toast.error("Wystąpił wewnętrzny błąd serwera. Spróbuj ponownie później.", {
+            duration: 8000,
+            closeButton: true
+          });
         }
       } else {
         console.error('Other API error response. Status:', error.response.status, 'Data:', error.response.data);
@@ -209,6 +241,50 @@ export const jobsApi = {
   // Close SSH tunnel
   closeJobTunnel: (jobId: number, tunnelId: number) => 
     apiClient.delete(`/jobs/${jobId}/tunnels/${tunnelId}`),
+  
+  // Get active amumax jobs
+  getActiveAmumaxJobs: () => {
+    return apiClient.get('/queue/');
+  },
+  
+  // Create new amumax job
+  createAmumaxJob: (data: {
+    simulation_time: string;
+    input_path: string;
+    prefix: string;
+  }) => {
+    return apiClient.post('/queue/', data);
+  },
+  
+  // Get specific amumax job
+  getAmumaxJob: (jobId: number) => {
+    return apiClient.get(`/queue/${jobId}`);
+  },
+  
+  // Update queue job
+  updateAmumaxJob: (jobId: number, data: any) => {
+    return apiClient.put(`/queue/${jobId}`, data);
+  },
+  
+  // Delete queue job
+  cancelAmumaxJob: (jobId: number) => {
+    return apiClient.delete(`/queue/${jobId}`);
+  },
+
+  // Get queue status
+  getQueueStatus: () => {
+    return apiClient.get('/queue/status');
+  },
+
+  // Get job results
+  getJobResults: (jobId: number) => {
+    return apiClient.get(`/queue/${jobId}/results`);
+  },
+
+  // Cancel queue job (specific endpoint)
+  cancelQueueJob: (jobId: number) => {
+    return apiClient.post(`/queue/${jobId}/cancel`);
+  },
 };
 
 export default apiClient;

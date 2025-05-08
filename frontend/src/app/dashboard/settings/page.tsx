@@ -172,6 +172,7 @@ export default function SettingsPage() {
         position: "top-center",
         id: `code-server-update-success-${Date.now()}`,
         className: "bg-green-50 border-green-200 text-green-800",
+        closeButton: true
       });
       
       // Reset success state and close edit form after delay
@@ -189,6 +190,7 @@ export default function SettingsPage() {
         position: "top-center", 
         id: `code-server-update-error-${Date.now()}`,
         className: "bg-red-50 border-red-200 text-red-800",
+        closeButton: true
       });
       
       setShowSuccessCodeServer(false);

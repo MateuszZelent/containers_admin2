@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
-from app.routers import auth, users, jobs
+from app.routers import auth, users, jobs, job_queue
 import debugpy
 
 # Ustaw punkt nasłuchiwania debuggera
@@ -37,6 +37,7 @@ app.add_middleware(
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_STR}/jobs", tags=["jobs"])
+app.include_router(job_queue.router, prefix=f"{settings.API_V1_STR}/queue", tags=["job_queue"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -93,6 +94,22 @@ async def create_first_user():
         logger.info("[green]Admin user created successfully[/green]")
     else:
         logger.info("Admin user already exists")
+
+@app.on_event("startup")
+async def restore_ssh_tunnels():
+    """Restore SSH tunnels from database after server restart."""
+    logger.info("Restoring SSH tunnels after server startup")
+    try:
+        # Get a database session
+        db = next(get_db())
+        # Create SSH tunnel service
+        from app.services.ssh_tunnel import SSHTunnelService
+        tunnel_service = SSHTunnelService(db)
+        # Restore active tunnels
+        result = await tunnel_service.restore_active_tunnels()
+        logger.info(f"SSH tunnel restoration complete: {result}")
+    except Exception as e:
+        logger.error(f"Error restoring SSH tunnels: {str(e)}")
 
 if __name__ == "__main__":
     import uvicorn

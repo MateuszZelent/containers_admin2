@@ -26,6 +26,151 @@ class SSHTunnelService:
         self._last_cleanup_time = datetime.min
         # Track cleanup in progress
         self._cleanup_in_progress = False
+        # Flag to track if tunnels have been restored after restart
+        self._tunnels_restored = False
+
+    async def restore_active_tunnels(self) -> Dict[str, int]:
+        """
+        Restore active tunnels from database after service restart.
+        This method should be called during application startup or first service access.
+        """
+        if self._tunnels_restored:
+            return {"restored": 0, "failed": 0}
+            
+        cluster_logger.info("Starting restoration of active tunnels after backend restart")
+        
+        # Get all tunnels marked as ACTIVE in the database
+        active_tunnels = self.db.query(SSHTunnel).filter(SSHTunnel.status == "ACTIVE").all()
+        
+        if not active_tunnels:
+            cluster_logger.info("No active tunnels found in database to restore")
+            self._tunnels_restored = True
+            return {"restored": 0, "failed": 0}
+            
+        cluster_logger.info(f"Found {len(active_tunnels)} tunnels marked as ACTIVE in database")
+        
+        restored_count = 0
+        failed_count = 0
+        
+        for tunnel in active_tunnels:
+            try:
+                # Skip tunnels with missing required attributes
+                if not hasattr(tunnel, 'internal_port') or not tunnel.internal_port or \
+                   not hasattr(tunnel, 'external_port') or not tunnel.external_port or \
+                   not hasattr(tunnel, 'remote_port') or not tunnel.remote_port or \
+                   not hasattr(tunnel, 'remote_host') or not tunnel.remote_host or \
+                   not hasattr(tunnel, 'node') or not tunnel.node or \
+                   not hasattr(tunnel, 'job_id') or not tunnel.job_id:
+                    cluster_logger.warning(f"Tunnel id={tunnel.id} has missing required attributes - marking as DEAD")
+                    tunnel.status = "DEAD"
+                    failed_count += 1
+                    continue
+                    
+                # Check if the ports are already in use
+                internal_port_in_use = await self._is_port_in_use_async(tunnel.internal_port, check_external=False)
+                external_port_in_use = await self._is_port_in_use_async(tunnel.external_port, check_external=True)
+                
+                # If both ports are in use, check if the tunnel is actually working
+                if internal_port_in_use and external_port_in_use:
+                    is_working = await self.test_tunnel(tunnel.external_port, tunnel.node)
+                    if is_working:
+                        cluster_logger.info(f"Tunnel id={tunnel.id} is already working - reattaching")
+                        
+                        # Try to get PIDs of the processes for tracking
+                        ssh_pid = await self._get_pid_for_pattern(f"ssh.*{tunnel.internal_port}:{tunnel.node}:{tunnel.remote_port}")
+                        socat_pid = await self._get_pid_for_pattern(f"socat.*TCP-LISTEN:{tunnel.external_port}")
+                        
+                        if ssh_pid:
+                            self._processes[tunnel.internal_port] = ssh_pid
+                        if socat_pid:
+                            self._processes[tunnel.external_port] = socat_pid
+                            
+                        restored_count += 1
+                        continue
+                
+                # If we get here, we need to recreate the tunnel
+                cluster_logger.info(f"Recreating tunnel id={tunnel.id} for job_id={tunnel.job_id}")
+                
+                # Clean up any existing processes on these ports
+                if internal_port_in_use:
+                    await self._kill_ssh_tunnel_async(tunnel.internal_port)
+                if external_port_in_use:
+                    await self._kill_socat_forwarder_async(tunnel.external_port)
+                    
+                # Wait a moment for ports to be released
+                await asyncio.sleep(1)
+                
+                # Try to get the job to verify it still exists and has necessary info
+                job = self.db.query(Job).filter(Job.id == tunnel.job_id).first()
+                if not job or not job.port or not job.node:
+                    cluster_logger.warning(f"Job {tunnel.job_id} is missing or has insufficient data - marking tunnel as DEAD")
+                    tunnel.status = "DEAD"
+                    failed_count += 1
+                    continue
+                    
+                # Set up the SSH tunnel first
+                ssh_success, ssh_pid = await self._establish_ssh_tunnel_async(
+                    local_port=tunnel.internal_port,
+                    remote_port=tunnel.remote_port,
+                    remote_host=tunnel.remote_host,
+                    node=tunnel.node
+                )
+                
+                if not ssh_success:
+                    cluster_logger.error(f"Failed to restore SSH tunnel for id={tunnel.id} - marking as DEAD")
+                    tunnel.status = "DEAD"
+                    failed_count += 1
+                    continue
+                    
+                # Keep track of SSH process if we got the PID
+                if ssh_pid:
+                    self._processes[tunnel.internal_port] = ssh_pid
+                    
+                # Now set up the socat forwarder
+                socat_success, socat_pid = await self._start_socat_forwarder_async(
+                    external_port=tunnel.external_port,
+                    internal_port=tunnel.internal_port
+                )
+                
+                if not socat_success:
+                    # If socat fails, clean up the SSH tunnel we just created
+                    await self._kill_ssh_tunnel_async(tunnel.internal_port)
+                    cluster_logger.error(f"Failed to restore socat forwarder for tunnel id={tunnel.id} - marking as DEAD")
+                    tunnel.status = "DEAD"
+                    failed_count += 1
+                    continue
+                    
+                # Keep track of socat process if we got the PID
+                if socat_pid:
+                    self._processes[tunnel.external_port] = socat_pid
+                    
+                # The tunnel has been successfully restored
+                cluster_logger.info(f"Successfully restored tunnel id={tunnel.id}")
+                restored_count += 1
+                    
+            except Exception as e:
+                cluster_logger.error(f"Error restoring tunnel id={tunnel.id}: {str(e)}")
+                # Mark as DEAD on error
+                tunnel.status = "DEAD"
+                failed_count += 1
+        
+        # Commit all changes to the database
+        self.db.commit()
+        
+        # Set flag to indicate restoration has been performed
+        self._tunnels_restored = True
+        
+        # Log the summary
+        cluster_logger.info(f"Tunnel restoration complete: {restored_count} restored, {failed_count} failed")
+        return {"restored": restored_count, "failed": failed_count}
+
+    async def ensure_tunnels_restored(self):
+        """
+        Ensure that tunnel restoration has been performed.
+        This should be called by any method that depends on tunnels being properly initialized.
+        """
+        if not self._tunnels_restored:
+            await self.restore_active_tunnels()
 
     def _get_cleanup_lock(self):
         """Get the cleanup lock lazily, only when needed in an async context."""
@@ -47,6 +192,9 @@ class SSHTunnelService:
         This method uses a lock to prevent concurrent execution
         which could lead to database conflicts or resource issues.
         """
+        # Ensure tunnels are restored before cleanup
+        await self.ensure_tunnels_restored()
+        
         # Prevent concurrent execution of cleanup
         if self._cleanup_in_progress:
             cluster_logger.info("Cleanup already in progress, skipping")
@@ -182,6 +330,9 @@ class SSHTunnelService:
 
     async def find_free_local_port(self) -> Optional[int]:
         """Find a free port on the local machine between MIN_PORT and MAX_PORT (async version)"""
+        # Ensure tunnels are restored first
+        await self.ensure_tunnels_restored()
+        
         # First clean up inactive tunnels to free up ports in database
         await self.cleanup_inactive_tunnels()
         
@@ -273,6 +424,9 @@ class SSHTunnelService:
 
     async def create_tunnel(self, job: Job) -> Optional[SSHTunnelInfo]:
         """Create an SSH tunnel for a job (async version)"""
+        # Ensure tunnels are restored first
+        await self.ensure_tunnels_restored()
+        
         if not job.port or not job.node:
             return None
 
@@ -345,6 +499,9 @@ class SSHTunnelService:
 
     async def close_tunnel(self, tunnel_id: int) -> bool:
         """Close an SSH tunnel (async version)"""
+        # Ensure tunnels are restored first
+        await self.ensure_tunnels_restored()
+        
         tunnel = self.db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
         if not tunnel:
             return False
@@ -362,6 +519,9 @@ class SSHTunnelService:
 
     async def close_job_tunnels(self, job_id: int) -> bool:
         """Close all tunnels for a specific job (async version)"""
+        # Ensure tunnels are restored first
+        await self.ensure_tunnels_restored()
+        
         tunnels = self.db.query(SSHTunnel).filter(SSHTunnel.job_id == job_id).all()
         success = True
         for tunnel in tunnels:
@@ -376,6 +536,10 @@ class SSHTunnelService:
         
     def get_job_tunnels(self, db: Session, job_id: int) -> List[SSHTunnelInfo]:
         """Get all tunnels for a specific job."""
+        # Ensure tunnels are restored (needs to be called in an async context)
+        # This is a sync method, so we can't await directly
+        # We'll rely on other async methods being called first
+        
         tunnels = db.query(SSHTunnel).filter(SSHTunnel.job_id == job_id).all()
         return [SSHTunnelInfo(
             id=tunnel.id,
@@ -553,6 +717,9 @@ class SSHTunnelService:
 
     async def get_or_create_tunnel(self, job: Job) -> Optional[SSHTunnelInfo]:
         """Get existing tunnel or create new one if none exists (async version)"""
+        # Ensure tunnels are restored first
+        await self.ensure_tunnels_restored()
+        
         if not job.port or not job.node:
             cluster_logger.warning(f"Job {job.id} missing port or node information")
             return None

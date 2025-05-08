@@ -267,18 +267,27 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
     
     try {
-      toast.loading("Establishing connection...");
+      const toastId = toast.loading("Establishing connection...", {
+        closeButton: true
+      });
+      
       const response = await jobsApi.getCodeServerUrl(job.id);
       const { url } = response.data;
       
       window.open(url, '_blank');
-      toast.success("Code Server connection established. Opening in new tab...");
+      toast.success("Code Server connection established. Opening in new tab...", {
+        id: toastId,
+        duration: 5000, // 5 seconds
+        closeButton: true
+      });
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || "Could not open Code Server";
-      toast.error(errorMessage);
+      toast.error(errorMessage, {
+        duration: 5000,
+        closeButton: true
+      });
       console.error(`Code Server error for job ${job.id}:`, error);
     } finally {
-      toast.dismiss();
       // Clear processing state
       setProcessingJobs(prev => ({ ...prev, [job.id]: false }));
     }

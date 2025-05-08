@@ -8,6 +8,7 @@ import {
   IconFileAi,
   IconFileDescription,
   IconInnerShadowTop,
+  IconListCheck,
 } from "@tabler/icons-react"
 import { Cog } from "lucide-react"
 
@@ -31,6 +32,11 @@ const data = {
       title: "Dashboard",
       url: "/dashboard",
       icon: IconDashboard,
+    },
+    {
+      title: "Kolejka zadań",
+      url: "/dashboard/jobs_queue",
+      icon: IconListCheck,
     },
     {
       title: "Ustawienia",
