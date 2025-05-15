@@ -218,7 +218,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     const hasNode = !!job.node;
     const hasPort = !!job.port;
     
-    return isRunning && hasNode && hasPort;
+    return isRunning && hasPort;
   }, []);
 
   // Refresh all data

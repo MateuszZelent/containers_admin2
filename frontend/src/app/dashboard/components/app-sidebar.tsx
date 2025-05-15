@@ -35,7 +35,7 @@ const data = {
     },
     {
       title: "Kolejka zadań",
-      url: "/dashboard/jobs_queue",
+      url: "/dashboard/task_queue",
       icon: IconListCheck,
     },
     {

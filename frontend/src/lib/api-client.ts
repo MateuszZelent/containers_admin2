@@ -204,6 +204,60 @@ export const userApi = {
   },
 }
 
+export const tasksApi = {
+  // Get all tasks
+  getTasks: () => apiClient.get('/tasks/'),
+
+  // Get active tasks
+  getActiveTasks: () => apiClient.get('/tasks/active-tasks'),
+
+  // Get task details
+  getTask: (taskId: number) => apiClient.get(`/tasks/${taskId}`),
+
+  // Get task status
+  getTaskStatus: (taskId: number) => apiClient.get(`/tasks/${taskId}/status`),
+
+  // Submit new task
+  createTask: (taskData: { [key: string]: any }) => apiClient.post('/tasks/', taskData),
+  
+  // Get available templates
+  getTemplates: () => apiClient.get('/tasks/templates'),
+
+  // Get queue status (renamed from getClusterStatus)
+  getQueueStatus: () => apiClient.get('/tasks/status'),
+
+  // Get code server URL
+  getCodeServerUrl: (taskId: number) => apiClient.get(`/tasks/${taskId}/code-server`),
+
+  // Delete task
+  deleteTask: (taskId: number) => apiClient.delete(`/tasks/${taskId}`),
+
+  // Get SSH tunnels for task
+  getTaskTunnels: (taskId: number) => apiClient.get(`/tasks/${taskId}/tunnels`),
+
+  // Create SSH tunnel for task
+  createTaskTunnel: (taskId: number) => apiClient.post(`/tasks/${taskId}/tunnels`),
+
+  // Close SSH tunnel
+  closeTaskTunnel: (taskId: number, tunnelId: number) =>
+    apiClient.delete(`/tasks/${taskId}/tunnels/${tunnelId}`),
+
+  // Update task - new method
+  updateTask: (taskId: number, taskData: { [key: string]: any }) => 
+    apiClient.put(`/tasks/${taskId}`, taskData),
+  
+  // Get task results - new method
+  getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
+  
+  // Cancel task - new method
+  cancelTask: (taskId: number) => apiClient.post(`/tasks/${taskId}/cancel`),
+  
+  // Process queue - new method
+  processQueue: () => apiClient.post('/tasks/process')
+};
+
+
+
 export const jobsApi = {
   // Get all jobs
   getJobs: () => apiClient.get('/jobs/'),
@@ -241,50 +295,6 @@ export const jobsApi = {
   // Close SSH tunnel
   closeJobTunnel: (jobId: number, tunnelId: number) => 
     apiClient.delete(`/jobs/${jobId}/tunnels/${tunnelId}`),
-  
-  // Get active amumax jobs
-  getActiveAmumaxJobs: () => {
-    return apiClient.get('/queue/');
-  },
-  
-  // Create new amumax job
-  createAmumaxJob: (data: {
-    simulation_time: string;
-    input_path: string;
-    prefix: string;
-  }) => {
-    return apiClient.post('/queue/', data);
-  },
-  
-  // Get specific amumax job
-  getAmumaxJob: (jobId: number) => {
-    return apiClient.get(`/queue/${jobId}`);
-  },
-  
-  // Update queue job
-  updateAmumaxJob: (jobId: number, data: any) => {
-    return apiClient.put(`/queue/${jobId}`, data);
-  },
-  
-  // Delete queue job
-  cancelAmumaxJob: (jobId: number) => {
-    return apiClient.delete(`/queue/${jobId}`);
-  },
-
-  // Get queue status
-  getQueueStatus: () => {
-    return apiClient.get('/queue/status');
-  },
-
-  // Get job results
-  getJobResults: (jobId: number) => {
-    return apiClient.get(`/queue/${jobId}/results`);
-  },
-
-  // Cancel queue job (specific endpoint)
-  cancelQueueJob: (jobId: number) => {
-    return apiClient.post(`/queue/${jobId}/cancel`);
-  },
 };
 
 export default apiClient;

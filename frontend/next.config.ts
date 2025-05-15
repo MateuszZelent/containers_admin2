@@ -9,6 +9,10 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  // Add allowedDevOrigins configuration to allow cross-origin requests in development
+  experimental: {
+    allowedDevOrigins: ['amucontainers.orion.zfns.eu.org'],
+  },
 };
 
 export default nextConfig;

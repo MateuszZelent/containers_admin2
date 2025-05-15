@@ -1,16 +1,17 @@
-"use client"
+"use client";
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Separator } from "@/components/ui/separator"
-import { SidebarNav } from "@/components/dashboard/sidebar-nav"
-import { authApi } from "@/lib/api-client"
+import { useEffect } from "react";
+import { useRouter } from "next/navigation";
+import { Separator } from "@/components/ui/separator";
+import { SidebarNav } from "@/components/dashboard/sidebar-nav";
+import { authApi } from "@/lib/api-client";
 import {
   SidebarInset,
   SidebarProvider,
-} from "@/registry/new-york-v4/ui/sidebar"
-import { AppSidebar } from "@/app/dashboard/components/app-sidebar"
-import { SiteHeader } from "@/app/dashboard/components/site-header"
+} from "@/registry/new-york-v4/ui/sidebar";
+import { AppSidebar } from "@/app/dashboard/components/app-sidebar";
+import { SiteHeader } from "@/app/dashboard/components/site-header";
+import { LayoutDashboard, Plus, ListChecks, Settings } from "lucide-react";
 
 const sidebarNavItems = [
   {
@@ -20,22 +21,39 @@ const sidebarNavItems = [
   {
     title: "Nowy kontener",
     href: "/dashboard/submit-job",
-  }
-]
+  },
+  {
+    title: "Kolejka zadań",
+    href: "/dashboard/task_queue",
+  },
+  {
+    title: "Ustawienia",
+    href: "/dashboard/settings",
+  },
+];
+
+// Update the navigation items array to include both Task Queue and Jobs Queue
+const navItems = [
+  { href: "/dashboard", label: "Przegląd", icon: LayoutDashboard },
+  { href: "/dashboard/submit-job", label: "Nowy kontener", icon: Plus },
+  { href: "/dashboard/task_queue", label: "Kolejka zadań", icon: ListChecks },
+  // We'll keep the task_queue page for development but not show it in the menu yet
+  { href: "/dashboard/settings", label: "Ustawienia", icon: Settings },
+];
 
 interface DashboardLayoutProps {
-  children: React.ReactNode
+  children: React.ReactNode;
 }
 
 export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const router = useRouter();
-  
+
   // Sprawdź token przy każdym renderowaniu layoutu
   useEffect(() => {
-    const token = localStorage.getItem('auth_token');
+    const token = localStorage.getItem("auth_token");
     if (!token) {
       // Jeśli nie ma tokenu, przekieruj na stronę logowania
-      window.location.href = '/login';
+      window.location.href = "/login";
     }
   }, []);
 
@@ -62,9 +80,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </div>
                 <Separator className="my-6" />
                 <div className="flex flex-col space-y-8 lg:flex-row lg:space-x-12 lg:space-y-0">
-                  <div className="flex-1">
-                    {children}
-                  </div>
+                  <div className="flex-1">{children}</div>
                 </div>
               </div>
             </div>
@@ -72,5 +88,5 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         </SidebarProvider>
       </div>
     </div>
-  )
+  );
 }
