@@ -210,6 +210,32 @@ export default function TaskQueuePage() {
     }
   };
 
+  // Filter tasks based on their status
+  const getFilteredTasks = useCallback(() => {
+    if (!tasks) return [];
+    
+    // Apply status filter if set
+    if (statusFilter) {
+      return tasks.filter(task => task.status === statusFilter);
+    }
+    
+    return tasks;
+  }, [tasks, statusFilter]);
+
+  // Get active tasks (PENDING, RUNNING, CONFIGURING)
+  const getActiveTasks = useCallback(() => {
+    return tasks.filter(task => 
+      ["PENDING", "RUNNING", "CONFIGURING"].includes(task.status)
+    );
+  }, [tasks]);
+
+  // Get finished tasks (COMPLETED, ERROR, CANCELLED, etc.)
+  const getFinishedTasks = useCallback(() => {
+    return tasks.filter(task => 
+      ["COMPLETED", "ERROR", "ERROR_RETRY_1", "ERROR_RETRY_2", "ERROR_RETRY_3", "CANCELLED", "TIMEOUT"].includes(task.status)
+    );
+  }, [tasks]);
+
   // Auto-refresh
   useEffect(() => {
     const interval = setInterval(() => {
@@ -287,18 +313,20 @@ export default function TaskQueuePage() {
 
       <Separator />
 
-      <Tabs defaultValue="task-list" className="w-full">
+      <Tabs defaultValue="all-tasks" className="w-full">
         <TabsList className="mb-4">
-          <TabsTrigger value="task-list">Lista zadań</TabsTrigger>
+          <TabsTrigger value="all-tasks">Wszystkie zadania</TabsTrigger>
+          <TabsTrigger value="active-tasks">Zadania aktywne</TabsTrigger>
+          <TabsTrigger value="finished-tasks">Zadania zakończone</TabsTrigger>
           <TabsTrigger value="add-task">Dodaj nowe zadanie</TabsTrigger>
         </TabsList>
 
-        {/* Tab 1: Task list */}
-        <TabsContent value="task-list">
+        {/* Tab 1: All Tasks */}
+        <TabsContent value="all-tasks">
           <Card>
             <CardHeader className="pb-2">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2">
-                <CardTitle>Zadania symulacji</CardTitle>
+                <CardTitle>Wszystkie zadania symulacji</CardTitle>
                 <div className="flex flex-wrap gap-2">
                   <Button 
                     variant={statusFilter === null ? "default" : "outline"} 
@@ -344,7 +372,7 @@ export default function TaskQueuePage() {
                   <Loader2 className="h-6 w-6 animate-spin mr-2" />
                   <p>Ładowanie zadań...</p>
                 </div>
-              ) : tasks.length === 0 ? (
+              ) : getFilteredTasks().length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Brak zadań symulacji.</p>
                   <p className="mt-2">Użyj zakładki "Dodaj nowe zadanie", aby utworzyć symulację.</p>
@@ -365,7 +393,7 @@ export default function TaskQueuePage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {tasks.map((task) => (
+                      {getFilteredTasks().map((task) => (
                         <tr key={task.id} className="border-b hover:bg-muted/50">
                           <td className="py-2">{task.task_id}</td>
                           <td className="py-2">{task.name}</td>
@@ -419,7 +447,174 @@ export default function TaskQueuePage() {
           </Card>
         </TabsContent>
 
-        {/* Tab 2: Add new task form */}
+        {/* Tab 2: Active Tasks */}
+        <TabsContent value="active-tasks">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Zadania aktywne</CardTitle>
+              <CardDescription>
+                Zadania w trakcie wykonywania lub oczekujące w kolejce
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <p>Ładowanie zadań...</p>
+                </div>
+              ) : getActiveTasks().length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Brak aktywnych zadań.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2">ID</th>
+                        <th className="text-left py-2">Nazwa</th>
+                        <th className="text-left py-2">Status</th>
+                        <th className="text-left py-2">Postęp</th>
+                        <th className="text-left py-2">Plik symulacji</th>
+                        <th className="text-left py-2">Węzeł</th>
+                        <th className="text-left py-2">Utworzono</th>
+                        <th className="text-left py-2">Akcje</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getActiveTasks().map((task) => (
+                        <tr key={task.id} className="border-b hover:bg-muted/50">
+                          <td className="py-2">{task.task_id}</td>
+                          <td className="py-2">{task.name}</td>
+                          <td className="py-2">
+                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                              {task.status}
+                              {task.retry_count > 0 && ` (${task.retry_count})`}
+                            </Badge>
+                          </td>
+                          <td className="py-2 w-32">
+                            {task.status === "RUNNING" && (
+                              <div className="flex items-center gap-2">
+                                <Progress value={task.progress} className="w-full" />
+                                <span className="text-xs">{task.progress}%</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="py-2 truncate max-w-xs" title={task.simulation_file}>
+                            {task.simulation_file.split('/').pop()}
+                          </td>
+                          <td className="py-2">{task.node || 'Nie przypisano'}</td>
+                          <td className="py-2">{formatDate(task.created_at)}</td>
+                          <td className="py-2">
+                            <div className="flex gap-2">
+                              <Link href={`/dashboard/task_queue/${task.id}`}>
+                                <Button variant="outline" size="sm">
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Szczegóły
+                                </Button>
+                              </Link>
+                              {(task.status === "PENDING" || 
+                                task.status === "RUNNING" || 
+                                task.status === "CONFIGURING") && (
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => cancelTask(task.id)} // Changed from task.task_id to task.id
+                                >
+                                  Anuluj
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 3: Finished Tasks */}
+        <TabsContent value="finished-tasks">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Zadania zakończone</CardTitle>
+              <CardDescription>
+                Zadania zakończone, anulowane lub zakończone błędem
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <p>Ładowanie zadań...</p>
+                </div>
+              ) : getFinishedTasks().length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Brak zakończonych zadań.</p>
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full border-collapse">
+                    <thead>
+                      <tr className="border-b">
+                        <th className="text-left py-2">ID</th>
+                        <th className="text-left py-2">Nazwa</th>
+                        <th className="text-left py-2">Status</th>
+                        <th className="text-left py-2">Plik symulacji</th>
+                        <th className="text-left py-2">Zakończone</th>
+                        <th className="text-left py-2">Akcje</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {getFinishedTasks().map((task) => (
+                        <tr key={task.id} className="border-b hover:bg-muted/50">
+                          <td className="py-2">{task.task_id}</td>
+                          <td className="py-2">{task.name}</td>
+                          <td className="py-2">
+                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                              {task.status}
+                              {task.retry_count > 0 && ` (${task.retry_count})`}
+                            </Badge>
+                          </td>
+                          <td className="py-2 truncate max-w-xs" title={task.simulation_file}>
+                            {task.simulation_file.split('/').pop()}
+                          </td>
+                          <td className="py-2">{formatDate(task.created_at)}</td>
+                          <td className="py-2">
+                            <div className="flex gap-2">
+                              <Link href={`/dashboard/task_queue/${task.id}`}>
+                                <Button variant="outline" size="sm">
+                                  <FileText className="h-4 w-4 mr-1" />
+                                  Szczegóły
+                                </Button>
+                              </Link>
+                              {(task.status === "PENDING" || 
+                                task.status === "RUNNING" || 
+                                task.status === "CONFIGURING") && (
+                                <Button 
+                                  variant="destructive" 
+                                  size="sm"
+                                  onClick={() => cancelTask(task.id)} // Changed from task.task_id to task.id
+                                >
+                                  Anuluj
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Tab 4: Add New Task form */}
         <TabsContent value="add-task">
           <Card>
             <CardHeader>

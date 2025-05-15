@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = os.getenv("ADMIN_PASSWORD", "password")
     ADMIN_FIRST_NAME: str = os.getenv("ADMIN_FIRST_NAME", "Admin")
     ADMIN_LAST_NAME: str = os.getenv("ADMIN_LAST_NAME", "Admin")
-    
+    SIMULATION_OUTPUT_DIR: str = os.getenv("SIMULATION_OUTPUT_DIR", "/mnt/local/kkingstoun/admin/pcss_storage/mannga/amu_cont_amumax_dir")
     class Config:
         env_file = ".env"
         case_sensitive = True

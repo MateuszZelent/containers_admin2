@@ -293,6 +293,15 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     }
   }, []);
 
+  // Filter jobs based on status
+  const getActiveJobs = useCallback(() => {
+    return jobs.filter(job => job.status === "RUNNING" || job.status === "PENDING");
+  }, [jobs]);
+  
+  const getCompletedJobs = useCallback(() => {
+    return jobs.filter(job => job.status === "COMPLETED" || job.status === "FAILED" || job.status === "CANCELLED");
+  }, [jobs]);
+
   // Determine if any data is loading
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
 
@@ -367,9 +376,12 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
       {/* Zadania */}
       <Tabs defaultValue="all" className="w-full">
         <TabsList>
-          <TabsTrigger value="all">Wszystkie zadania</TabsTrigger>
-          <TabsTrigger value="active">Widok listy</TabsTrigger>
+          <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
+          <TabsTrigger value="active">Lista zadań</TabsTrigger>
+          <TabsTrigger value="completed">Zadania zakończone</TabsTrigger>
         </TabsList>
+        
+        {/* Active jobs tab (renamed from All jobs) */}
         <TabsContent value="all" className="mt-4">
           {isJobsLoading && jobs.length === 0 ? (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -391,13 +403,13 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                 </Card>
               ))}
             </div>
-          ) : jobs.length === 0 ? (
+          ) : getActiveJobs().length === 0 ? (
             <div className="text-center py-10 text-muted-foreground">
-              <p>Brak zadań. Utwórz nowe zadanie, aby rozpocząć pracę.</p>
+              <p>Brak aktywnych zadań. Utwórz nowe zadanie, aby rozpocząć pracę.</p>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {jobs.map((job) => (
+              {getActiveJobs().map((job) => (
                 <JobCard 
                   key={job.id}
                   job={job}
@@ -413,55 +425,81 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
             </div>
           )}
         </TabsContent>
+        
+        {/* Active jobs tab */}
         <TabsContent value="active" className="mt-4">
-          {/* Active jobs table */}
           <Card>
             <CardHeader className="pb-2">
-              <CardTitle>Lista zadań</CardTitle>
+              <CardTitle>Zadania aktywne</CardTitle>
               <CardDescription>
-                Zadania aktualnie wykonywane na klastrze
+                Zadania aktualnie wykonywane lub oczekujące na klastrze
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {activeJobs.length === 0 ? (
-                <p>Brak aktywnych zadań na klastrze.</p>
+              {isJobsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <p>Ładowanie zadań...</p>
+                </div>
+              ) : getActiveJobs().length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Brak aktywnych zadań.</p>
+                </div>
               ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full border-collapse">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="text-left py-2">ID</th>
-                        <th className="text-left py-2">Nazwa</th>
-                        <th className="text-left py-2">Status</th>
-                        <th className="text-left py-2">Węzeł</th>
-                        <th className="text-left py-2">Liczba węzłów</th>
-                        <th className="text-left py-2">Pozostały czas</th>
-                        <th className="text-left py-2">Pamięć</th>
-                        <th className="text-left py-2">Data startu</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {activeJobs.map((job) => (
-                        <tr key={job.job_id} className="border-b hover:bg-muted/50">
-                          <td className="py-2">{job.job_id}</td>
-                          <td className="py-2">{job.name}</td>
-                          <td className="py-2">
-                            <span className={`inline-block px-2 py-1 text-xs rounded-full 
-                              ${job.state === 'RUNNING' ? 'bg-green-100 text-green-700' : 'bg-yellow-100 text-yellow-700'}`}>
-                              {job.state}
-                            </span>
-                          </td>
-                          <td className="py-2">{job.node === '(None)' ? 'Nie przypisano' : job.node}</td>
-                          <td className="py-2">{job.node_count}</td>
-                          <td className="py-2 font-mono">
-                            {job.state === 'RUNNING' ? <LiveTimer initialTime={job.time_left} /> : job.time_left}
-                          </td>
-                          <td className="py-2">{job.memory_requested || job.memory}</td>
-                          <td className="py-2">{formatDate(job.start_time)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {getActiveJobs().map((job) => (
+                    <JobCard 
+                      key={job.id}
+                      job={job}
+                      activeJobData={activeJobsMap.get(job.job_id)}
+                      tunnels={jobTunnels[job.id] || []}
+                      isProcessing={processingJobs[job.id] || false}
+                      onDelete={() => handleDelete(job.id)}
+                      onOpenCodeServer={() => openCodeServer(job)}
+                      canUseCodeServer={canUseCodeServer(job)}
+                      formatDate={formatDate}
+                    />
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+        
+        {/* Completed jobs tab */}
+        <TabsContent value="completed" className="mt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle>Zadania zakończone</CardTitle>
+              <CardDescription>
+                Zadania zakończone, anulowane lub zakończone błędem
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {isJobsLoading ? (
+                <div className="flex items-center justify-center py-6">
+                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                  <p>Ładowanie zadań...</p>
+                </div>
+              ) : getCompletedJobs().length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <p>Brak zakończonych zadań.</p>
+                </div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  {getCompletedJobs().map((job) => (
+                    <JobCard 
+                      key={job.id}
+                      job={job}
+                      activeJobData={activeJobsMap.get(job.job_id)}
+                      tunnels={jobTunnels[job.id] || []}
+                      isProcessing={processingJobs[job.id] || false}
+                      onDelete={() => handleDelete(job.id)}
+                      onOpenCodeServer={() => openCodeServer(job)}
+                      canUseCodeServer={canUseCodeServer(job)}
+                      formatDate={formatDate}
+                    />
+                  ))}
                 </div>
               )}
             </CardContent>
@@ -469,7 +507,6 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
         </TabsContent>
       </Tabs>
       
-    
     </div>
   );
 }

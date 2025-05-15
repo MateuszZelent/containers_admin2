@@ -1,5 +1,5 @@
 import os
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
-from app.routers import auth, users, jobs, job_queue
+from app.routers import auth, users, jobs, task_queue
 import debugpy
 
 # Ustaw punkt nasłuchiwania debuggera
@@ -37,7 +37,10 @@ app.add_middleware(
 app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["auth"])
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_STR}/jobs", tags=["jobs"])
-app.include_router(job_queue.router, prefix=f"{settings.API_V1_STR}/queue", tags=["job_queue"])
+app.include_router(
+    task_queue.router,
+    prefix=f"{settings.API_V1_STR}/tasks",
+    tags=["tasks"])
 
 @app.on_event("startup")
 async def startup_event():
@@ -50,6 +53,18 @@ async def startup_event():
     logger.info(f"  [cyan]SLURM User:[/cyan] {settings.SLURM_USER}")
     logger.info(f"  [cyan]Template Directory:[/cyan] {settings.TEMPLATE_DIR}")
     logger.info(f"  [cyan]Container Output Directory:[/cyan] {settings.CONTAINER_OUTPUT_DIR}")
+
+    # Start the task queue processor
+    logger.info("Starting task queue processor")
+    try:
+        background_tasks = BackgroundTasks()
+        db = next(get_db())
+        from app.services.task_queue import TaskQueueService
+        task_service = TaskQueueService(db)
+        await task_service.start_queue_processor(background_tasks)
+        logger.info("Task queue processor started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start task queue processor: {str(e)}")
 
 @app.get("/")
 def read_root():

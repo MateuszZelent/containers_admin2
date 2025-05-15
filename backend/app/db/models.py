@@ -121,3 +121,75 @@ class QueueJob(Base):
     # Relacje z innymi tabelami
     owner_id = Column(Integer, ForeignKey("users.id"))
     owner = relationship("User", backref="queue_jobs")
+
+
+class TaskQueueJob(Base):
+    """Model for simulation tasks in the queue system."""
+    __tablename__ = "task_queue_jobs"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(String, index=True, unique=True)  # Unique task identifier
+    slurm_job_id = Column(String, index=True, nullable=True)  # Current SLURM job ID
+    name = Column(String, default="Simulation Task")
+    status = Column(String, default="PENDING")  # PENDING, CONFIGURING, RUNNING, COMPLETED, ERROR, ERROR_RETRY_x
+    
+    # Input parameters
+    simulation_file = Column(String, nullable=False)  # Path to .mx3 file (container path)
+    host_file_path = Column(String, nullable=True)    # Host system path for file operations
+    parameters = Column(JSONEncodedDict, nullable=True)  # Simulation parameters
+    
+    # SLURM job configuration
+    partition = Column(String, default="proxima")
+    num_cpus = Column(Integer, default=5)
+    memory_gb = Column(Integer, default=24)
+    num_gpus = Column(Integer, default=1)
+    time_limit = Column(String, default="24:00:00")
+    
+    # Output and results
+    output_dir = Column(String, nullable=True)  # Directory for simulation results
+    results_file = Column(String, nullable=True)  # Path to results file
+    logs = Column(Text, nullable=True)  # Capture logs from simulation
+    
+    # Job execution tracking
+    retry_count = Column(Integer, default=0)  # Number of retry attempts
+    priority = Column(Integer, default=0)  # Task priority (higher = more important)
+    progress = Column(Integer, default=0)  # Progress percentage (0-100)
+    estimated_duration = Column(Integer, nullable=True)  # Estimated seconds to completion
+    previous_attempts = Column(JSONEncodedDict, nullable=True)  # History of previous attempts
+    
+    # Timestamps for tracking
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    queued_at = Column(DateTime(timezone=True), server_default=func.now())
+    submitted_at = Column(DateTime(timezone=True), nullable=True)  # When submitted to SLURM
+    started_at = Column(DateTime(timezone=True), nullable=True)  # When execution started
+    finished_at = Column(DateTime(timezone=True), nullable=True)  # When execution completed
+    next_retry_at = Column(DateTime(timezone=True), nullable=True)  # When to retry if failed
+    
+    # Failure handling
+    error_message = Column(Text, nullable=True)  # Error details if failed
+    exit_code = Column(Integer, nullable=True)  # Exit code from SLURM
+    
+    # Relations
+    owner_id = Column(Integer, ForeignKey("users.id"))
+    owner = relationship("User", backref="task_queue_jobs")
+
+    def __repr__(self):
+        return f"<TaskQueueJob(id={self.id}, task_id='{self.task_id}', status='{self.status}')>"
+    
+    @property
+    def estimated_completion_time(self):
+        """Calculate estimated completion time based on progress and duration."""
+        if self.status != "RUNNING" or not self.started_at or self.progress <= 0:
+            return None
+            
+        if self.estimated_duration is None:
+            return None
+            
+        elapsed = (datetime.utcnow() - self.started_at).total_seconds()
+        total_estimated = (elapsed / self.progress) * 100 if self.progress > 0 else 0
+        remaining = total_estimated - elapsed
+        
+        if remaining <= 0:
+            return None
+            
+        return datetime.utcnow() + timedelta(seconds=remaining)
