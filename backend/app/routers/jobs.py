@@ -12,6 +12,7 @@ from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
 from app.db.models import User, Job
 import os
+from app.core.config import settings
 CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2019")
 router = APIRouter()
 
@@ -135,11 +136,16 @@ async def get_active_jobs(
 async def get_templates(
     current_user: User = Depends(get_current_active_user),
 ) -> List[str]:
-    """
-    Get available job templates.
-    """
-    slurm_service = SlurmSSHService()
-    return await slurm_service.get_available_templates()
+        """Get list of available job templates."""
+        template_dir = settings.TEMPLATE_DIR
+        templates = []
+        
+        for filename in os.listdir(template_dir):
+            if filename.endswith('.template'):
+                templates.append(filename)
+                
+        return templates
+
 
 
 @router.post("/", response_model=Union[JobSubmissionResponse, JobPreview])

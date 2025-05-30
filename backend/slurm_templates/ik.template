@@ -96,34 +96,6 @@ chmod 700 "$SINIMAGE_DIR/.local/run"
 export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
-
-fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga
-
-rclone mount \
-    --daemon \
-    -vv \
-    --fast-list \
-    --stats=1h \
-    --checkers=100 \
-    --uid=1000 \
-    --dir-perms=0777 \
-    --gid=1000 \
-    --attr-timeout=1s \
-    --dir-cache-time=5m \
-    --poll-interval=1m0s \
-    --cache-db-purge \
-    --cache-dir=/tmp/rclone \
-    --vfs-cache-poll-interval=1m \
-    --vfs-cache-max-age=1h0m0s \
-    --vfs-cache-max-size=0 \
-    --vfs-cache-mode=writes \
-    --allow-non-empty \
-    --buffer-size=16M \
-    --max-read-ahead=128k \
-    --vfs-read-chunk-size=50K \
-    --vfs-read-chunk-size-limit=128M \
-    zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
-
 # echo "$(cat /mnt/local/kkingstoun/admin/.local/etc/code-server/config.yaml)"
 
 if [ -f "$CONFIG_FILE" ]; then
@@ -149,9 +121,7 @@ singularity run \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
-  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/ik":"/mnt/pcss_storage/ik":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
   --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
   --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":ro \

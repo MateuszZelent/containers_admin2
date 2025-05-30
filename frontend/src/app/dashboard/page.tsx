@@ -282,6 +282,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
       });
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || "Could not open Code Server";
+      console.log(error);
       toast.error(errorMessage, {
         duration: 5000,
         closeButton: true
@@ -295,7 +296,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
 
   // Filter jobs based on status
   const getActiveJobs = useCallback(() => {
-    return jobs.filter(job => job.status === "RUNNING" || job.status === "PENDING");
+    return jobs.filter(job => job.status === "RUNNING" || job.status === "PENDING" || job.status === "CONFIGURING");
   }, [jobs]);
   
   const getCompletedJobs = useCallback(() => {

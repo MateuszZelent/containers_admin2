@@ -148,11 +148,10 @@ singularity run \
   --env CODE_SERVER_CONFIG=$CONFIG_FILE \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
-  --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
-  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
-  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"/mnt/pcss_storage/mumax_plus":rw \
+  --bind $SINIMAGE_DIR/zfn_storage/mannga:"/mnt/zfn_storage/mannga":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"/mnt/pcss_storage/mannga":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"/mnt/pcss_storage/manga_golebiewski_folder":rw \
   --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
   --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":ro \
   --bind "$target_dir/code-server/.local/share/code-server":"$SINIMAGE_DIR/.local/share/code-server":rw \
@@ -160,4 +159,4 @@ singularity run \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_new.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}

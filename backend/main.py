@@ -66,6 +66,17 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to start task queue processor: {str(e)}")
 
+    # Start the SLURM sync service
+    logger.info("Starting SLURM sync service")
+    try:
+        db = next(get_db())
+        from app.services.slurm_sync import SlurmSyncService
+        slurm_sync_service = SlurmSyncService(db)
+        await slurm_sync_service.start_background_sync()
+        logger.info("SLURM sync service started successfully")
+    except Exception as e:
+        logger.error(f"Failed to start SLURM sync service: {str(e)}")
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the SLURM Container Manager API"}
