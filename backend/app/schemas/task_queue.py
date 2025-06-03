@@ -6,6 +6,7 @@ import uuid
 
 class TaskQueueJobBase(BaseModel):
     """Base schema for task queue jobs."""
+
     name: str = Field(..., description="Task name")
     simulation_file: str = Field(..., description="Path to .mx3 simulation file")
     partition: str = Field("proxima", description="SLURM partition")
@@ -14,30 +15,34 @@ class TaskQueueJobBase(BaseModel):
     num_gpus: int = Field(1, description="Number of GPUs")
     time_limit: str = Field("24:00:00", description="Time limit (HH:MM:SS)")
     priority: int = Field(0, description="Task priority (higher = more important)")
-    parameters: Optional[Dict[str, Any]] = Field(None, description="Simulation parameters")
-    
-    @validator('time_limit')
+    parameters: Optional[Dict[str, Any]] = Field(
+        None, description="Simulation parameters"
+    )
+
+    @validator("time_limit")
     def validate_time_limit(cls, v):
         """Validate time limit format (HH:MM:SS)."""
-        parts = v.split(':')
+        parts = v.split(":")
         if len(parts) != 3:
-            raise ValueError('time_limit must be in format HH:MM:SS')
+            raise ValueError("time_limit must be in format HH:MM:SS")
         try:
             hours, minutes, seconds = map(int, parts)
             if hours < 0 or minutes < 0 or seconds < 0 or minutes > 59 or seconds > 59:
-                raise ValueError('Invalid time values')
+                raise ValueError("Invalid time values")
         except ValueError:
-            raise ValueError('time_limit must contain valid integers')
+            raise ValueError("time_limit must contain valid integers")
         return v
 
 
 class TaskQueueJobCreate(TaskQueueJobBase):
     """Schema for creating a new task."""
+
     pass
 
 
 class TaskQueueJobUpdate(BaseModel):
     """Schema for updating an existing task."""
+
     name: Optional[str] = None
     status: Optional[str] = None
     priority: Optional[int] = None
@@ -52,6 +57,7 @@ class TaskQueueJobUpdate(BaseModel):
 
 class TaskQueueJobInDB(TaskQueueJobBase):
     """Schema for task data from database."""
+
     id: int
     task_id: str
     slurm_job_id: Optional[str] = None
@@ -70,13 +76,14 @@ class TaskQueueJobInDB(TaskQueueJobBase):
     error_message: Optional[str] = None
     exit_code: Optional[int] = None
     previous_attempts: Optional[List[Dict[str, Any]]] = None
-    
+
     class Config:
         orm_mode = True
 
 
 class TaskQueueStatus(BaseModel):
     """Schema for queue status information."""
+
     total_tasks: int
     status_counts: Dict[str, int]
     avg_wait_time: Optional[float] = None
@@ -86,6 +93,7 @@ class TaskQueueStatus(BaseModel):
 
 class SimulationResult(BaseModel):
     """Schema for simulation results."""
+
     task_id: str
     status: str
     started_at: Optional[datetime] = None
@@ -103,4 +111,5 @@ class SimulationResult(BaseModel):
 
 class TaskQueueJobWithResults(TaskQueueJobInDB):
     """Schema for task with its results."""
+
     results: Optional[SimulationResult] = None

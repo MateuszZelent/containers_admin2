@@ -20,7 +20,7 @@ engine = create_engine(
     pool_timeout=60,
     # Enable connection pre-ping to detect stale connections
     pool_pre_ping=True,
-    echo=settings.SQLALCHEMY_ECHO if hasattr(settings, 'SQLALCHEMY_ECHO') else False,
+    echo=settings.SQLALCHEMY_ECHO if hasattr(settings, "SQLALCHEMY_ECHO") else False,
 )
 
 db_logger.info(f"Database pool configured: size={20}, max_overflow={30}, timeout={60}s")
@@ -28,6 +28,7 @@ db_logger.info(f"Database pool configured: size={20}, max_overflow={30}, timeout
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
 Base = declarative_base()
+
 
 # Add utility function to safely close a session
 def close_session(session):

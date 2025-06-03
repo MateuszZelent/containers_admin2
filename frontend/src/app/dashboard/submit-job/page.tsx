@@ -80,9 +80,34 @@ export default function SubmitJobPage() {
         router.push("/dashboard");
       }
     } catch (error: any) {
-      toast.error(
-        error.response?.data?.detail || "Błąd podczas wysyłania zadania"
-      );
+      const errorMessage = error.response?.data?.detail || "Błąd podczas wysyłania zadania";
+      
+      // Check for duplicate container name error (both English and potential Polish versions)
+      const isDuplicateNameError = 
+        errorMessage.includes("container with the name") && errorMessage.includes("already exists") ||
+        errorMessage.includes("Container with name") && errorMessage.includes("already exists") ||
+        errorMessage.includes("kontener o nazwie") && errorMessage.includes("już istnieje");
+      
+      if (isDuplicateNameError) {
+        // Set form field error for better UX
+        form.setError("job_name", {
+          type: "manual",
+          message: "Kontener o tej nazwie już istnieje. Wybierz inną nazwę."
+        });
+        
+        // Show Polish toast message
+        toast.error("Kontener o tej nazwie już istnieje. Wybierz inną nazwę.", {
+          duration: 5000,
+          closeButton: true
+        });
+      } else {
+        // Show original error message for other errors
+        toast.error(errorMessage, {
+          duration: 5000,
+          closeButton: true
+        });
+      }
+      
       console.error(error);
     } finally {
       setIsLoading(false);

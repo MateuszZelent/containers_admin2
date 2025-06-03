@@ -14,15 +14,19 @@ from app.core.config import settings
 install_rich_traceback(show_locals=True)
 
 # Create rich console with custom theme
-console = Console(theme=Theme({
-    "info": "cyan",
-    "warning": "yellow",
-    "error": "red",
-    "debug": "grey50",
-    "cluster": "green",
-    "slurm": "blue",
-    "ssh": "magenta",
-}))
+console = Console(
+    theme=Theme(
+        {
+            "info": "cyan",
+            "warning": "yellow",
+            "error": "red",
+            "debug": "grey50",
+            "cluster": "green",
+            "slurm": "blue",
+            "ssh": "magenta",
+        }
+    )
+)
 
 # Configure rich handler
 rich_handler = RichHandler(
@@ -31,7 +35,7 @@ rich_handler = RichHandler(
     tracebacks_show_locals=True,
     markup=True,
     show_time=True,
-    show_path=True
+    show_path=True,
 )
 
 # Create logger
@@ -47,12 +51,14 @@ logging.basicConfig(
     level=logging.DEBUG if settings.DEBUG else logging.INFO,
     format="%(message)s",
     datefmt="[%X]",
-    handlers=[rich_handler]
+    handlers=[rich_handler],
 )
+
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """Get a logger instance with rich formatting."""
     return logging.getLogger(name or "slurm_container_manager")
+
 
 # Create specific loggers for different components
 cluster_logger = get_logger("cluster")
@@ -68,11 +74,13 @@ db_logger.setLevel(logging.INFO)
 for handler in logging.getLogger().handlers:
     db_logger.addHandler(handler)
 
+
 def log_command(logger: logging.Logger, command: str, sensitive: bool = False) -> None:
     """Log a command execution with proper formatting."""
     if sensitive:
         command = "<sensitive command>"
     logger.debug(f"[bold]Executing command:[/bold] {command}")
+
 
 def log_ssh_connection(host: str, username: str, using_key: bool = True) -> None:
     """Log SSH connection attempt with details."""
@@ -83,20 +91,23 @@ def log_ssh_connection(host: str, username: str, using_key: bool = True) -> None
         f"  [cyan]Auth method:[/cyan] {'key-based' if using_key else 'password'}"
     )
 
+
 def log_slurm_job(job_id: str, status: str, details: dict) -> None:
     """Log SLURM job information with rich formatting."""
     slurm_logger.debug(
         f"[bold]SLURM Job Update[/bold] [cyan]{job_id}[/cyan]\n"
-        f"  [cyan]Status:[/cyan] {status}\n" +
-        "\n".join(f"  [cyan]{k}:[/cyan] {v}" for k, v in details.items())
+        f"  [cyan]Status:[/cyan] {status}\n"
+        + "\n".join(f"  [cyan]{k}:[/cyan] {v}" for k, v in details.items())
     )
+
 
 def log_cluster_operation(operation: str, details: dict) -> None:
     """Log cluster operation with detailed information."""
     cluster_logger.debug(
-        f"[bold]Cluster Operation:[/bold] {operation}\n" +
-        "\n".join(f"  [cyan]{k}:[/cyan] {v}" for k, v in details.items())
+        f"[bold]Cluster Operation:[/bold] {operation}\n"
+        + "\n".join(f"  [cyan]{k}:[/cyan] {v}" for k, v in details.items())
     )
+
 
 # Add a specific log function for database operations
 def log_db_operation(operation: str, details: Dict[str, Any] = None) -> None:

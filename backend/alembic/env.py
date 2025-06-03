@@ -8,6 +8,7 @@ from alembic import context
 # Import the SQLAlchemy models
 import sys
 import os
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.db.models import Base
@@ -32,6 +33,7 @@ target_metadata = Base.metadata
 
 # Override the sqlalchemy.url from the INI file
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
+
 
 def run_migrations_offline():
     """Run migrations in 'offline' mode.
@@ -71,9 +73,7 @@ def run_migrations_online():
     )
 
     with connectable.connect() as connection:
-        context.configure(
-            connection=connection, target_metadata=target_metadata
-        )
+        context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():
             context.run_migrations()

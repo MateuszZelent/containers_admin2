@@ -38,13 +38,13 @@ def get_password_hash(password: str) -> str:
 def get_raw_password(length: int = 12) -> str:
     """Generate a secure random password."""
     alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for i in range(length))
+    return "".join(secrets.choice(alphabet) for i in range(length))
 
 
 def generate_random_password(length: int = 12) -> str:
     """Generate a random password with specified length"""
     alphabet = string.ascii_letters + string.digits
-    return ''.join(secrets.choice(alphabet) for _ in range(length))
+    return "".join(secrets.choice(alphabet) for _ in range(length))
 
 
 def get_raw_password(username: str) -> str:

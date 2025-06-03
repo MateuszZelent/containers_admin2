@@ -6,12 +6,12 @@ from app.core.auth import get_current_active_user
 from app.db.session import get_db
 from app.db.models import User
 from app.schemas.job_queue import (
-    QueueJobCreate, 
-    QueueJobUpdate, 
-    QueueJobInDB, 
-    QueueStatus, 
+    QueueJobCreate,
+    QueueJobUpdate,
+    QueueJobInDB,
+    QueueStatus,
     SimulationResult,
-    QueueJobWithResults
+    QueueJobWithResults,
 )
 from app.services.job_queue import JobQueueService
 
@@ -71,12 +71,12 @@ def get_queue_job(
     """
     queue_service = JobQueueService(db)
     job = queue_service.get_queue_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
-        
+
     return job
 
 
@@ -93,12 +93,12 @@ def update_queue_job(
     """
     queue_service = JobQueueService(db)
     job = queue_service.get_queue_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
-        
+
     return queue_service.update_queue_job(job_id, job_update)
 
 
@@ -114,19 +114,19 @@ def delete_queue_job(
     """
     queue_service = JobQueueService(db)
     job = queue_service.get_queue_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
-        
+
     success = queue_service.delete_queue_job(job_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Nie udało się usunąć zadania"
+            detail="Nie udało się usunąć zadania",
         )
-    
+
     return {"message": "Zadanie zostało usunięte"}
 
 
@@ -142,26 +142,26 @@ async def get_job_results(
     """
     queue_service = JobQueueService(db)
     job = queue_service.get_queue_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
-        
+
     if job.status not in ["COMPLETED", "FAILED"]:
         return SimulationResult(
             job_id=job.id,
             status=job.status,
-            error_message="Zadanie nie zostało jeszcze zakończone"
+            error_message="Zadanie nie zostało jeszcze zakończone",
         )
-        
+
     results = await queue_service.get_job_results(job)
     return SimulationResult(
         job_id=job.id,
         status=job.status,
         results_file=job.results_file,
         output_data=results,
-        error_message="Oczekiwanie na implementację pobierania wyników"
+        error_message="Oczekiwanie na implementację pobierania wyników",
     )
 
 
@@ -177,21 +177,21 @@ async def cancel_queue_job(
     """
     queue_service = JobQueueService(db)
     job = queue_service.get_queue_job(job_id)
-    
+
     if not job:
         raise HTTPException(status_code=404, detail="Zadanie nie zostało znalezione")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Brak uprawnień")
-        
+
     if job.status not in ["QUEUED", "RUNNING"]:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Nie można anulować zadania o statusie {job.status}"
+            detail=f"Nie można anulować zadania o statusie {job.status}",
         )
-        
+
     job_update = QueueJobUpdate(status="CANCELLED")
     updated_job = queue_service.update_queue_job(job_id, job_update)
-    
+
     # Obsługa anulowania w SLURM będzie zaimplementowana w przyszłości
-    
+
     return {"message": "Zadanie zostało anulowane"}

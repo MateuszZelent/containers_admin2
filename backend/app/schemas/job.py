@@ -5,7 +5,9 @@ from datetime import datetime
 
 class SSHTunnelBase(BaseModel):
     # Zachowujemy local_port dla kompatybilności z frontendem, ale zmieniamy jego znaczenie
-    local_port: int = Field(..., description="External port visible outside the container (from socat)")
+    local_port: int = Field(
+        ..., description="External port visible outside the container (from socat)"
+    )
     remote_port: int = Field(..., description="Port on the compute node")
     remote_host: str = Field(..., description="Host where the container is running")
     node: str = Field(..., description="Node where the container is running")
@@ -33,18 +35,26 @@ class SSHTunnelInDB(SSHTunnelBase):
 
 class JobBase(BaseModel):
     job_name: str = Field(..., description="Name of the job")
-    template_name: str = Field(..., description="Name of the template to use (e.g., manga.template, syam.template)")
+    template_name: str = Field(
+        ...,
+        description="Name of the template to use (e.g., manga.template, syam.template)",
+    )
     partition: str = Field(default="proxima", description="SLURM partition to use")
     num_nodes: int = Field(default=1, description="Number of nodes to allocate")
     tasks_per_node: int = Field(default=1, description="Number of tasks per node")
     num_cpus: int = Field(..., description="Number of CPUs per task")
     memory_gb: int = Field(..., description="Memory in GB")
     num_gpus: int = Field(default=0, description="Number of GPUs to allocate")
-    time_limit: str = Field(default="24:00:00", description="Time limit in format HH:MM:SS")
+    time_limit: str = Field(
+        default="24:00:00", description="Time limit in format HH:MM:SS"
+    )
 
 
 class JobCreate(JobBase):
-    preview: bool = Field(default=False, description="If true, returns the filled template without submitting the job")
+    preview: bool = Field(
+        default=False,
+        description="If true, returns the filled template without submitting the job",
+    )
 
 
 class JobUpdate(BaseModel):
@@ -94,7 +104,9 @@ class JobInDB(JobInDBBase):
 
 
 class JobPreview(BaseModel):
-    script: str = Field(..., description="The complete job script that would be submitted")
+    script: str = Field(
+        ..., description="The complete job script that would be submitted"
+    )
 
 
 class JobSubmissionResponse(BaseModel):

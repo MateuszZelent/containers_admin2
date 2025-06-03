@@ -15,13 +15,13 @@ from app.core.config import settings
 def init_db() -> None:
     # Create tables
     Base.metadata.create_all(bind=engine)
-    
+
     # Get DB session
     db = next(get_db())
-    
+
     # Check if there are any users
     result = db.execute(text("SELECT COUNT(*) FROM users")).scalar()
-    
+
     if result == 0:
         print("Creating initial admin user...")
         user_in = UserCreate(
@@ -29,7 +29,7 @@ def init_db() -> None:
             email=settings.ADMIN_EMAIL,
             password=settings.ADMIN_PASSWORD,
             first_name=settings.ADMIN_FIRST_NAME,
-            last_name=settings.ADMIN_LAST_NAME
+            last_name=settings.ADMIN_LAST_NAME,
         )
         UserService.create(db=db, user_in=user_in)
         print(f"Admin user created. Username: {settings.ADMIN_USERNAME}")

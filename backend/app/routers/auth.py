@@ -14,10 +14,10 @@ from app.db.models import User
 
 router = APIRouter()
 
+
 @router.post("/login", response_model=Token)
 async def login(
-    db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    db: Session = Depends(get_db), form_data: OAuth2PasswordRequestForm = Depends()
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.

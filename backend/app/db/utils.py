@@ -1,5 +1,11 @@
 """Database utilities to help with connection management and retries."""
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from tenacity import (
+    retry,
+    stop_after_attempt,
+    wait_exponential,
+    retry_if_exception_type,
+)
 from sqlalchemy.exc import OperationalError, TimeoutError
 
 from app.core.logging import db_logger
@@ -12,16 +18,20 @@ db_retry = retry(
     before_sleep=lambda retry_state: db_logger.warning(
         f"Database operation failed, retrying ({retry_state.attempt_number}/3): "
         f"{retry_state.outcome.exception()}"
-    )
+    ),
 )
+
 
 def get_connection_status():
     """Return database connection pool statistics."""
     from app.db.session import engine
+
     return {
         "pool_size": engine.pool.size(),
         "checkedin": engine.pool.checkedin(),
         "checkedout": engine.pool.checkedout(),
         "overflow": engine.pool.overflow(),
-        "status": "healthy" if engine.pool.checkedout() < engine.pool.size() else "busy"
+        "status": "healthy"
+        if engine.pool.checkedout() < engine.pool.size()
+        else "busy",
     }

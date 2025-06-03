@@ -14,7 +14,7 @@
 # class SSHTunnelService:
 #     MIN_PORT = 8600
 #     MAX_PORT = 8700
-    
+
 #     def __init__(self, db: Session):
 #         self.db = db
 
@@ -48,7 +48,7 @@
 #             remote_host=settings.SLURM_HOST,
 #             node=job.node
 #         )
-        
+
 #         if not success:
 #             return None
 
@@ -57,7 +57,7 @@
 #             external_port=external_port,
 #             internal_port=local_port
 #         )
-        
+
 #         if not socat_success:
 #             # Jeśli socat się nie powiódł, zamknij tunel SSH
 #             self._kill_ssh_tunnel(local_port)
@@ -94,7 +94,7 @@
 
 #         # Zamknij wszystkie procesy socat korzystające z tego portu
 #         self._kill_socat_forwarder(tunnel.local_port)
-        
+
 #         # Zamknij wszystkie procesy ssh używające tego portu (może być kilka)
 #         self._kill_ssh_tunnel(tunnel.local_port)
 
@@ -118,7 +118,7 @@
 #     def get_active_tunnels(db: Session) -> List[SSHTunnel]:
 #         """Get all active SSH tunnels."""
 #         return db.query(SSHTunnel).filter(SSHTunnel.status == "ACTIVE").all()
-        
+
 #     def get_job_tunnels(self, db: Session, job_id: int) -> List[SSHTunnelInfo]:
 #         """Get all tunnels for a specific job."""
 #         tunnels = db.query(SSHTunnel).filter(SSHTunnel.job_id == job_id).all()
@@ -148,7 +148,7 @@
 #             SSHTunnel.job_id == job.id,
 #             SSHTunnel.status == "ACTIVE"
 #         ).first()
-        
+
 #         if tunnel:
 #             # Sprawdź, czy tunel faktycznie działa (port jest otwarty)
 #             if self._is_port_in_use(tunnel.local_port):
@@ -165,17 +165,17 @@
 #                 # Tunel nie działa, zamknij go i utwórz nowy
 #                 tunnel.status = "CLOSED"
 #                 self.db.commit()
-        
+
 #         # Utwórz nowy tunel
 #         return self.create_tunnel(job)
 
 #     def _is_port_in_use(self, port: int) -> bool:
 #         """
 #         Check if a port is in use with proper timeout and error handling.
-        
+
 #         Args:
 #             port: Port number to check
-            
+
 #         Returns:
 #             bool: True if port is in use, False otherwise
 #         """
@@ -201,15 +201,15 @@
 #             ]
 #             cluster_logger.info(f"Establishing SSH tunnel: {' '.join(cmd)}")
 #             subprocess.run(cmd, check=True)
-            
+
 #             # Krótkie opóźnienie, aby upewnić się, że tunel został utworzony
 #             time.sleep(1)
-            
+
 #             # Sprawdź, czy tunel działa
 #             if not self._is_port_in_use(local_port):
 #                 cluster_logger.error(f"SSH tunnel for port {local_port} not established")
 #                 return False
-                
+
 #             return True
 #         except subprocess.CalledProcessError as e:
 #             cluster_logger.error(f"Error establishing SSH tunnel: {str(e)}")
@@ -226,7 +226,7 @@
 #                 f'TCP:127.0.0.1:{internal_port}'
 #             ]
 #             cluster_logger.info(f"Starting socat forwarder: {' '.join(cmd)}")
-            
+
 #             # Uruchom socat w tle
 #             process = subprocess.Popen(
 #                 cmd,
@@ -234,17 +234,17 @@
 #                 stderr=subprocess.PIPE,
 #                 start_new_session=True  # Utwórz nową sesję, aby proces działał w tle
 #             )
-            
+
 #             # Krótkie opóźnienie, aby upewnić się, że socat został uruchomiony
 #             time.sleep(1)
-            
+
 #             # Sprawdź, czy proces działa
 #             if process.poll() is not None:
 #                 # Proces zakończył się - błąd
 #                 stdout, stderr = process.communicate()
 #                 cluster_logger.error(f"Socat forwarder failed: {stderr.decode('utf-8')}")
 #                 return False
-                
+
 #             return True
 #         except Exception as e:
 #             cluster_logger.error(f"Error starting socat forwarder: {str(e)}")
@@ -259,7 +259,7 @@
 #             subprocess.run(cmd, shell=True)
 #         except Exception as e:
 #             cluster_logger.error(f"Error killing SSH tunnel: {str(e)}")
-    
+
 #     def _kill_socat_forwarder(self, port: int):
 #         """Kill socat process forwarding the specified port."""
 #         try:

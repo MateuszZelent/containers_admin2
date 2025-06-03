@@ -2,6 +2,7 @@ from typing import List, Optional
 import os
 import random
 import asyncio
+import re
 from datetime import datetime
 
 from sqlalchemy.orm import Session
@@ -11,11 +12,12 @@ from app.db.models import Job, User
 from app.schemas.job import JobCreate, JobUpdate
 from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
+from app.services.caddy_api import CaddyAPIClient
 from app.core.logging import (
     slurm_logger,
     cluster_logger,
     log_slurm_job,
-    log_cluster_operation
+    log_cluster_operation,
 )
 from app.core.config import settings
 
@@ -25,12 +27,33 @@ class JobService:
         self.db = db
         self.ssh_tunnel_service = SSHTunnelService(db)
 
+    @staticmethod
+    def sanitize_container_name_for_domain(container_name: str) -> str:
+        """
+        Sanitize container name to be domain-safe.
+        Converts underscores and other invalid characters to hyphens.
+        """
+        if not container_name:
+            return ""
+
+        # Convert to lowercase and replace invalid domain characters
+        # Valid domain characters: a-z, 0-9, and hyphens
+        # Convert underscores to hyphens since they're not allowed in domains
+        sanitized = container_name.lower()
+        sanitized = re.sub(r"[^a-zA-Z0-9\-]", "-", sanitized)
+
+        # Replace multiple consecutive hyphens with single hyphen
+        sanitized = re.sub(r"-+", "-", sanitized)
+
+        # Remove leading/trailing hyphens
+        sanitized = sanitized.strip("-")
+
+        return sanitized
+
     def _find_free_port(self) -> int:
         """Find a free port between 8600 and 8700"""
         used_ports = set(
-            job.port for job in self.db.query(Job)
-            .filter(Job.port.isnot(None))
-            .all()
+            job.port for job in self.db.query(Job).filter(Job.port.isnot(None)).all()
         )
         while True:
             port = random.randint(8600, 8700)
@@ -38,10 +61,7 @@ class JobService:
                 return port
 
     def _get_template_content(self, template_name: str) -> str:
-        template_path = os.path.join(
-            settings.TEMPLATE_DIR,
-            template_name
-        )
+        template_path = os.path.join(settings.TEMPLATE_DIR, template_name)
         with open(template_path, "r") as f:
             return f.read()
 
@@ -51,18 +71,14 @@ class JobService:
 
     def get_jobs(self, user: User) -> List[Job]:
         """Get all jobs for a user."""
-        jobs = (
-            self.db.query(Job)
-            .filter(Job.owner_id == user.id)
-            .all()
-        )
-        
+        jobs = self.db.query(Job).filter(Job.owner_id == user.id).all()
+
         # Ensure script field is populated
         for job in jobs:
             if job.script is None:
                 job.script = ""
                 self.db.add(job)
-        
+
         self.db.commit()
         return jobs
 
@@ -72,10 +88,7 @@ class JobService:
 
     @staticmethod
     def get_multi_by_owner(
-        db: Session,
-        owner_id: int,
-        skip: int = 0,
-        limit: int = 100
+        db: Session, owner_id: int, skip: int = 0, limit: int = 100
     ) -> List[Job]:
         """Get multiple jobs for an owner with pagination."""
         slurm_logger.debug(
@@ -91,34 +104,33 @@ class JobService:
 
     @staticmethod
     def create(
-        db: Session,
-        job_in: JobCreate,
-        user_id: int,
-        job_id: str,
-        script: str
+        db: Session, job_in: JobCreate, user_id: int, job_id: str, script: str
     ) -> Job:
         """Create a new job record."""
         cluster_logger.debug(f"Creating new job record for user {user_id}")
-        job_data = job_in.dict(exclude={'preview'})
-        
+        job_data = job_in.dict(exclude={"preview"})
+
         job = Job(
             **job_data,
             job_id=job_id,
             status="PENDING",
             node=None,
             owner_id=user_id,
-            script=script
+            script=script,
         )
         db.add(job)
         db.commit()
         db.refresh(job)
-        
-        log_cluster_operation("Job Created", {
-            "job_id": str(job_id),
-            "user_id": user_id,
-            "status": "PENDING",
-            "name": job_in.job_name
-        })
+
+        log_cluster_operation(
+            "Job Created",
+            {
+                "job_id": str(job_id),
+                "user_id": user_id,
+                "status": "PENDING",
+                "name": job_in.job_name,
+            },
+        )
         return job
 
     @staticmethod
@@ -127,31 +139,38 @@ class JobService:
         update_data = job_update.dict(exclude_unset=True)
         msg = f"Updating job {str(db_job.job_id)} data: {update_data}"
         slurm_logger.debug(msg)
-        
+
         for field, value in update_data.items():
             setattr(db_job, field, value)
-        
-        setattr(db_job, 'updated_at', datetime.utcnow())
+
+        setattr(db_job, "updated_at", datetime.utcnow())
         db.add(db_job)
         db.commit()
         db.refresh(db_job)
-        
-        log_slurm_job(str(db_job.job_id), str(db_job.status), {
-            "node": str(db_job.node or "Not assigned"),
-            "updated_at": db_job.updated_at.isoformat()
-        })
+
+        log_slurm_job(
+            str(db_job.job_id),
+            str(db_job.status),
+            {
+                "node": str(db_job.node or "Not assigned"),
+                "updated_at": db_job.updated_at.isoformat(),
+            },
+        )
         return db_job
 
     async def delete_job(self, job: Job) -> bool:
-        """Delete a job and close its tunnels. Also cancels the job in SLURM if it's still running."""
+        """Delete job, cancel in SLURM, cleanup tunnels and Caddy config."""
         try:
             # First try to cancel the job in SLURM
             if job.job_id and job.status not in ["COMPLETED", "FAILED", "CANCELLED"]:
                 slurm_service = SlurmSSHService()
                 await slurm_service.cancel_job(job.job_id)
 
+            # Clean up Caddy configuration
+            self._cleanup_caddy_for_job(job)
+
             # Close any active SSH tunnels
-            tunnel_id = getattr(job, 'id', None)
+            tunnel_id = getattr(job, "id", None)
             if tunnel_id is not None:
                 self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
 
@@ -169,53 +188,49 @@ class JobService:
         slurm_service: SlurmSSHService,
         job_id: str,
         user: User,
-        initial_check_interval: int = 2
+        initial_check_interval: int = 2,
     ) -> None:
         """Asynchronously monitor the status of a SLURM job."""
         cluster_logger.debug(f"Starting job monitoring for job {job_id}")
-        
+
         # Get job using instance method through a temporary instance
         job_service = JobService(db)
         db_job = job_service.get_job_by_slurm_id(job_id)
-        
+
         if not db_job:
             cluster_logger.error(f"Job {job_id} not found in database")
             return
-        
+
         check_interval = initial_check_interval
         tunnel_service = SSHTunnelService(db)
-        
+
         while True:
             try:
                 cluster_logger.debug(f"Checking status for job {job_id}")
                 jobs = await slurm_service.get_active_jobs()
-                
-                job_info = next(
-                    (j for j in jobs if j["job_id"] == job_id),
-                    None
-                )
-                
+
+                job_info = next((j for j in jobs if j["job_id"] == job_id), None)
+
                 if job_info:
                     state = job_info["state"]
                     log_slurm_job(str(job_id), str(state), job_info)
-                    
+
                     if str(db_job.status) != state:
                         old_status = str(db_job.status)
                         msg = f"Job {job_id}: {old_status} → {state}"
                         cluster_logger.info(msg)
-                        
+
                         # Handle PENDING to RUNNING transition
                         if old_status == "PENDING" and state == "RUNNING":
-                            node = (
-                                job_info.get("node")
-                                or await slurm_service.get_job_node(job_id)
-                            )
-                            
+                            node = job_info.get(
+                                "node"
+                            ) or await slurm_service.get_job_node(job_id)
+
                             if node and node != "(None)":
                                 msg = f"Job {job_id} on node: {node}"
                                 cluster_logger.info(msg)
-                                setattr(db_job, 'node', str(node))
-                                
+                                setattr(db_job, "node", str(node))
+
                                 # Create SSH tunnel
                                 tunnel = tunnel_service.create_tunnel(db_job)
                                 if tunnel:
@@ -224,11 +239,11 @@ class JobService:
                                 else:
                                     msg = f"Failed tunnel: {job_id}"
                                     cluster_logger.warning(msg)
-                        
+
                         # Update status
-                        setattr(db_job, 'status', str(state))
+                        setattr(db_job, "status", str(state))
                         db.commit()
-                        
+
                         # Adjust check interval
                         if state == "RUNNING" and check_interval != 20:
                             cluster_logger.info(
@@ -237,50 +252,48 @@ class JobService:
                             check_interval = 20
                         elif state in ["PENDING", "CONFIGURING"]:
                             if check_interval != 2:
-                                cluster_logger.info(
-                                    f"Job {job_id}: short interval"
-                                )
+                                cluster_logger.info(f"Job {job_id}: short interval")
                                 check_interval = 2
-                    
+
                 else:
                     completed_states = ["COMPLETED", "FAILED", "CANCELLED"]
                     if str(db_job.status) not in completed_states:
                         msg = f"Job {job_id}: completed"
                         cluster_logger.info(msg)
-                        setattr(db_job, 'status', "COMPLETED")
+                        setattr(db_job, "status", "COMPLETED")
                         db.commit()
-                        
-                        # Close tunnels
+
+                        # Close tunnels and cleanup Caddy
                         tunnel_service.close_job_tunnels(int(db_job.id))
+                        job_service._cleanup_caddy_for_job(db_job)
                     break
-                        
+
             except Exception as e:
                 msg = f"Error job {job_id}: {str(e)}"
                 cluster_logger.error(msg)
-            
+
             completed_states = ["COMPLETED", "FAILED", "CANCELLED"]
             if str(db_job.status) in completed_states:
-                cluster_logger.info(
-                    f"Job {job_id} done: {str(db_job.status)}"
-                )
-                # Close tunnels
+                cluster_logger.info(f"Job {job_id} done: {str(db_job.status)}")
+                # Close tunnels and cleanup Caddy
                 tunnel_service.close_job_tunnels(int(db_job.id))
+                job_service._cleanup_caddy_for_job(db_job)
                 break
-                
+
             await asyncio.sleep(check_interval)
 
     def has_container_with_name(self, user: User, container_name: str) -> bool:
         """Check if user already has a container with the given name."""
         # The job_name pattern is: container_{username}_{container_name}
         expected_job_name = f"container_{user.username}_{container_name}"
-        
+
         existing_job = (
             self.db.query(Job)
             .filter(Job.owner_id == user.id)
             .filter(Job.job_name == expected_job_name)
             .first()
         )
-        
+
         return existing_job is not None
 
     async def submit_job(
@@ -295,11 +308,11 @@ class JobService:
     ) -> Job:
         """Submit a new job to SLURM."""
         cluster_logger.info(f"Preparing to submit new job: {job_name}")
-        
+
         # Extract container name from job_name
         # (format: container_{username}_{container_name})
         container_name = job_name.replace(f"container_{user.username}_", "", 1)
-        
+
         # Check if user already has a container with this name
         if self.has_container_with_name(user, container_name):
             error_msg = (
@@ -307,18 +320,17 @@ class JobService:
                 "exists. Please choose a different name."
             )
             raise HTTPException(status_code=400, detail=error_msg)
-        
+
         # Only assign a port, but do not create SSH tunnel yet
         port = self._find_free_port()
-        
+
         # Generuj hasło dla VS Code
         if user and user.code_server_password:
-            
             password = user.code_server_password
         else:
             # Default or placeholder password
             password = "defaultpassword"
-            
+
         # Przygotowanie parametrów do wypełnienia szablonu
         slurm_service = SlurmSSHService()
         params = {
@@ -330,30 +342,24 @@ class JobService:
             "port": port,
             "loggin_name": user.username,
             "loginname": user.username,  # Dla kompatybilności
-            
             # Dodatkowe parametry wymagane przez szablon
-            "partition": "proxima",     # Domyślna partycja
-            "num_nodes": 1,              # Domyślna liczba węzłów
-            "tasks_per_node": 1,         # Domyślna liczba zadań na węzeł
-            "NEW_PORT": port,            # Ten sam port dla VS Code
-            "NEW_PASSWORD": password      # Wygenerowane hasło dla VS Code
+            "partition": "proxima",  # Domyślna partycja
+            "num_nodes": 1,  # Domyślna liczba węzłów
+            "tasks_per_node": 1,  # Domyślna liczba zadań na węzeł
+            "NEW_PORT": port,  # Ten sam port dla VS Code
+            "NEW_PASSWORD": password,  # Wygenerowane hasło dla VS Code
         }
-        
+
         # Wypełnienie szablonu parametrami
-        script_content = await slurm_service.fill_template(
-            template_name, params
-        )
-        
+        script_content = await slurm_service.fill_template(template_name, params)
+
         # Wysłanie skryptu do SLURM
         job_id = await slurm_service.submit_job(script_content, user.username)
-        
+
         if not job_id:
             cluster_logger.error("Failed to get job ID from SLURM submission")
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to submit job to SLURM"
-            )
-        
+            raise HTTPException(status_code=500, detail="Failed to submit job to SLURM")
+
         # Utworzenie i zapisanie rekordu zadania
         db_job = Job(
             job_id=job_id,
@@ -367,19 +373,22 @@ class JobService:
             port=port,
             status="PENDING",
             partition="proxima",  # Domyślna partycja
-            password=password      # Zapisz hasło do późniejszego użycia
+            password=password,  # Zapisz hasło do późniejszego użycia
         )
         self.db.add(db_job)
         self.db.commit()
         self.db.refresh(db_job)
-        
-        log_cluster_operation("Job Submitted", {
-            "job_id": job_id,
-            "user_id": user.id,
-            "job_name": job_name,
-            "template": template_name
-        })
-        
+
+        log_cluster_operation(
+            "Job Submitted",
+            {
+                "job_id": job_id,
+                "user_id": user.id,
+                "job_name": job_name,
+                "template": template_name,
+            },
+        )
+
         return db_job
 
     async def update_job_status(self, job_id: str, new_status: str):
@@ -387,9 +396,9 @@ class JobService:
         db_job = self.db.query(Job).filter(Job.job_id == job_id).first()
         if not db_job:
             return
-            
-        setattr(db_job, 'status', str(new_status))
-        
+
+        setattr(db_job, "status", str(new_status))
+
         # SSH tunnel będzie tworzony automatycznie przez monitor
         self.db.commit()
 
@@ -398,10 +407,10 @@ class JobService:
         cluster_logger.debug(
             f"Creating job record for {user.username}: {job_data.job_name}"
         )
-        
+
         # Przydzielenie portu
         port = self._find_free_port()
-        
+
         # Create job object
         db_job = Job(
             job_name=job_data.job_name,
@@ -413,18 +422,56 @@ class JobService:
             owner=user,
             port=port,
             status="PENDING",
-            partition=job_data.partition if hasattr(
-                job_data, "partition"
-            ) else "proxima"
+            partition=job_data.partition
+            if hasattr(job_data, "partition")
+            else "proxima",
         )
-        
+
         self.db.add(db_job)
         self.db.commit()
         self.db.refresh(db_job)
-        
+
         return db_job
 
     @staticmethod
     def get(db: Session, job_id: int) -> Optional[Job]:
         """Get a job by its database ID."""
         return db.query(Job).filter(Job.id == job_id).first()
+
+    def _cleanup_caddy_for_job(self, job: Job) -> bool:
+        """Helper method to clean up Caddy configuration for a job."""
+        try:
+            if not job.job_name or not job.owner:
+                return False
+
+            # Extract container name from job_name for Caddy cleanup
+            container_name = job.job_name.replace(
+                f"container_{job.owner.username}_", "", 1
+            )
+
+            # Sanitize container name for domain using centralized method
+            safe_container_name = self.sanitize_container_name_for_domain(
+                container_name
+            )
+            if not safe_container_name:
+                safe_container_name = f"job{job.id}"
+
+            # Generate domain using consistent pattern
+            domain = f"{job.owner.username}-{safe_container_name}.orion.zfns.eu.org"
+
+            # Remove domain from Caddy
+            caddy_api_url = os.getenv(
+                "CADDY_API_URL", "http://host.docker.internal:2019"
+            )
+            caddy_client = CaddyAPIClient(caddy_api_url)
+            caddy_success = caddy_client.remove_domain(domain)
+
+            if caddy_success:
+                cluster_logger.info(f"Cleaned up Caddy domain {domain}")
+            else:
+                cluster_logger.warning(f"Failed to cleanup Caddy domain {domain}")
+
+            return caddy_success
+        except Exception as e:
+            cluster_logger.error(f"Error cleaning up Caddy for job {job.id}: {str(e)}")
+            return False

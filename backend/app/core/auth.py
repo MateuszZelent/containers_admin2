@@ -14,11 +14,14 @@ from app.services.user import UserService
 from app.db.models import User
 
 # Używamy optional=True, aby umożliwić nieautoryzowane żądania, gdy DISABLE_AUTH=True
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=not settings.DISABLE_AUTH)
+oauth2_scheme = OAuth2PasswordBearer(
+    tokenUrl=f"{settings.API_V1_STR}/auth/login", auto_error=not settings.DISABLE_AUTH
+)
 
 
 def get_user(db: Session, username: str) -> Optional[User]:
     return db.query(User).filter(User.username == username).first()
+
 
 def authenticate_user(db: Session, username: str, password: str) -> Optional[User]:
     user = get_user(db, username)
@@ -28,6 +31,7 @@ def authenticate_user(db: Session, username: str, password: str) -> Optional[Use
         return None
     return user
 
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -35,7 +39,9 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     else:
         expire = datetime.utcnow() + timedelta(minutes=15)
     to_encode.update({"exp": expire})
-    encoded_jwt = jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
+    encoded_jwt = jwt.encode(
+        to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM
+    )
     return encoded_jwt
 
 
@@ -49,7 +55,7 @@ def get_current_user(
             return admin_user
         # Jeśli nie ma admina, warto zgłosić błąd, bo to powinien być domyślny użytkownik
         raise HTTPException(status_code=404, detail="Default admin user not found")
-        
+
     # Standardowa autoryzacja, gdy DISABLE_AUTH=False
     try:
         payload = jwt.decode(

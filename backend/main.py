@@ -18,8 +18,7 @@ print("Debugger is active. Waiting for client to attach...")
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(
-    title=settings.PROJECT_NAME,    
-    openapi_url=f"{settings.API_V1_STR}/openapi.json"
+    title=settings.PROJECT_NAME, openapi_url=f"{settings.API_V1_STR}/openapi.json"
 )
 
 # Set up CORS with specific configuration
@@ -38,9 +37,9 @@ app.include_router(auth.router, prefix=f"{settings.API_V1_STR}/auth", tags=["aut
 app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["users"])
 app.include_router(jobs.router, prefix=f"{settings.API_V1_STR}/jobs", tags=["jobs"])
 app.include_router(
-    task_queue.router,
-    prefix=f"{settings.API_V1_STR}/tasks",
-    tags=["tasks"])
+    task_queue.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["tasks"]
+)
+
 
 @app.on_event("startup")
 async def startup_event():
@@ -52,7 +51,9 @@ async def startup_event():
     logger.info(f"  [cyan]SLURM Host:[/cyan] {settings.SLURM_HOST}")
     logger.info(f"  [cyan]SLURM User:[/cyan] {settings.SLURM_USER}")
     logger.info(f"  [cyan]Template Directory:[/cyan] {settings.TEMPLATE_DIR}")
-    logger.info(f"  [cyan]Container Output Directory:[/cyan] {settings.CONTAINER_OUTPUT_DIR}")
+    logger.info(
+        f"  [cyan]Container Output Directory:[/cyan] {settings.CONTAINER_OUTPUT_DIR}"
+    )
 
     # Start the task queue processor
     logger.info("Starting task queue processor")
@@ -60,6 +61,7 @@ async def startup_event():
         background_tasks = BackgroundTasks()
         db = next(get_db())
         from app.services.task_queue import TaskQueueService
+
         task_service = TaskQueueService(db)
         await task_service.start_queue_processor(background_tasks)
         logger.info("Task queue processor started successfully")
@@ -71,39 +73,35 @@ async def startup_event():
     try:
         db = next(get_db())
         from app.services.slurm_sync import SlurmSyncService
+
         slurm_sync_service = SlurmSyncService(db)
         await slurm_sync_service.start_background_sync()
         logger.info("SLURM sync service started successfully")
     except Exception as e:
         logger.error(f"Failed to start SLURM sync service: {str(e)}")
 
+
 @app.get("/")
 def read_root():
     return {"message": "Welcome to the SLURM Container Manager API"}
+
 
 @app.get("/health")
 async def health_check(db: Session = Depends(get_db)):
     try:
         # Sprawdź połączenie z bazą danych
         result = db.execute(text("SELECT 1")).scalar()
-        return {
-            "status": "ok", 
-            "database_connection": True,
-            "database_result": result
-        }
+        return {"status": "ok", "database_connection": True, "database_result": result}
     except Exception as e:
-        return {
-            "status": "error", 
-            "database_connection": False, 
-            "error": str(e)
-        }
+        return {"status": "error", "database_connection": False, "error": str(e)}
+
 
 # Create a first user if no users exist (useful for first run)
 @app.on_event("startup")
 async def create_first_user():
     from app.services.user import UserService
     from app.schemas.user import UserCreate
-    
+
     logger.info("Checking for initial admin user...")
     db = next(get_db())
     user = UserService.get_by_username(db=db, username=settings.ADMIN_USERNAME)
@@ -114,12 +112,13 @@ async def create_first_user():
             email=settings.ADMIN_EMAIL,
             password=settings.ADMIN_PASSWORD,
             first_name=settings.ADMIN_FIRST_NAME,
-            last_name=settings.ADMIN_LAST_NAME
+            last_name=settings.ADMIN_LAST_NAME,
         )
         UserService.create(db=db, user_in=user_in)
         logger.info("[green]Admin user created successfully[/green]")
     else:
         logger.info("Admin user already exists")
+
 
 @app.on_event("startup")
 async def restore_ssh_tunnels():
@@ -130,6 +129,7 @@ async def restore_ssh_tunnels():
         db = next(get_db())
         # Create SSH tunnel service
         from app.services.ssh_tunnel import SSHTunnelService
+
         tunnel_service = SSHTunnelService(db)
         # Restore active tunnels
         result = await tunnel_service.restore_active_tunnels()
@@ -137,13 +137,15 @@ async def restore_ssh_tunnels():
     except Exception as e:
         logger.error(f"Error restoring SSH tunnels: {str(e)}")
 
+
 if __name__ == "__main__":
     import uvicorn
+
     console.print("[bold green]Starting development server...[/bold green]")
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
         port=8000,
         reload=True,
-        log_level=settings.LOG_LEVEL.lower()
+        log_level=settings.LOG_LEVEL.lower(),
     )
