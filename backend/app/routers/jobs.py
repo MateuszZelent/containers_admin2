@@ -45,7 +45,8 @@ async def get_jobs(
 
     # Get current SLURM status
     slurm_service = SlurmSSHService()
-    active_jobs = await slurm_service.get_active_jobs(username=current_user)
+    username = current_user.username
+    active_jobs = await slurm_service.get_active_jobs(username=username)
 
     if active_jobs:
         for slurm_job in active_jobs:
