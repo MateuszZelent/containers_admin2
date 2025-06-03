@@ -269,6 +269,20 @@ class JobService:
                 
             await asyncio.sleep(check_interval)
 
+    def has_container_with_name(self, user: User, container_name: str) -> bool:
+        """Check if user already has a container with the given name."""
+        # The job_name pattern is: container_{username}_{container_name}
+        expected_job_name = f"container_{user.username}_{container_name}"
+        
+        existing_job = (
+            self.db.query(Job)
+            .filter(Job.owner_id == user.id)
+            .filter(Job.job_name == expected_job_name)
+            .first()
+        )
+        
+        return existing_job is not None
+
     async def submit_job(
         self,
         job_name: str,
@@ -281,6 +295,18 @@ class JobService:
     ) -> Job:
         """Submit a new job to SLURM."""
         cluster_logger.info(f"Preparing to submit new job: {job_name}")
+        
+        # Extract container name from job_name
+        # (format: container_{username}_{container_name})
+        container_name = job_name.replace(f"container_{user.username}_", "", 1)
+        
+        # Check if user already has a container with this name
+        if self.has_container_with_name(user, container_name):
+            error_msg = (
+                f"A container with the name '{container_name}' already "
+                "exists. Please choose a different name."
+            )
+            raise HTTPException(status_code=400, detail=error_msg)
         
         # Only assign a port, but do not create SSH tunnel yet
         port = self._find_free_port()
@@ -303,7 +329,7 @@ class JobService:
             "time_limit": time_limit,
             "port": port,
             "loggin_name": user.username,
-            "loginname": user.username,  # Dla kompatybilności z różnymi szablonami
+            "loginname": user.username,  # Dla kompatybilności
             
             # Dodatkowe parametry wymagane przez szablon
             "partition": "proxima",     # Domyślna partycja
@@ -314,14 +340,19 @@ class JobService:
         }
         
         # Wypełnienie szablonu parametrami
-        script_content = await slurm_service.fill_template(template_name, params)
+        script_content = await slurm_service.fill_template(
+            template_name, params
+        )
         
         # Wysłanie skryptu do SLURM
         job_id = await slurm_service.submit_job(script_content, user.username)
         
         if not job_id:
             cluster_logger.error("Failed to get job ID from SLURM submission")
-            raise HTTPException(status_code=500, detail="Failed to submit job to SLURM")
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to submit job to SLURM"
+            )
         
         # Utworzenie i zapisanie rekordu zadania
         db_job = Job(
@@ -357,15 +388,16 @@ class JobService:
         if not db_job:
             return
             
-        old_status = str(db_job.status)
         setattr(db_job, 'status', str(new_status))
         
-        # Nie tworzymy tunelu SSH tutaj - to będzie robione automatycznie przez monitor
+        # SSH tunnel będzie tworzony automatycznie przez monitor
         self.db.commit()
 
     def create_job(self, job_data: JobCreate, user: User) -> Job:
         """Create a new job in the database."""
-        cluster_logger.debug(f"Creating job record for {user.username}: {job_data.job_name}")
+        cluster_logger.debug(
+            f"Creating job record for {user.username}: {job_data.job_name}"
+        )
         
         # Przydzielenie portu
         port = self._find_free_port()
@@ -381,7 +413,9 @@ class JobService:
             owner=user,
             port=port,
             status="PENDING",
-            partition=job_data.partition if hasattr(job_data, "partition") else "proxima"
+            partition=job_data.partition if hasattr(
+                job_data, "partition"
+            ) else "proxima"
         )
         
         self.db.add(db_job)

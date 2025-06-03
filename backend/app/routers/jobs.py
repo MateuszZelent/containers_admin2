@@ -1,6 +1,8 @@
 from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
+import re
+import os
 from caddy_api_client import CaddyAPIClient
 from app.core.logging import cluster_logger
 from app.core.auth import get_current_active_user, get_current_user
@@ -10,10 +12,14 @@ from app.schemas.job import Job as JobSchema
 from app.services.job import JobService
 from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
-from app.db.models import User, Job
+from app.db.models import User, Job, SSHTunnel
 import os
 from app.core.config import settings
-CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2019")
+
+
+CADDY_API_URL: str = os.getenv(
+    "CADDY_API_URL", "http://host.docker.internal:2019"
+)
 router = APIRouter()
 
 @router.get("/status")
@@ -422,8 +428,32 @@ async def get_code_server_url(
             detail="Could not establish SSH tunnel. Please try again later."
         )
     
-    # Generate domain name using username and job_id
-    domain = f"{current_user.username}{job.id}.orion.zfns.eu.org"
+    # Generate domain name using username and container name
+    # Extract the user-provided container name from job_name
+    # job_name format is: "container_{username}_{user_provided_name}"
+    import re
+    
+    # Extract only the user-provided container name part
+    username_prefix = f"container_{current_user.username}_"
+    if job.job_name.startswith(username_prefix):
+        # Remove the "container_{username}_" prefix to get user-provided name
+        user_container_name = job.job_name[len(username_prefix):]
+    else:
+        # Fallback: use the whole job_name if it doesn't match expected format
+        user_container_name = job.job_name
+    
+    # Sanitize container name to make it URL-safe
+    # (remove invalid characters and convert to lowercase)
+    safe_container_name = re.sub(
+        r'[^a-zA-Z0-9_-]', '', user_container_name.lower()
+    )
+    # Ensure the name doesn't start or end with hyphen and isn't empty
+    safe_container_name = safe_container_name.strip('-')
+    if not safe_container_name:
+        safe_container_name = f"job{job.id}"
+    
+    # Generate domain using username and clean container name
+    domain = f"{current_user.username}_{safe_container_name}.orion.zfns.eu.org"
     
     # Configure Caddy to route the domain to the local tunnel port
     caddy_client = CaddyAPIClient(CADDY_API_URL)
@@ -435,7 +465,7 @@ async def get_code_server_url(
     
     if not success:
         # If Caddy configuration fails, clean up the tunnel
-        tunnel_service.close_tunnel(tunnel.id)
+        await tunnel_service.close_tunnel(tunnel.id)
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to configure domain routing"
@@ -512,6 +542,7 @@ async def check_tunnel_status(
         db.commit()
         return {
             "status": "INACTIVE",
-            "message": "Tunnel exists but is not accessible. It has been marked as closed.",
+            "message": "Tunnel exists but is not accessible. "
+                      "It has been marked as closed.",
             "tunnel": tunnel_info
         }
