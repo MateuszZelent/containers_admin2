@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -76,6 +77,8 @@ const getErrorMessage = (error: unknown, defaultMessage: string): string => {
 };
 
 export default function DashboardPage() {
+  const router = useRouter();
+  
   // Main state
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJobs, setActiveJobs] = useState<ActiveJobData[]>([]);
@@ -314,6 +317,11 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     }
   }, []);
 
+  // Navigate to job details
+  const handleJobDetails = useCallback((jobId: number) => {
+    router.push(`/dashboard/jobs/${jobId}`);
+  }, [router]);
+
   // Filter jobs based on status
   const getActiveJobs = useCallback(() => {
     return jobs.filter(job => job.status === "RUNNING" || job.status === "PENDING" || job.status === "CONFIGURING");
@@ -524,6 +532,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                   onOpenCodeServer={() => openCodeServer(job)}
                   canUseCodeServer={canUseCodeServer(job)}
                   formatDate={formatDate}
+                  onDetails={() => handleJobDetails(job.id)}
                 />
               ))}
             </div>
@@ -564,6 +573,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                       onOpenCodeServer={() => openCodeServer(job)}
                       canUseCodeServer={canUseCodeServer(job)}
                       formatDate={formatDate}
+                      onDetails={() => handleJobDetails(job.id)}
                     />
                   ))}
                 </div>
@@ -604,6 +614,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                       onOpenCodeServer={() => openCodeServer(job)}
                       canUseCodeServer={canUseCodeServer(job)}
                       formatDate={formatDate}
+                      onDetails={() => handleJobDetails(job.id)}
                     />
                   ))}
                 </div>

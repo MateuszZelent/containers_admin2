@@ -66,6 +66,7 @@ interface ModernJobCardProps {
   canUseCodeServer: boolean;
   onDelete: () => void;
   onOpenCodeServer: () => void;
+  onDetails: () => void;
   formatDate: (date: string) => string;
 }
 
@@ -134,6 +135,7 @@ export const ModernJobCard = React.memo(({
   canUseCodeServer,
   onDelete,
   onOpenCodeServer,
+  onDetails,
   formatDate
 }: ModernJobCardProps) => {
   const statusIcon = getStatusIcon(job.status);
@@ -309,7 +311,12 @@ export const ModernJobCard = React.memo(({
             </TooltipProvider>
 
             {/* Quick details link */}
-            <Button variant="ghost" size="sm" className="flex items-center gap-1">
+            <Button 
+              variant="ghost" 
+              size="sm" 
+              className="flex items-center gap-1"
+              onClick={onDetails}
+            >
               <ExternalLink className="h-3 w-3" />
               Szczegóły
             </Button>
