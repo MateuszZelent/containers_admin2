@@ -1,6 +1,41 @@
 import axios, { AxiosInstance } from 'axios';
 import { toast } from "sonner"; // Dodajemy import toast
 
+// CLI Token Types
+export interface CLIToken {
+  id: number;
+  name: string;
+  user_id: number;
+  created_at: string;
+  expires_at: string;
+  last_used_at?: string;
+  last_used_ip?: string;
+  last_used_user_agent?: string;
+  is_active: boolean;
+}
+
+export interface CLITokenCreate {
+  name: string;
+  expires_days?: number;
+}
+
+export interface CLITokenUpdate {
+  name?: string;
+  expires_days?: number;
+}
+
+export interface CLITokenCreateResponse {
+  token: string;
+  token_info: CLIToken;
+}
+
+export interface CLITokenUsageInfo {
+  last_used_at?: string;
+  last_used_ip?: string;
+  last_used_user_agent?: string;
+  is_active: boolean;
+}
+
 // Configuration
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://amucontainers.orion.zfns.eu.org";
 const API_PREFIX = "/api/v1";
@@ -295,6 +330,41 @@ export const jobsApi = {
   // Close SSH tunnel
   closeJobTunnel: (jobId: number, tunnelId: number) => 
     apiClient.delete(`/jobs/${jobId}/tunnels/${tunnelId}`),
+};
+
+// CLI Tokens API
+export const cliTokensApi = {
+  // Get all CLI tokens for current user
+  getTokens: (): Promise<{ data: CLIToken[] }> => 
+    apiClient.get('/cli-tokens/'),
+  
+  // Create new CLI token
+  createToken: (tokenData: CLITokenCreate): Promise<{ data: CLITokenCreateResponse }> => 
+    apiClient.post('/cli-tokens/', tokenData),
+  
+  // Get specific CLI token
+  getToken: (tokenId: number): Promise<{ data: CLIToken }> => 
+    apiClient.get(`/cli-tokens/${tokenId}`),
+  
+  // Update CLI token (rename or extend expiration)
+  updateToken: (tokenId: number, tokenData: CLITokenUpdate): Promise<{ data: CLIToken }> => 
+    apiClient.put(`/cli-tokens/${tokenId}`, tokenData),
+  
+  // Delete CLI token permanently
+  deleteToken: (tokenId: number) => 
+    apiClient.delete(`/cli-tokens/${tokenId}`),
+  
+  // Deactivate CLI token (soft delete)
+  deactivateToken: (tokenId: number) => 
+    apiClient.post(`/cli-tokens/${tokenId}/deactivate`),
+  
+  // Get CLI token usage information
+  getTokenUsage: (tokenId: number): Promise<{ data: CLITokenUsageInfo }> => 
+    apiClient.get(`/cli-tokens/${tokenId}/usage`),
+  
+  // Cleanup expired tokens (admin only)
+  cleanupExpiredTokens: () => 
+    apiClient.post('/cli-tokens/cleanup-expired'),
 };
 
 export default apiClient;

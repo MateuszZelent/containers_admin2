@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw } from "lucide-react"
+import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw, Plus, Trash2, Copy, Calendar, Globe, Monitor } from "lucide-react"
 
 import {
   Card,
@@ -27,8 +27,40 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { userApi } from "@/lib/api-client"
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"
+import { Badge } from "@/components/ui/badge"
+import { userApi, cliTokensApi, CLIToken, CLITokenCreate } from "@/lib/api-client"
 import { Skeleton } from "@/app/dashboard/components/skeleton"
+
+// Schema for CLI token creation
+const cliTokenCreateSchema = z.object({
+  name: z.string()
+    .min(1, "Nazwa tokenu jest wymagana")
+    .max(100, "Nazwa nie może przekraczać 100 znaków"),
+  expires_days: z.number()
+    .min(1, "Token musi być ważny co najmniej 1 dzień")
+    .max(365, "Token nie może być ważny dłużej niż 365 dni")
+    .default(30),
+})
 
 // Schema for code server password
 const codeServerSchema = z.object({
@@ -64,6 +96,13 @@ export default function SettingsPage() {
   const [showSuccessAccount, setShowSuccessAccount] = useState(false) // For success animation on account
   const [showSuccessCodeServer, setShowSuccessCodeServer] = useState(false) // For success animation on code server
   
+  // CLI Tokens states
+  const [cliTokens, setCliTokens] = useState<CLIToken[]>([])
+  const [isLoadingTokens, setIsLoadingTokens] = useState(false)
+  const [isCreatingToken, setIsCreatingToken] = useState(false)
+  const [showCreateTokenDialog, setShowCreateTokenDialog] = useState(false)
+  const [newTokenData, setNewTokenData] = useState<{ token: string; tokenInfo: CLIToken } | null>(null)
+  
   const [showPassword, setShowPassword] = useState(false)
   const [isEditingCodeServer, setIsEditingCodeServer] = useState(false) // Renamed for clarity
   const [userData, setUserData] = useState<any>(null)
@@ -73,6 +112,15 @@ export default function SettingsPage() {
   const codeServerForm = useForm<z.infer<typeof codeServerSchema>>({
     resolver: zodResolver(codeServerSchema),
     defaultValues: { code_server_password: "" }
+  })
+  
+  // CLI Token creation form
+  const cliTokenForm = useForm<z.infer<typeof cliTokenCreateSchema>>({
+    resolver: zodResolver(cliTokenCreateSchema),
+    defaultValues: {
+      name: "",
+      expires_days: 30
+    }
   })
   
   // Account form
@@ -90,7 +138,104 @@ export default function SettingsPage() {
   // Fetch user data on first render
   useEffect(() => {
     fetchUserData();
+    fetchCliTokens();
   }, []);
+
+  // Fetch CLI tokens
+  const fetchCliTokens = async () => {
+    setIsLoadingTokens(true);
+    try {
+      const response = await cliTokensApi.getTokens();
+      setCliTokens(response.data);
+    } catch (error: any) {
+      console.error("Error fetching CLI tokens:", error);
+      toast.error("Nie udało się pobrać listy tokenów CLI");
+    } finally {
+      setIsLoadingTokens(false);
+    }
+  };
+
+  // Create new CLI token
+  const createCliToken = async (values: z.infer<typeof cliTokenCreateSchema>) => {
+    setIsCreatingToken(true);
+    try {
+      const response = await cliTokensApi.createToken(values);
+      setNewTokenData({
+        token: response.data.token,
+        tokenInfo: response.data.token_info
+      });
+      
+      // Refresh tokens list
+      await fetchCliTokens();
+      
+      // Reset form
+      cliTokenForm.reset();
+      
+      toast.success("Token CLI został pomyślnie utworzony!");
+    } catch (error: any) {
+      console.error("Error creating CLI token:", error);
+      const errorMessage = error.response?.data?.detail || "Wystąpił błąd podczas tworzenia tokenu";
+      toast.error(errorMessage);
+    } finally {
+      setIsCreatingToken(false);
+    }
+  };
+
+  // Delete CLI token
+  const deleteCliToken = async (tokenId: number, tokenName: string) => {
+    try {
+      await cliTokensApi.deleteToken(tokenId);
+      await fetchCliTokens();
+      toast.success(`Token "${tokenName}" został usunięty`);
+    } catch (error: any) {
+      console.error("Error deleting CLI token:", error);
+      const errorMessage = error.response?.data?.detail || "Wystąpił błąd podczas usuwania tokenu";
+      toast.error(errorMessage);
+    }
+  };
+
+  // Extend CLI token
+  const extendCliToken = async (tokenId: number, days: number) => {
+    try {
+      await cliTokensApi.updateToken(tokenId, { expires_days: days });
+      await fetchCliTokens();
+      toast.success(`Token został przedłużony o ${days} dni`);
+    } catch (error: any) {
+      console.error("Error extending CLI token:", error);
+      const errorMessage = error.response?.data?.detail || "Wystąpił błąd podczas przedłużania tokenu";
+      toast.error(errorMessage);
+    }
+  };
+
+  // Copy token to clipboard
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast.success("Token został skopiowany do schowka");
+    } catch (error) {
+      console.error("Error copying to clipboard:", error);
+      toast.error("Nie udało się skopiować tokenu");
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleString('pl-PL');
+  };
+
+  // Check if token is expired
+  const isTokenExpired = (expiresAt: string) => {
+    return new Date(expiresAt) < new Date();
+  };
+
+  // Get days until expiration
+  const getDaysUntilExpiration = (expiresAt: string) => {
+    const now = new Date();
+    const expiry = new Date(expiresAt);
+    const diffTime = expiry.getTime() - now.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays;
+  };
 
   // Fetch all user settings from /v1/users/me endpoint
   const fetchUserData = async () => {
@@ -419,6 +564,10 @@ export default function SettingsPage() {
             <Code className="h-4 w-4" />
             Ustawienia Code-server
           </TabsTrigger>
+          <TabsTrigger value="cli-tokens" className="flex items-center gap-2">
+            <Key className="h-4 w-4" />
+            Tokeny CLI
+          </TabsTrigger>
         </TabsList>
         
         {/* Account Settings Tab */}
@@ -719,6 +868,305 @@ export default function SettingsPage() {
               <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
                 <p>To hasło będzie używane do logowania do interfejsu Code Server we wszystkich Twoich kontenerach. Zalecamy użycie silnego i unikalnego hasła.</p>
               </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* CLI Tokens Tab */}
+        <TabsContent value="cli-tokens">
+          <Card className="max-w-4xl">
+            <CardHeader>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Tokeny CLI</CardTitle>
+                  <CardDescription>
+                    Zarządzaj tokenami uwierzytelniania dla narzędzi CLI
+                  </CardDescription>
+                </div>
+                <Dialog open={showCreateTokenDialog} onOpenChange={setShowCreateTokenDialog}>
+                  <DialogTrigger asChild>
+                    <Button className="flex items-center gap-2">
+                      <Plus className="h-4 w-4" />
+                      Utwórz nowy token
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Utwórz nowy token CLI</DialogTitle>
+                      <DialogDescription>
+                        Utwórz nowy token do uwierzytelniania w narzędziach CLI
+                      </DialogDescription>
+                    </DialogHeader>
+                    <Form {...cliTokenForm}>
+                      <form onSubmit={cliTokenForm.handleSubmit(createCliToken)} className="space-y-4">
+                        <FormField
+                          control={cliTokenForm.control}
+                          name="name"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nazwa tokenu</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  placeholder="np. Laptop do pracy, Serwer produkcyjny" 
+                                  {...field} 
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Podaj opisową nazwę, aby łatwo rozpoznać, gdzie używasz tego tokenu
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={cliTokenForm.control}
+                          name="expires_days"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Ważność (dni)</FormLabel>
+                              <FormControl>
+                                <Input 
+                                  type="number" 
+                                  min="1" 
+                                  max="365" 
+                                  {...field}
+                                  onChange={(e) => field.onChange(parseInt(e.target.value))}
+                                />
+                              </FormControl>
+                              <FormDescription>
+                                Czas ważności tokenu (1-365 dni)
+                              </FormDescription>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <DialogFooter>
+                          <Button 
+                            type="button" 
+                            variant="outline" 
+                            onClick={() => setShowCreateTokenDialog(false)}
+                            disabled={isCreatingToken}
+                          >
+                            Anuluj
+                          </Button>
+                          <Button type="submit" disabled={isCreatingToken}>
+                            {isCreatingToken ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Tworzenie...
+                              </>
+                            ) : (
+                              "Utwórz token"
+                            )}
+                          </Button>
+                        </DialogFooter>
+                      </form>
+                    </Form>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {/* Show new token after creation */}
+              {newTokenData && (
+                <div className="mb-6 p-4 border rounded-lg bg-green-50 dark:bg-green-900/20">
+                  <h3 className="font-semibold text-green-800 dark:text-green-300 mb-2">
+                    Token został utworzony!
+                  </h3>
+                  <p className="text-sm text-green-700 dark:text-green-400 mb-3">
+                    Skopiuj poniższy token i zapisz go w bezpiecznym miejscu. Nie będzie możliwe ponowne jego wyświetlenie.
+                  </p>
+                  <div className="flex items-center gap-2 p-3 bg-white dark:bg-gray-800 border rounded font-mono text-sm">
+                    <code className="flex-1 break-all">{newTokenData.token}</code>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        navigator.clipboard.writeText(newTokenData.token);
+                        toast.success("Token skopiowany do schowka!");
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <Button
+                    className="mt-3"
+                    size="sm"
+                    onClick={() => setNewTokenData(null)}
+                  >
+                    Zamknij
+                  </Button>
+                </div>
+              )}
+
+              {/* Tokens list */}
+              <div className="space-y-4">
+                {isLoadingTokens ? (
+                  <div className="space-y-3">
+                    {Array(3).fill(0).map((_, i) => (
+                      <Skeleton key={i} className="h-20 w-full" />
+                    ))}
+                  </div>
+                ) : cliTokens.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Key className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Nie masz jeszcze żadnych tokenów CLI</p>
+                    <p className="text-sm">Utwórz pierwszy token, aby rozpocząć korzystanie z CLI</p>
+                  </div>
+                ) : (
+                  cliTokens.map((token) => {
+                    const isExpired = new Date(token.expires_at) < new Date();
+                    const daysUntilExpiry = Math.ceil(
+                      (new Date(token.expires_at).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+                    );
+
+                    return (
+                      <div key={token.id} className={`p-4 border rounded-lg ${
+                        !token.is_active || isExpired ? 'bg-muted/50' : 'bg-background'
+                      }`}>
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <div className="flex items-center gap-2 mb-2">
+                              <h3 className="font-semibold">{token.name}</h3>
+                              {!token.is_active ? (
+                                <Badge variant="secondary">Nieaktywny</Badge>
+                              ) : isExpired ? (
+                                <Badge variant="destructive">Wygasł</Badge>
+                              ) : daysUntilExpiry <= 7 ? (
+                                <Badge variant="outline" className="text-orange-600 border-orange-600">
+                                  Wygasa za {daysUntilExpiry} dni
+                                </Badge>
+                              ) : (
+                                <Badge variant="outline" className="text-green-600 border-green-600">
+                                  Aktywny
+                                </Badge>
+                              )}
+                            </div>
+                            
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>Utworzony: {new Date(token.created_at).toLocaleDateString('pl-PL')}</span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Calendar className="h-4 w-4" />
+                                <span>Wygasa: {new Date(token.expires_at).toLocaleDateString('pl-PL')}</span>
+                              </div>
+                              {token.last_used_at ? (
+                                <div className="flex items-center gap-2">
+                                  <Globe className="h-4 w-4" />
+                                  <span>Ostatnie użycie: {new Date(token.last_used_at).toLocaleDateString('pl-PL')}</span>
+                                </div>
+                              ) : (
+                                <div className="flex items-center gap-2">
+                                  <Globe className="h-4 w-4" />
+                                  <span>Nigdy nie używany</span>
+                                </div>
+                              )}
+                            </div>
+
+                            {token.last_used_ip && (
+                              <div className="mt-2 text-sm text-muted-foreground">
+                                <div className="flex items-center gap-2">
+                                  <Monitor className="h-4 w-4" />
+                                  <span>Ostatnie IP: {token.last_used_ip}</span>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 ml-4">
+                            {token.is_active && !isExpired && (
+                              <Dialog>
+                                <DialogTrigger asChild>
+                                  <Button variant="outline" size="sm">
+                                    <RefreshCcw className="h-4 w-4 mr-1" />
+                                    Przedłuż
+                                  </Button>
+                                </DialogTrigger>
+                                <DialogContent>
+                                  <DialogHeader>
+                                    <DialogTitle>Przedłuż token "{token.name}"</DialogTitle>
+                                    <DialogDescription>
+                                      Wybierz o ile dni przedłużyć ważność tokenu
+                                    </DialogDescription>
+                                  </DialogHeader>
+                                  <div className="grid gap-4 py-4">
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <Button
+                                        onClick={() => extendCliToken(token.id, 30)}
+                                        className="col-span-4"
+                                      >
+                                        Przedłuż o 30 dni
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <Button
+                                        onClick={() => extendCliToken(token.id, 90)}
+                                        className="col-span-4"
+                                      >
+                                        Przedłuż o 90 dni
+                                      </Button>
+                                    </div>
+                                    <div className="grid grid-cols-4 items-center gap-4">
+                                      <Button
+                                        onClick={() => extendCliToken(token.id, 180)}
+                                        className="col-span-4"
+                                      >
+                                        Przedłuż o 180 dni
+                                      </Button>
+                                    </div>
+                                  </div>
+                                </DialogContent>
+                              </Dialog>
+                            )}
+                            
+                            <AlertDialog>
+                              <AlertDialogTrigger asChild>
+                                <Button variant="destructive" size="sm">
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </AlertDialogTrigger>
+                              <AlertDialogContent>
+                                <AlertDialogHeader>
+                                  <AlertDialogTitle>Usuń token</AlertDialogTitle>
+                                  <AlertDialogDescription>
+                                    Czy na pewno chcesz usunąć token "{token.name}"? 
+                                    Ta akcja nie może zostać cofnięta i uniemożliwi korzystanie z tego tokenu.
+                                  </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                  <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                                  <AlertDialogAction
+                                    onClick={() => deleteCliToken(token.id, token.name)}
+                                    className="bg-red-600 hover:bg-red-700"
+                                  >
+                                    Usuń token
+                                  </AlertDialogAction>
+                                </AlertDialogFooter>
+                              </AlertDialogContent>
+                            </AlertDialog>
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })
+                )}
+              </div>
+
+              {cliTokens.length > 0 && (
+                <div className="mt-6 pt-6 border-t">
+                  <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                    <h4 className="font-semibold mb-2">Informacje o tokenach CLI:</h4>
+                    <ul className="space-y-1 list-disc list-inside">
+                      <li>Tokeny CLI umożliwiają uwierzytelnianie w narzędziach wiersza poleceń bez podawania hasła</li>
+                      <li>Każdy token ma określony czas ważności i może być przedłużony lub usunięty w dowolnym momencie</li>
+                      <li>Token jest wyświetlany tylko podczas tworzenia - zapisz go w bezpiecznym miejscu</li>
+                      <li>Monitoruj ostatnie użycie tokenów, aby wykryć nieautoryzowany dostęp</li>
+                    </ul>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

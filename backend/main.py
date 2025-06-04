@@ -8,7 +8,7 @@ from app.core.config import settings
 from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
-from app.routers import auth, users, jobs, task_queue
+from app.routers import auth, users, jobs, task_queue, cli_tokens
 import debugpy
 
 # Ustaw punkt nasłuchiwania debuggera
@@ -38,6 +38,9 @@ app.include_router(users.router, prefix=f"{settings.API_V1_STR}/users", tags=["u
 app.include_router(jobs.router, prefix=f"{settings.API_V1_STR}/jobs", tags=["jobs"])
 app.include_router(
     task_queue.router, prefix=f"{settings.API_V1_STR}/tasks", tags=["tasks"]
+)
+app.include_router(
+    cli_tokens.router, prefix=f"{settings.API_V1_STR}/cli-tokens", tags=["cli-tokens"]
 )
 
 

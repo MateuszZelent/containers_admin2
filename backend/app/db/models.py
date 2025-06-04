@@ -3,6 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import json
+from datetime import datetime, timedelta
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.types import TypeDecorator, TEXT
 
@@ -39,6 +40,7 @@ class User(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     jobs = relationship("Job", back_populates="owner")
+    cli_tokens = relationship("CLIToken", back_populates="owner")
 
 
 class Job(Base):
@@ -221,3 +223,21 @@ class TaskQueueJob(Base):
             return None
 
         return datetime.utcnow() + timedelta(seconds=remaining)
+
+
+class CLIToken(Base):
+    __tablename__ = "cli_tokens"
+
+    id = Column(Integer, primary_key=True, index=True)
+    token_hash = Column(String(255), unique=True, index=True)  # SHA-256 hash tokenu
+    name = Column(String(100))  # Nazwa nadana przez użytkownika, np. "Laptop praca"
+    user_id = Column(Integer, ForeignKey("users.id"))
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+    expires_at = Column(DateTime(timezone=True))
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    last_used_ip = Column(String(45), nullable=True)  # IPv4/IPv6
+    last_used_user_agent = Column(String(500), nullable=True)
+    is_active = Column(Boolean, default=True)
+
+    # Relacja z użytkownikiem
+    owner = relationship("User", back_populates="cli_tokens")
