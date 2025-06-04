@@ -27,49 +27,51 @@ export default function LoginPage() {
     }
   };
   
-  // Przykładowa funkcja obsługi logowania
-  const handleLogin = async (values) => {
+  // Handle login form submission
+  const handleLogin = async (values: { username: string; password: string }) => {
     try {
-      // ...existing login logic...
+      const response = await authApi.login(values.username, values.password);
       
-      // Po pomyślnym zalogowaniu, zapisz dane użytkownika
+      // After successful login, save user data
       if (response && response.data) {
         const userData = response.data;
         
-        // Dodaj pełne imię i nazwisko jeśli mamy te dane
+        // Add full name if we have first/last name data
         if (!userData.full_name && (userData.first_name || userData.last_name)) {
           const firstName = userData.first_name || '';
           const lastName = userData.last_name || '';
           userData.full_name = `${firstName} ${lastName}`.trim();
         }
         
-        // Zapisz token
+        // Save token
         localStorage.setItem('auth_token', userData.token || userData.access_token);
         
-        // Zapisz dane użytkownika
+        // Save user data
         localStorage.setItem('user_data', JSON.stringify(userData));
         localStorage.setItem('user_data_timestamp', Date.now().toString());
         
-        // Przekieruj użytkownika
-        window.location.href = '/dashboard';
+        // Use the success handler to redirect
+        handleLoginSuccess();
       }
     } catch (error) {
-      // ...error handling...
+      console.error('Login error:', error);
+      throw error;
     }
   };
   
-  // Modify your login form submission to use the new handler
-  const handleSubmit = async (e) => {
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    // ...existing login logic...
+    const formData = new FormData(e.currentTarget);
+    const values = {
+      username: formData.get('username') as string,
+      password: formData.get('password') as string,
+    };
     
     try {
-      // ...existing authentication code...
-      
-      // After successful login, use the new redirect handler
-      handleLogin();
+      await handleLogin(values);
     } catch (error) {
-      // ...existing error handling...
+      console.error('Submit error:', error);
     }
   };
   
@@ -94,7 +96,7 @@ export default function LoginPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="grid gap-4">
-            <LoginForm onSubmit={handleSubmit} />
+            <LoginForm onSubmit={handleLogin} />
           </CardContent>
           <CardFooter className="flex flex-col">
             <p className="px-8 text-center text-sm text-muted-foreground">

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { RefreshCcw, ArrowLeft, Link2, ExternalLink } from "lucide-react";
@@ -9,6 +9,15 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
 import { jobsApi } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
+
+// Helper function for error handling
+const getErrorMessage = (error: unknown, defaultMessage: string): string => {
+  if (error && typeof error === 'object' && 'response' in error) {
+    const axiosError = error as { response?: { data?: { detail?: string } } };
+    return axiosError.response?.data?.detail || defaultMessage;
+  }
+  return defaultMessage;
+};
 
 interface JobDetails {
   id: number;
@@ -26,6 +35,16 @@ interface JobDetails {
   port?: number;
   owner_id: number;
   partition: string;
+}
+
+interface JobStatus {
+  job_id: string;
+  status: string;
+  state?: string;
+  exit_code?: number;
+  runtime?: string;
+  nodes?: string[];
+  [key: string]: any; // dla dodatkowych pól z SLURM
 }
 
 interface SSHTunnel {
@@ -58,19 +77,14 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
   const jobId = parseInt(params.id);
   
   const [job, setJob] = useState<JobDetails | null>(null);
-  const [jobStatus, setJobStatus] = useState<any | null>(null);
+  const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
   const [tunnels, setTunnels] = useState<SSHTunnel[]>([]);
   const [tunnelStatus, setTunnelStatus] = useState<TunnelStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [codeServerURL, setCodeServerURL] = useState<string | null>(null);
 
-  // Pobierz szczegóły zadania i aktualne tunele SSH
-  useEffect(() => {
-    fetchData();
-  }, [jobId]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setIsLoading(true);
     try {
       // Pobierz szczegóły zadania
@@ -86,14 +100,10 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         const tunnelsResponse = await jobsApi.getJobTunnels(jobId);
         setTunnels(tunnelsResponse.data);
 
-        // Jeśli istnieją tunele, sprawdź ich status
+        // Jeśli istnieją tunele, sprawdź ich status (status jest już w odpowiedzi)
         if (tunnelsResponse.data.length > 0) {
-          try {
-            const tunnelStatusResponse = await jobsApi.checkTunnelStatus(jobId);
-            setTunnelStatus(tunnelStatusResponse.data);
-          } catch (error) {
-            console.error("Błąd podczas sprawdzania statusu tunelu:", error);
-          }
+          // Status jest już część odpowiedzi getJobTunnels
+          setTunnelStatus(tunnelsResponse.data[0]); // Zakładamy, że jeden tunel na job
         }
       } catch (error) {
         console.error("Błąd podczas pobierania tuneli SSH:", error);
@@ -105,7 +115,12 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [jobId]);
+
+  // Pobierz szczegóły zadania i aktualne tunele SSH
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
 
   // Odśwież dane
   const refreshData = () => {
@@ -125,10 +140,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         closeButton: true
       });
       fetchData();  // Odśwież dane
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.detail || "Nie udało się utworzyć tunelu SSH",
-        {
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się utworzyć tunelu SSH");
+      toast.error(errorMessage, {
           duration: 5000,
           closeButton: true
         }
@@ -146,10 +160,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         closeButton: true
       });
       fetchData();  // Odśwież dane
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.detail || "Nie udało się zamknąć tunelu SSH",
-        {
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się zamknąć tunelu SSH");
+      toast.error(errorMessage, {
           duration: 5000,
           closeButton: true
         }
@@ -167,10 +180,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
         duration: 5000,
         closeButton: true
       });
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.detail || "Nie udało się uzyskać dostępu do Code Server",
-        {
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się uzyskać dostępu do Code Server");
+      toast.error(errorMessage, {
           duration: 5000,
           closeButton: true
         }
@@ -186,10 +198,9 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
       await jobsApi.deleteJob(jobId);
       toast.success("Zadanie zostało usunięte");
       router.push("/dashboard");
-    } catch (error: any) {
-      toast.error(
-        error.response?.data?.detail || "Nie udało się usunąć zadania"
-      );
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się usunąć zadania");
+      toast.error(errorMessage);
       console.error(error);
     } finally {
       setIsDeleting(false);
@@ -233,7 +244,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
               <DialogHeader>
                 <DialogTitle>Potwierdzenie usunięcia</DialogTitle>
                 <DialogDescription>
-                  Czy na pewno chcesz usunąć zadanie "{job.job_name}"? 
+                  Czy na pewno chcesz usunąć zadanie &quot;{job.job_name}&quot;? 
                   Ta operacja jest nieodwracalna.
                 </DialogDescription>
               </DialogHeader>
@@ -362,7 +373,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   <div className="space-y-2 text-sm">
                     <div className="flex items-center gap-2">
                       <span>Stan:</span>
-                      <Badge variant={tunnelStatus.status === 'ACTIVE' ? 'success' : 'destructive'}>
+                      <Badge variant={tunnelStatus.status === 'ACTIVE' ? 'default' : 'destructive'}>
                         {tunnelStatus.status === 'ACTIVE' ? 'Aktywny' : 'Nieaktywny'}
                       </Badge>
                     </div>
@@ -373,13 +384,13 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                       <>
                         <div className="flex items-center gap-2">
                           <span>Dostępny w kontenerze:</span>
-                          <Badge variant={tunnelStatus.tunnel.internal_accessible ? 'success' : 'destructive'}>
+                          <Badge variant={tunnelStatus.tunnel.internal_accessible ? 'default' : 'destructive'}>
                             {tunnelStatus.tunnel.internal_accessible ? 'Tak' : 'Nie'}
                           </Badge>
                         </div>
                         <div className="flex items-center gap-2">
                           <span>Dostępny na zewnątrz kontenera:</span>
-                          <Badge variant={tunnelStatus.tunnel.external_accessible ? 'success' : 'destructive'}>
+                          <Badge variant={tunnelStatus.tunnel.external_accessible ? 'default' : 'destructive'}>
                             {tunnelStatus.tunnel.external_accessible ? 'Tak' : 'Nie'}
                           </Badge>
                         </div>
@@ -538,7 +549,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Kliknij "Generuj URL", aby utworzyć bezpieczny adres dostępowy.
+                    Kliknij &quot;Generuj URL&quot;, aby utworzyć bezpieczny adres dostępowy.
                   </p>
                 )}
               </div>

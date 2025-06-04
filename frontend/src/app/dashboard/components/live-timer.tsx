@@ -121,11 +121,11 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
     return () => clearInterval(interval);
   }, [seconds]);
   
-  // Determine color based on remaining time
+  // Determine color based on remaining time (with dark mode support)
   const getTimeColor = () => {
-    if (seconds < 300) return "text-red-500"; // Less than 5 minutes
-    if (seconds < 1800) return "text-amber-500"; // Less than 30 minutes
-    return "text-green-500";
+    if (seconds < 300) return "text-red-500 dark:text-red-400"; // Less than 5 minutes
+    if (seconds < 1800) return "text-amber-500 dark:text-amber-400"; // Less than 30 minutes
+    return "text-green-500 dark:text-green-400";
   };
   
   return (

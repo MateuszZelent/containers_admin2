@@ -94,9 +94,20 @@ const data = {
   ],
 }
 
+// Define interface for user data
+interface UserData {
+  email: string;
+  name: string;
+  avatar: string;
+  full_name?: string;
+  first_name?: string;
+  last_name?: string;
+  username?: string;
+}
+
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   // Stan dla danych użytkownika
-  const [userData, setUserData] = useState({
+  const [userData, setUserData] = useState<UserData>({
     email: "",
     name: "",
     avatar: "/avatars/shadcn.jpg", // Domyślny awatar
@@ -118,17 +129,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const isDataFresh = storedTime && (Date.now() - parseInt(storedTime)) < 86400000; // 24h
           
           if (isDataFresh) {
-            console.log("Using cached user data from localStorage");
+            // Używaj danych z localStorage jeśli są świeże (mniej niż 5 minut)
             
             // Upewnij się, że mamy prawidłowe pełne imię i nazwisko
             const userData = ensureFullName(parsedUserData);
-            
-            setUserData({
-              name: userData.full_name || userData.username || "User",
-              email: userData.email || "",
-              avatar: "/avatars/shadcn.jpg",
-              ...userData
-            });
+            setUserData(userData);
             setIsLoading(false);
             return;
           }
@@ -147,17 +152,12 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const userDataFromApi = ensureFullName(response.data);
           
           // Zapisz w state
-          setUserData({
-            name: userDataFromApi.full_name || userDataFromApi.username || "User",
-            email: userDataFromApi.email || "",
-            avatar: "/avatars/shadcn.jpg", // Domyślny awatar
-            ...userDataFromApi
-          });
+          setUserData(userDataFromApi);
           
           // Zapisz w localStorage do ponownego użycia
           localStorage.setItem('user_data', JSON.stringify(userDataFromApi));
           localStorage.setItem('user_data_timestamp', Date.now().toString());
-          console.log("User data fetched from API and cached");
+          // Dane zostały pomyślnie pobrane z API
         }
       } catch (error) {
         console.error("Error fetching user data from API:", error);
@@ -167,13 +167,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const parsedUserData = JSON.parse(storedUserData);
           const userData = ensureFullName(parsedUserData);
           
-          setUserData({
-            name: userData.full_name || userData.username || "User",
-            email: userData.email || "",
-            avatar: "/avatars/shadcn.jpg",
-            ...userData
-          });
-          console.log("Using outdated user data from localStorage due to API error");
+          setUserData(userData);
+          // Użyj starszych danych z localStorage w przypadku błędu API
         }
       } finally {
         setIsLoading(false);
@@ -184,18 +179,21 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, []);
 
   // Nowa funkcja pomocnicza do zapewnienia, że dane zawierają pole full_name
-  const ensureFullName = (userData: any) => {
-    // Kopiujemy dane, aby nie modyfikować oryginalnego obiektu
-    const enhancedData = { ...userData };
+  const ensureFullName = (userData: Record<string, unknown>): UserData => {
+    // Create proper UserData object with type safety
+    const firstName = String(userData.first_name || '');
+    const lastName = String(userData.last_name || '');
+    const fullName = userData.full_name ? String(userData.full_name) : `${firstName} ${lastName}`.trim();
     
-    // Generuj pełne imię i nazwisko, jeśli mamy te dane, a full_name nie jest ustawione
-    if (!enhancedData.full_name && (enhancedData.first_name || enhancedData.last_name)) {
-      const firstName = enhancedData.first_name || '';
-      const lastName = enhancedData.last_name || '';
-      enhancedData.full_name = `${firstName} ${lastName}`.trim();
-    }
-    
-    return enhancedData;
+    return {
+      email: String(userData.email || ''),
+      name: fullName || String(userData.username || 'User'),
+      avatar: "/avatars/shadcn.jpg",
+      full_name: fullName,
+      first_name: firstName,
+      last_name: lastName,
+      username: String(userData.username || '')
+    };
   };
 
   // Dodanie nasłuchiwania na zmiany w localStorage
@@ -206,15 +204,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       if (storedUserData) {
         try {
           const parsedUserData = JSON.parse(storedUserData);
-          setUserData({
-            name: parsedUserData.full_name || 
-                 (parsedUserData.first_name && parsedUserData.last_name ? 
-                  `${parsedUserData.first_name} ${parsedUserData.last_name}` : 
-                  parsedUserData.username || "User"),
-            email: parsedUserData.email || "",
-            avatar: "/avatars/shadcn.jpg",
-            ...parsedUserData
-          });
+          const userData = ensureFullName(parsedUserData);
+          setUserData(userData);
         } catch (error) {
           console.error("Error parsing user data from localStorage:", error);
         }
@@ -236,16 +227,20 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   return (
     <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader>
+      <SidebarHeader className="bg-gradient-to-b from-white/10 to-transparent dark:from-slate-700/20 dark:to-transparent backdrop-blur-sm border-b border-white/10 dark:border-slate-700/30">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5"
+              className="data-[slot=sidebar-menu-button]:!p-1.5 hover:bg-white/20 dark:hover:bg-slate-700/30 transition-all duration-200 backdrop-blur-sm"
             >
-              <a href="#">
-                <IconInnerShadowTop className="!size-5" />
-                <span className="text-base font-semibold">AMUcontainers</span>
+              <a href="#" className="flex items-center gap-2">
+                <div className="p-1 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
+                  <IconInnerShadowTop className="!size-4 text-white" />
+                </div>
+                <span className="text-base font-semibold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                  AMUcontainers
+                </span>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>

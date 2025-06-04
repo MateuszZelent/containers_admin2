@@ -1,7 +1,9 @@
 import * as React from "react"
 import { cn } from "@/lib/utils"
 
-interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {}
+interface SkeletonProps extends React.HTMLAttributes<HTMLDivElement> {
+  variant?: 'default' | 'text' | 'circular' | 'rectangular';
+}
 
 export function Skeleton({ className, ...props }: SkeletonProps) {
   return (

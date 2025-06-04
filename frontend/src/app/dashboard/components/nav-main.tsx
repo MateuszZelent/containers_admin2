@@ -11,10 +11,12 @@ import {
   SidebarMenuButton,
 } from "@/registry/new-york-v4/ui/sidebar"
 
+import { ComponentType } from "react"
+
 interface NavItemProps {
   title: string
   url: string
-  icon: any
+  icon: ComponentType<{ className?: string }>
   isActive?: boolean
 }
 

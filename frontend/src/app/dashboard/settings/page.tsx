@@ -243,14 +243,14 @@ export default function SettingsPage() {
     setFetchError(null);
     
     try {
-      console.log("Fetching user data from /v1/users/me...");
+      // Pobieranie danych użytkownika z API
       const response = await userApi.getCurrentUser();
       
       if (response && response.data) {
         const fetchedUserData = response.data; // Use a different variable name to avoid confusion with state
         setUserData(fetchedUserData);
         
-        console.log("Successfully fetched user data:", fetchedUserData);
+        // Dane użytkownika zostały pomyślnie pobrane
         
         // Set values for code server form
         if (fetchedUserData.code_server_password) {
@@ -376,7 +376,7 @@ export default function SettingsPage() {
         localStorage.setItem('user_data', JSON.stringify(mergedData));
         localStorage.setItem('user_data_timestamp', Date.now().toString());
         
-        console.log("User data in localStorage updated:", mergedData);
+        // Dane użytkownika zostały zaktualizowane w localStorage
         
         // Wyzwól własne zdarzenie informujące o aktualizacji danych
         window.dispatchEvent(new Event('user-data-updated'));

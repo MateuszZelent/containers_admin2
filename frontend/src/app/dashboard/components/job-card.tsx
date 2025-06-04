@@ -189,7 +189,7 @@ export const JobCard = React.memo(({
               </TooltipTrigger>
               <TooltipContent>
                 {!canUseCodeServer ? (
-                  <p>Statusssss: "{canUseCodeServer}" / "{isProcessing}" <span className="font-semibold">{job.status}</span>. Musi być "RUNNING" aby uruchomić Code Server</p>
+                  <p>Statusssss: &quot;{canUseCodeServer}&quot; / &quot;{isProcessing}&quot; <span className="font-semibold">{job.status}</span>. Musi być &quot;RUNNING&quot; aby uruchomić Code Server</p>
                 ) : (
                   <p>Otwórz interfejs Code Server w nowej karcie</p>
                 )}
