@@ -34,6 +34,7 @@ import { toast } from "sonner";
 import { Job } from "@/lib/types";
 import axios from "axios";
 import { ModernJobCard } from "./components/modern-job-card";
+import { AnimatePresence } from "framer-motion";
 
 // Define interface for tunnel data
 interface TunnelData {
@@ -128,7 +129,39 @@ export default function DashboardPage() {
     setIsActiveJobsLoading(true);
     try {
       const response = await jobsApi.getActiveJobs();
-      setActiveJobs(response.data);
+      
+      // Advanced update strategy for animation preservation
+      setActiveJobs(prevJobs => {
+        const newJobs = response.data as ActiveJobData[];
+        const prevJobsMap = new Map(prevJobs.map(job => [job.job_id, job]));
+        const newJobsMap = new Map(newJobs.map((job: ActiveJobData) => [job.job_id, job]));
+        
+        // Keep jobs that haven't changed state
+        const preservedJobs = prevJobs
+          .filter(job => {
+            const newJob = newJobsMap.get(job.job_id);
+            return newJob && newJob.state === job.state;
+          })
+          .map(job => {
+            // Update any values that might have changed but preserve reference if state is the same
+            const newJob = newJobsMap.get(job.job_id)!;
+            return { ...job, ...newJob };
+          });
+        
+        // Add new jobs or those with changed state
+        const changedJobs = newJobs.filter((job: ActiveJobData) => {
+          const prevJob = prevJobsMap.get(job.job_id);
+          return !prevJob || prevJob.state !== job.state;
+        });
+        
+        // Return combined jobs in the same order as the API returns them
+        // to maintain consistency in the UI
+        return newJobs.map((newJob: ActiveJobData) => {
+          const preservedJob = preservedJobs.find(j => j.job_id === newJob.job_id);
+          return preservedJob || newJob;
+        });
+      });
+      
       return response;
     } catch (error: unknown) {
       console.error("Error fetching active jobs:", error);
@@ -229,9 +262,13 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     return isRunning && hasPort;
   }, []);
 
+  // Refresh status for icon animation
+  const [refreshStatus, setRefreshStatus] = useState<'idle' | 'success' | 'error'>('idle');
+  
   // Refresh all data
-  const refreshData = useCallback(async (showToast = true) => {
+  const refreshData = useCallback(async (showFeedback = true) => {
     setIsRefreshing(true);
+    setRefreshStatus('idle');
     
     try {
       await Promise.all([
@@ -240,12 +277,19 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
         checkClusterStatus()
       ]);
       
-      if (showToast) toast.success("Dane zostały odświeżone");
+      if (showFeedback) {
+        setRefreshStatus('success');
+        // Reset status after animation
+        setTimeout(() => setRefreshStatus('idle'), 2000);
+      }
     } catch (error) {
       console.error("Error refreshing data:", error);
-      if (showToast) toast.error("Błąd podczas odświeżania danych");
+      if (showFeedback) {
+        setRefreshStatus('error');
+        // Reset status after animation
+        setTimeout(() => setRefreshStatus('idle'), 2000);
+      }
     } finally {
-      // No artificial delay - respond immediately to improve UX
       setIsRefreshing(false);
     }
   }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
@@ -322,14 +366,18 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     router.push(`/dashboard/jobs/${jobId}`);
   }, [router]);
 
-  // Filter jobs based on status
-  const getActiveJobs = useCallback(() => {
+  // Memoize filtered job lists for better performance and animation stability
+  const activeJobsList = useMemo(() => {
     return jobs.filter(job => job.status === "RUNNING" || job.status === "PENDING" || job.status === "CONFIGURING");
   }, [jobs]);
   
-  const getCompletedJobs = useCallback(() => {
+  const completedJobsList = useMemo(() => {
     return jobs.filter(job => job.status === "COMPLETED" || job.status === "FAILED" || job.status === "CANCELLED");
   }, [jobs]);
+  
+  // Keep these functions for backward compatibility
+  const getActiveJobs = useCallback(() => activeJobsList, [activeJobsList]);
+  const getCompletedJobs = useCallback(() => completedJobsList, [completedJobsList]);
 
   // Determine if any data is loading
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
@@ -352,12 +400,21 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
           </Button>
           <Button 
             onClick={() => refreshData(true)} 
-            variant="outline" 
+            variant={refreshStatus === 'error' ? "destructive" : "outline"} 
             size="sm" 
             disabled={isRefreshing || isAnyLoading}
+            className={`min-w-[100px] transition-all duration-300
+              ${refreshStatus === 'success' ? "border-emerald-500 dark:border-emerald-700 text-emerald-700 dark:text-emerald-400" : ""}
+            `}
           >
-            <RefreshCcw className={`h-4 w-4 mr-2 ${isRefreshing ? "animate-spin" : ""}`} />
-            {isRefreshing ? "Odświeżanie..." : "Odśwież"}
+            <RefreshCcw 
+              className={`h-4 w-4 mr-2 transition-all duration-300 
+                ${isRefreshing ? "animate-spin" : ""} 
+                ${refreshStatus === 'success' ? "text-emerald-600 dark:text-emerald-400" : ""} 
+                ${refreshStatus === 'error' ? "text-white" : ""}
+              `} 
+            />
+            Odśwież
           </Button>
           <Link href="/dashboard/submit-job">
             <Button size="sm">
@@ -464,11 +521,11 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
               </CardContent>
             </Card>
           </div>
-
-          {/* Loading state with skeleton cards */}
+          
+          {/* Loading state with skeleton cards only when there are no jobs yet */}
           {isJobsLoading && jobs.length === 0 ? (
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {Array(6).fill(0).map((_, i) => (
+              {Array(3).fill(0).map((_, i) => (
                 <Card key={i} className="relative overflow-hidden bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
                   <div className="animate-pulse bg-gradient-to-br from-slate-100/50 to-slate-200/50 dark:from-slate-700/50 dark:to-slate-600/50 absolute inset-0" />
                   <CardHeader className="pb-3">
@@ -486,10 +543,6 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                           <div key={j} className="h-3 w-full bg-slate-200/60 dark:bg-slate-700/60 rounded" />
                         ))}
                       </div>
-                    </div>
-                    <div className="flex justify-between pt-2">
-                      <div className="h-8 w-20 bg-slate-200/60 dark:bg-slate-700/60 rounded" />
-                      <div className="h-8 w-8 bg-slate-200/60 dark:bg-slate-700/60 rounded" />
                     </div>
                   </CardContent>
                 </Card>
@@ -520,22 +573,24 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-              {getActiveJobs().map((job) => (
-                <ModernJobCard 
-                  key={job.id}
-                  job={job}
-                  activeJobData={activeJobsMap.get(job.job_id)}
-                  tunnels={jobTunnels[job.id] || []}
-                  isProcessing={processingJobs[job.id] || false}
-                  onDelete={() => handleDelete(job.id)}
-                  onOpenCodeServer={() => openCodeServer(job)}
-                  canUseCodeServer={canUseCodeServer(job)}
-                  formatDate={formatDate}
-                  onDetails={() => handleJobDetails(job.id)}
-                />
-              ))}
-            </div>
+            <AnimatePresence mode="popLayout">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                {getActiveJobs().map((job) => (
+                  <ModernJobCard 
+                    key={job.id}
+                    job={job}
+                    activeJobData={activeJobsMap.get(job.job_id)}
+                    tunnels={jobTunnels[job.id] || []}
+                    isProcessing={processingJobs[job.id] || false}
+                    onDelete={() => handleDelete(job.id)}
+                    onOpenCodeServer={() => openCodeServer(job)}
+                    canUseCodeServer={canUseCodeServer(job)}
+                    formatDate={formatDate}
+                    onDetails={() => handleJobDetails(job.id)}
+                  />
+                ))}
+              </div>
+            </AnimatePresence>
           )}
             </CardContent>
           </Card>
@@ -550,33 +605,30 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                 Zadania aktualnie wykonywane lub oczekujące na klastrze
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              {isJobsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                  <p>Ładowanie zadań...</p>
-                </div>
-              ) : getActiveJobs().length === 0 ? (
+            <CardContent>              
+              {getActiveJobs().length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Brak aktywnych zadań.</p>
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {getActiveJobs().map((job) => (
-                    <ModernJobCard 
-                      key={job.id}
-                      job={job}
-                      activeJobData={activeJobsMap.get(job.job_id)}
-                      tunnels={jobTunnels[job.id] || []}
-                      isProcessing={processingJobs[job.id] || false}
-                      onDelete={() => handleDelete(job.id)}
-                      onOpenCodeServer={() => openCodeServer(job)}
-                      canUseCodeServer={canUseCodeServer(job)}
-                      formatDate={formatDate}
-                      onDetails={() => handleJobDetails(job.id)}
-                    />
-                  ))}
-                </div>
+                <AnimatePresence mode="popLayout">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {getActiveJobs().map((job) => (
+                      <ModernJobCard 
+                        key={job.id}
+                        job={job}
+                        activeJobData={activeJobsMap.get(job.job_id)}
+                        tunnels={jobTunnels[job.id] || []}
+                        isProcessing={processingJobs[job.id] || false}
+                        onDelete={() => handleDelete(job.id)}
+                        onOpenCodeServer={() => openCodeServer(job)}
+                        canUseCodeServer={canUseCodeServer(job)}
+                        formatDate={formatDate}
+                        onDetails={() => handleJobDetails(job.id)}
+                      />
+                    ))}
+                  </div>
+                </AnimatePresence>
               )}
             </CardContent>
           </Card>
@@ -592,32 +644,29 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
               </CardDescription>
             </CardHeader>
             <CardContent>
-              {isJobsLoading ? (
-                <div className="flex items-center justify-center py-6">
-                  <Loader2 className="h-6 w-6 animate-spin mr-2" />
-                  <p>Ładowanie zadań...</p>
-                </div>
-              ) : getCompletedJobs().length === 0 ? (
+              {getCompletedJobs().length === 0 && !isRefreshing ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Brak zakończonych zadań.</p>
                 </div>
               ) : (
-                <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-                  {getCompletedJobs().map((job) => (
-                    <ModernJobCard 
-                      key={job.id}
-                      job={job}
-                      activeJobData={activeJobsMap.get(job.job_id)}
-                      tunnels={jobTunnels[job.id] || []}
-                      isProcessing={processingJobs[job.id] || false}
-                      onDelete={() => handleDelete(job.id)}
-                      onOpenCodeServer={() => openCodeServer(job)}
-                      canUseCodeServer={canUseCodeServer(job)}
-                      formatDate={formatDate}
-                      onDetails={() => handleJobDetails(job.id)}
-                    />
-                  ))}
-                </div>
+                <AnimatePresence mode="popLayout">
+                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                    {getCompletedJobs().map((job) => (
+                      <ModernJobCard 
+                        key={job.id}
+                        job={job}
+                        activeJobData={activeJobsMap.get(job.job_id)}
+                        tunnels={jobTunnels[job.id] || []}
+                        isProcessing={processingJobs[job.id] || false}
+                        onDelete={() => handleDelete(job.id)}
+                        onOpenCodeServer={() => openCodeServer(job)}
+                        canUseCodeServer={canUseCodeServer(job)}
+                        formatDate={formatDate}
+                        onDetails={() => handleJobDetails(job.id)}
+                      />
+                    ))}
+                  </div>
+                </AnimatePresence>
               )}
             </CardContent>
           </Card>

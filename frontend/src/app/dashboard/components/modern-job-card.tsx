@@ -1,10 +1,11 @@
-import React from "react";
+import React, { useEffect } from "react";
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
@@ -142,8 +143,24 @@ export const ModernJobCard = React.memo(({
   const statusVariant = getStatusBadgeVariant(job.status);
   const gradientClass = getStatusGradient(job.status);
   
+  // Generate a unique key for the job combining ID and status for proper animation tracking
+  const jobStatusKey = `${job.id}-${job.status}`;
+  
   return (
-    <Card className={`group hover:shadow-lg transition-all duration-300 ${gradientClass} hover:scale-[1.01]`}>
+    <motion.div
+      key={jobStatusKey}
+      layout
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -10, transition: { duration: 0.2 } }}
+      transition={{ 
+        type: "spring", 
+        stiffness: 400, 
+        damping: 25, 
+        duration: 0.3 
+      }}
+    >
+      <Card className={`group hover:shadow-lg transition-all duration-300 ${gradientClass} hover:scale-[1.01]`}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-2">
@@ -346,6 +363,7 @@ export const ModernJobCard = React.memo(({
         )}
       </CardContent>
     </Card>
+    </motion.div>
   );
 });
 
