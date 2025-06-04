@@ -241,3 +241,70 @@ class CLIToken(Base):
 
     # Relacja z użytkownikiem
     owner = relationship("User", back_populates="cli_tokens")
+
+
+class SlurmJobSnapshot(Base):
+    """Model for storing periodic snapshots of SLURM cluster job information.
+
+    This table stores all job data fetched from SLURM cluster to reduce 
+    SSH calls. Updated periodically by a background task.
+    """
+
+    __tablename__ = "slurm_job_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    job_id = Column(String, index=True)  # SLURM job ID
+
+    # Basic job information
+    partition = Column(String, nullable=True)
+    name = Column(String, nullable=True)
+    user = Column(String, nullable=True)
+    state = Column(String, nullable=True)  # PENDING, RUNNING, COMPLETED, etc.
+
+    # Resource information
+    memory_requested = Column(String, nullable=True)  # Memory (e.g., "24G")
+    node_count = Column(String, nullable=True)  # Number of nodes
+    node = Column(String, nullable=True)  # Node list where job is running
+
+    # Timing information
+    time_used = Column(String, nullable=True)  # Time already used
+    time_left = Column(String, nullable=True)  # Time left
+    start_time = Column(String, nullable=True)  # When job started
+    submit_time = Column(String, nullable=True)  # When job was submitted
+
+    # Additional SLURM information
+    reason = Column(String, nullable=True)  # Reason if pending/failed
+    exit_code = Column(Integer, nullable=True)  # Exit code if completed
+
+    # System tracking
+    last_updated = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        onupdate=func.now()
+    )
+    created_at = Column(DateTime(timezone=True), server_default=func.now())
+
+    # Indicates if this is the latest snapshot for this job
+    is_current = Column(Boolean, default=True)
+
+    def __repr__(self):
+        return (f"<SlurmJobSnapshot(job_id='{self.job_id}', "
+                f"state='{self.state}', user='{self.user}')>")
+
+
+class ClusterStatus(Base):
+    """Model for storing cluster connectivity and status information."""
+    __tablename__ = "cluster_status"
+
+    id = Column(Integer, primary_key=True, index=True)
+    is_connected = Column(Boolean, default=False)
+    last_successful_connection = Column(DateTime(timezone=True), nullable=True)
+    last_check = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    error_message = Column(Text, nullable=True)  # Last error if connection failed
+
+    # Performance metrics
+    response_time_ms = Column(Integer, nullable=True)  # SSH connection response time
+    active_jobs_count = Column(Integer, default=0)  # Total active jobs in cluster
+
+    def __repr__(self):
+        return f"<ClusterStatus(connected={self.is_connected}, last_check='{self.last_check}')>"

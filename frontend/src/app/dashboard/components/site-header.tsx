@@ -12,7 +12,7 @@ export function SiteHeader() {
           className="mx-2 data-[orientation=vertical]:h-4 bg-gradient-to-b from-slate-200 to-slate-300 dark:from-slate-600 dark:to-slate-700"
         />
         <h1 className="text-base font-medium bg-gradient-to-r from-slate-700 to-slate-500 dark:from-slate-200 dark:to-slate-400 bg-clip-text text-transparent">
-          PCSS containers v 0.2
+          PCSS containers v 0.3 (04.06.2025)
         </h1>
         <div className="ml-auto flex items-center gap-2">
           <ModeToggle />

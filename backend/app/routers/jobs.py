@@ -26,13 +26,27 @@ router = APIRouter()
 
 @router.get("/status")
 async def check_cluster_status(
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, bool]:
     """
     Check if the SLURM cluster is reachable and running.
     """
-    slurm_service = SlurmSSHService()
-    return await slurm_service.check_status()
+    from app.services.slurm_monitor import monitor_service
+    
+    # Get latest cluster status from database
+    latest_status = await monitor_service.get_latest_cluster_status(db)
+    
+    if latest_status:
+        # Assume SLURM is running if connected
+        return {
+            "connected": latest_status.is_connected,
+            "slurm_running": latest_status.is_connected
+        }
+    else:
+        # Fallback to direct check if no status in database yet
+        slurm_service = SlurmSSHService()
+        return await slurm_service.check_status()
 
 
 @router.get("/", response_model=List[JobInDB])
@@ -43,44 +57,44 @@ async def get_jobs(
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
-    Retrieve jobs for current user with current SLURM status.
+    Retrieve jobs for current user with current SLURM status from monitoring service.
     Also handles cases where SLURM has active jobs that don't exist in database.
     """
+    from app.services.slurm_monitor import monitor_service
+    
     # Get jobs from database
     job_service = JobService(db)
     db_jobs = job_service.get_jobs(current_user)
     db_jobs_map = {job.job_id: job for job in db_jobs}
 
-    # Get current SLURM status
-    slurm_service = SlurmSSHService()
-    username = current_user.username
-    active_jobs = await slurm_service.get_active_jobs(username=username)
+    # Get current SLURM status from monitoring service snapshots
+    job_snapshots = await monitor_service.get_user_job_snapshots(
+        db, current_user.username
+    )
 
-    if active_jobs:
-        for slurm_job in active_jobs:
-            job_id = slurm_job["job_id"]
+    if job_snapshots:
+        for snapshot in job_snapshots:
+            job_id = snapshot.job_id
 
             if job_id in db_jobs_map:
                 # Update existing job if status changed
                 db_job = db_jobs_map[job_id]
-                if db_job.status != slurm_job["state"]:
-                    db_job.status = slurm_job["state"]
-                    db_job.node = (
-                        slurm_job["node"] if slurm_job["node"] != "(None)" else None
-                    )
+                if db_job.status != snapshot.state:
+                    db_job.status = snapshot.state
+                    db_job.node = snapshot.node
                 db.add(db_job)
             else:
                 # Create new job record for unknown SLURM job
                 new_job = Job(
                     job_id=job_id,
-                    job_name=slurm_job["name"],
-                    status=slurm_job["state"],
-                    node=slurm_job["node"] if slurm_job["node"] != "(None)" else None,
+                    job_name=snapshot.name,  # Using name attribute instead of job_name
+                    status=snapshot.state,
+                    node=snapshot.node,
                     owner_id=current_user.id,
-                    partition="proxima",  # Default value
-                    num_cpus=int(slurm_job["cpus"]) if "cpus" in slurm_job else 1,
+                    partition=snapshot.partition or "proxima",  # Default value
+                    num_cpus=1,  # Default value
                     memory_gb=1,  # Default value
-                    template_name="unknown",  # Since we don't know the original template
+                    template_name="unknown",  # Since we don't know original
                     script="",  # Empty script since we don't have the original
                 )
                 db.add(new_job)
@@ -98,44 +112,62 @@ async def get_active_jobs(
     current_user: User = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """
-    Get active jobs (specifically RUNNING jobs) from SLURM for current user with extended status information.
+    Get active jobs from monitoring service snapshots for current user.
     """
     try:
-        slurm_service = SlurmSSHService()
-        # FIX: Extract username string from User object
-        username = current_user.username
-        cluster_logger.debug(f"Fetching active jobs for user: {username}")
+        from app.services.slurm_monitor import monitor_service
+        
+        cluster_logger.debug(
+            f"Fetching active jobs for user: {current_user.username}"
+        )
 
-        # Pass username string instead of User object
-        active_jobs = await slurm_service.get_active_jobs(username=username)
+        # Get job snapshots from monitoring service
+        job_snapshots = await monitor_service.get_user_job_snapshots(
+            db, current_user.username
+        )
 
         # Get all jobs from database for the current user
-        db_jobs = JobService.get_multi_by_owner(db=db, owner_id=current_user.id)
+        db_jobs = JobService.get_multi_by_owner(
+            db=db, owner_id=current_user.id
+        )
         db_jobs_map = {job.job_id: job for job in db_jobs}
 
         # Enhance active jobs with database information
         enhanced_jobs = []
-        for job_info in active_jobs:
-            job_id = job_info["job_id"]
-
-            # If it's in the user's DB jobs, it belongs to them
-            if job_id in db_jobs_map:
-                db_job = db_jobs_map[job_id]
-
-                # Only include RUNNING jobs in results
-                if job_info["state"] == "RUNNING":
-                    enhanced_jobs.append(
-                        {
-                            **job_info,
-                            "name": db_job.job_name,
-                            "template": db_job.template_name,
-                            "created_at": db_job.created_at.isoformat(),
-                            "updated_at": db_job.updated_at.isoformat()
-                            if db_job.updated_at
-                            else None,
-                            "monitoring_active": True,
-                        }
-                    )
+        for snapshot in job_snapshots:
+            # Only include RUNNING jobs in results
+            if snapshot.state == "RUNNING":
+                db_job = db_jobs_map.get(snapshot.job_id)
+                
+                job_data = {
+                    "job_id": snapshot.job_id,
+                    "name": snapshot.name,
+                    "user": snapshot.user,
+                    "state": snapshot.state,
+                    "partition": snapshot.partition,
+                    "node": snapshot.node,
+                    "node_count": snapshot.node_count,
+                    "time_used": snapshot.time_used,
+                    "time_left": snapshot.time_left,
+                    "memory_requested": snapshot.memory_requested,
+                    "start_time": snapshot.start_time,  # This is already a string
+                    "submit_time": snapshot.submit_time,  # This is already a string
+                    "reason": snapshot.reason,
+                    "monitoring_active": True,
+                }
+                
+                # Add database info if available
+                if db_job:
+                    job_data.update({
+                        "template": db_job.template_name,
+                        "created_at": db_job.created_at.isoformat(),
+                        "updated_at": (
+                            db_job.updated_at.isoformat()
+                            if db_job.updated_at else None
+                        ),
+                    })
+                
+                enhanced_jobs.append(job_data)
 
         return enhanced_jobs
     except Exception as e:
