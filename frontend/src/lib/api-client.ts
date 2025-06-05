@@ -239,6 +239,43 @@ export const userApi = {
   },
 }
 
+// Admin API
+export const adminApi = {
+  // Get all users (admin only)
+  getAllUsers: () => apiClient.get('/users/'),
+  
+  // Get user by ID (admin only)
+  getUser: (userId: number) => apiClient.get(`/users/${userId}`),
+  
+  // Create user (admin only)
+  createUser: (userData: {
+    username: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    password: string;
+    is_active?: boolean;
+    is_superuser?: boolean;
+  }) => apiClient.post('/users/admin', userData),
+  
+  // Update user (admin only)
+  updateUser: (userId: number, userData: {
+    username?: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    password?: string;
+    is_active?: boolean;
+    is_superuser?: boolean;
+  }) => apiClient.put(`/users/${userId}`, userData),
+  
+  // Delete user (admin only)
+  deleteUser: (userId: number) => apiClient.delete(`/users/${userId}`),
+  
+  // Get all jobs from all users (admin only)
+  getAllJobs: () => apiClient.get('/jobs/admin/all'),
+}
+
 export const tasksApi = {
   // Get all tasks
   getTasks: () => apiClient.get('/tasks/'),

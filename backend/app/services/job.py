@@ -163,23 +163,48 @@ class JobService:
         try:
             # First try to cancel the job in SLURM
             if job.job_id and job.status not in ["COMPLETED", "FAILED", "CANCELLED"]:
-                slurm_service = SlurmSSHService()
-                await slurm_service.cancel_job(job.job_id)
+                try:
+                    slurm_service = SlurmSSHService()
+                    await slurm_service.cancel_job(job.job_id)
+                except Exception as e:
+                    # Handle SLURM cancel errors - it may not exist anymore
+                    # This allows deleting from the database even if SLURM fails
+                    err = str(e).replace("[", "«").replace("]", "»")
+                    cluster_logger.warning(
+                        f"Could not cancel job in SLURM: {err}"
+                    )
 
             # Clean up Caddy configuration
-            self._cleanup_caddy_for_job(job)
+            try:
+                self._cleanup_caddy_for_job(job)
+            except Exception as e:
+                # Handle Caddy cleanup errors
+                err = str(e).replace("[", "«").replace("]", "»")
+                cluster_logger.warning(
+                    f"Error during Caddy cleanup: {err}"
+                )
 
             # Close any active SSH tunnels
             tunnel_id = getattr(job, "id", None)
             if tunnel_id is not None:
-                self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
+                try:
+                    await self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
+                except Exception as e:
+                    # Handle tunnel closing errors
+                    err = str(e).replace("[", "«").replace("]", "»")
+                    cluster_logger.warning(
+                        f"Error closing tunnels: {err}"
+                    )
 
             # Delete from database
             self.db.delete(job)
             self.db.commit()
             return True
         except Exception as e:
-            cluster_logger.error(f"Error deleting job {job.job_id}: {str(e)}")
+            # Use safe formatting to avoid Rich markup errors
+            job_id_val = getattr(job, "job_id", "unknown")
+            err_msg = str(e).replace("[", "«").replace("]", "»")
+            cluster_logger.error(f"Error deleting job {job_id_val}: {err_msg}")
             return False
 
     @staticmethod
@@ -264,7 +289,13 @@ class JobService:
                         db.commit()
 
                         # Close tunnels and cleanup Caddy
-                        tunnel_service.close_job_tunnels(int(db_job.id))
+                        try:
+                            await tunnel_service.close_job_tunnels(int(db_job.id))
+                        except Exception as e:
+                            err = str(e).replace("[", "«").replace("]", "»")
+                            cluster_logger.warning(
+                                f"Error closing tunnels for job {job_id}: {err}"
+                            )
                         job_service._cleanup_caddy_for_job(db_job)
                     break
 
@@ -276,7 +307,13 @@ class JobService:
             if str(db_job.status) in completed_states:
                 cluster_logger.info(f"Job {job_id} done: {str(db_job.status)}")
                 # Close tunnels and cleanup Caddy
-                tunnel_service.close_job_tunnels(int(db_job.id))
+                try:
+                    await tunnel_service.close_job_tunnels(int(db_job.id))
+                except Exception as e:
+                    err = str(e).replace("[", "«").replace("]", "»")
+                    cluster_logger.warning(
+                        f"Error closing tunnels for job {job_id}: {err}"
+                    )
                 job_service._cleanup_caddy_for_job(db_job)
                 break
 

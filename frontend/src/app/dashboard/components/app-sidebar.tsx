@@ -9,6 +9,9 @@ import {
   IconFileDescription,
   IconInnerShadowTop,
   IconListCheck,
+  IconShield,
+  IconUsers,
+  IconServer,
 } from "@tabler/icons-react"
 import { Cog } from "lucide-react"
 
@@ -22,6 +25,7 @@ import {
   SidebarMenuItem,
 } from "@/registry/new-york-v4/ui/sidebar"
 import { NavMain } from "@/app//dashboard/components/nav-main"
+import { NavAdmin } from "@/app//dashboard/components/nav-admin"
 import { NavUser } from "@/app/dashboard/components/nav-user"
 import { userApi } from "@/lib/api-client"
 
@@ -42,6 +46,27 @@ const data = {
       title: "Ustawienia",
       url: "/dashboard/settings",
       icon: Cog,
+    },
+  ],
+  adminNavigation: [
+    {
+      title: "Panel Administracyjny",
+      url: "/dashboard/admin",
+      icon: IconShield,
+      items: [
+        {
+          title: "Przegląd",
+          url: "/dashboard/admin",
+        },
+        {
+          title: "Zarządzanie zadaniami",
+          url: "/dashboard/admin/jobs",
+        },
+        {
+          title: "Zarządzanie użytkownikami",  
+          url: "/dashboard/admin/users",
+        },
+      ],
     },
   ],
   navClouds: [
@@ -113,6 +138,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     avatar: "/avatars/shadcn.jpg", // Domyślny awatar
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [currentUser, setCurrentUser] = useState<any>(null);
 
   // Pobierz dane użytkownika gdy komponent jest montowany
   useEffect(() => {
@@ -134,6 +160,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
             // Upewnij się, że mamy prawidłowe pełne imię i nazwisko
             const userData = ensureFullName(parsedUserData);
             setUserData(userData);
+            setCurrentUser(parsedUserData);
             setIsLoading(false);
             return;
           }
@@ -153,9 +180,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           
           // Zapisz w state
           setUserData(userDataFromApi);
+          setCurrentUser(response.data);
+          setCurrentUser(response.data);
           
           // Zapisz w localStorage do ponownego użycia
-          localStorage.setItem('user_data', JSON.stringify(userDataFromApi));
+          localStorage.setItem('user_data', JSON.stringify(response.data));
           localStorage.setItem('user_data_timestamp', Date.now().toString());
           // Dane zostały pomyślnie pobrane z API
         }
@@ -206,6 +235,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           const parsedUserData = JSON.parse(storedUserData);
           const userData = ensureFullName(parsedUserData);
           setUserData(userData);
+          setCurrentUser(parsedUserData);
         } catch (error) {
           console.error("Error parsing user data from localStorage:", error);
         }
@@ -248,6 +278,9 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       </SidebarHeader>
       <SidebarContent>
         <NavMain items={data.navMain} />
+        {currentUser?.is_superuser && (
+          <NavAdmin items={data.adminNavigation} />
+        )}
       </SidebarContent>
       <SidebarFooter>
         {!isLoading && <NavUser user={userData} />}

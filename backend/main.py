@@ -113,6 +113,7 @@ async def create_first_user():
             password=settings.ADMIN_PASSWORD,
             first_name=settings.ADMIN_FIRST_NAME,
             last_name=settings.ADMIN_LAST_NAME,
+            is_superuser=True,
         )
         UserService.create(db=db, user_in=user_in)
         logger.info("[green]Admin user created successfully[/green]")

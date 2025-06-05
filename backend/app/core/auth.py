@@ -145,3 +145,28 @@ def get_current_active_user_with_cli_support(
     if not settings.DISABLE_AUTH and not current_user.is_active:
         raise HTTPException(status_code=400, detail="Inactive user")
     return current_user
+
+
+def get_current_superuser(
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    """Dependency that ensures current user is a superuser"""
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user
+
+
+def get_current_superuser_with_cli_support(
+    request: Request,
+    current_user: User = Depends(get_current_active_user_with_cli_support),
+) -> User:
+    """Dependency that ensures current user is a superuser with CLI support"""
+    if not current_user.is_superuser:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="The user doesn't have enough privileges"
+        )
+    return current_user

@@ -30,6 +30,7 @@ def init_db() -> None:
             password=settings.ADMIN_PASSWORD,
             first_name=settings.ADMIN_FIRST_NAME,
             last_name=settings.ADMIN_LAST_NAME,
+            is_superuser=True,
         )
         UserService.create(db=db, user_in=user_in)
         print(f"Admin user created. Username: {settings.ADMIN_USERNAME}")

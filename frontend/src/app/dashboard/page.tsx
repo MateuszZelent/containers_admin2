@@ -6,7 +6,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { jobsApi } from "@/lib/api-client";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { jobsApi, adminApi, userApi } from "@/lib/api-client";
 import { 
   Plus, 
   RefreshCcw, 
@@ -31,10 +32,12 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Job } from "@/lib/types";
+import { Job, User } from "@/lib/types";
 import axios from "axios";
 import { ModernJobCard } from "./components/modern-job-card";
 import { AnimatePresence } from "framer-motion";
+import { CreateUserDialog } from "./components/create-user-dialog";
+import { EditUserDialog } from "./components/edit-user-dialog";
 
 // Define interface for tunnel data
 interface TunnelData {
@@ -83,6 +86,16 @@ export default function DashboardPage() {
   // Main state
   const [jobs, setJobs] = useState<Job[]>([]);
   const [activeJobs, setActiveJobs] = useState<ActiveJobData[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  
+  // Admin state
+  const [allUsers, setAllUsers] = useState<User[]>([]);
+  const [allJobs, setAllJobs] = useState<Job[]>([]);
+  const [isLoadingAdminData, setIsLoadingAdminData] = useState(false);
+  
+  // Dialog states
+  const [editingUser, setEditingUser] = useState<User | null>(null);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   
   // Loading states
   const [isJobsLoading, setIsJobsLoading] = useState(false);
@@ -189,6 +202,63 @@ export default function DashboardPage() {
     }
   }, []);
 
+  // Fetch current user
+  const fetchCurrentUser = useCallback(async () => {
+    try {
+      const response = await userApi.getCurrentUser();
+      setCurrentUser(response.data);
+      return response;
+    } catch (error: unknown) {
+      console.error("Error fetching current user:", error);
+      throw error;
+    }
+  }, []);
+
+  // Fetch admin data
+  const fetchAdminData = useCallback(async () => {
+    if (!currentUser?.is_superuser) return;
+    
+    setIsLoadingAdminData(true);
+    try {
+      const [usersResponse, jobsResponse] = await Promise.all([
+        adminApi.getAllUsers(),
+        adminApi.getAllJobs()
+      ]);
+      setAllUsers(usersResponse.data);
+      setAllJobs(jobsResponse.data);
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się pobrać danych administracyjnych");
+      toast.error(errorMessage);
+    } finally {
+      setIsLoadingAdminData(false);
+    }
+  }, [currentUser?.is_superuser]);
+
+  // Admin functions
+  const handleEditUser = (user: User) => {
+    setEditingUser(user);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteUser = async (userId: number) => {
+    if (!confirm("Czy na pewno chcesz usunąć tego użytkownika? Ta operacja jest nieodwracalna.")) {
+      return;
+    }
+
+    try {
+      await adminApi.deleteUser(userId);
+      toast.success("Użytkownik został usunięty pomyślnie");
+      fetchAdminData(); // Refresh admin data
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się usunąć użytkownika";
+      toast.error(errorMessage);
+    }
+  };
+
+  const handleUserCreatedOrUpdated = () => {
+    fetchAdminData(); // Refresh admin data
+  };
+
   // Fetch tunnel information with improved error handling
 const fetchTunnelInfo = useCallback(async (jobId: number) => {
   try {
@@ -238,7 +308,8 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
         await Promise.all([
           fetchJobs(),
           fetchActiveJobs(),
-          checkClusterStatus()
+          checkClusterStatus(),
+          fetchCurrentUser()
         ]);
       } catch (error) {
         console.error("Error during initial data fetch:", error);
@@ -246,12 +317,19 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     };
     
     initialFetch();
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchCurrentUser]);
 
   // Fetch tunnels when jobs change
   useEffect(() => {
     fetchAllTunnels();
   }, [fetchAllTunnels]);
+
+  // Fetch admin data when user changes and is admin
+  useEffect(() => {
+    if (currentUser?.is_superuser) {
+      fetchAdminData();
+    }
+  }, [currentUser?.is_superuser, fetchAdminData]);
 
   // Check if a job can use Code Server
   const canUseCodeServer = useCallback((job: Job): boolean => {
@@ -379,6 +457,11 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
   const getActiveJobs = useCallback(() => activeJobsList, [activeJobsList]);
   const getCompletedJobs = useCallback(() => completedJobsList, [completedJobsList]);
 
+  // Determine if cluster is fully operational
+  const isClusterOperational = useMemo(() => {
+    return clusterStatus && clusterStatus.connected && clusterStatus.slurm_running;
+  }, [clusterStatus]);
+
   // Determine if any data is loading
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
 
@@ -416,12 +499,28 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
             />
             Odśwież
           </Button>
-          <Link href="/dashboard/submit-job">
-            <Button size="sm">
-              <Plus className="h-4 w-4 mr-2" />
-              Nowe zadanie
-            </Button>
-          </Link>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span>
+                  <Link href="/dashboard/submit-job">
+                    <Button 
+                      size="sm" 
+                      disabled={!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Nowe zadanie
+                    </Button>
+                  </Link>
+                </span>
+              </TooltipTrigger>
+              {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
+                <TooltipContent>
+                  <p>Tworzenie kontenerów jest niemożliwe - klaster jest niedostępny</p>
+                </TooltipContent>
+              )}
+            </Tooltip>
+          </TooltipProvider>
           <Link href="/dashboard/settings">
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
@@ -432,9 +531,21 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
       </div>
 
       {/* Status klastra */}
-      <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+      <Card 
+        className={`backdrop-blur-sm transition-colors duration-300
+          ${(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) 
+            ? 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800/50' 
+            : 'bg-white/60 dark:bg-slate-800/60'
+          }
+        `}
+      >
         <CardHeader className="pb-2">
-          <CardTitle>Status klastra</CardTitle>
+          <CardTitle className="flex items-center">
+            Status klastra
+            {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
+              <AlertCircle className="ml-2 h-5 w-5 text-red-500 dark:text-red-400" />
+            )}
+          </CardTitle>
         </CardHeader>
         <CardContent>
           {isClusterStatusLoading && !clusterStatus ? (
@@ -443,18 +554,40 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
               <p>Sprawdzanie statusu klastra...</p>
             </div>
           ) : !clusterStatus ? (
-            <p className="text-amber-500">Nie można uzyskać statusu klastra</p>
+            <>
+              <p className="text-red-600 dark:text-red-400 font-medium mb-2">Nie można uzyskać statusu klastra</p>
+              <p className="text-sm text-red-500/80 dark:text-red-400/80">
+                Brak odpowiedzi z serwera. Sprawdź połączenie sieciowe lub skontaktuj się z administratorem.
+              </p>
+            </>
           ) : (
-            <div className="flex gap-4">
-              <div className="flex items-center">
-                <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.connected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
-                <p>Połączenie: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}</p>
+            <>
+              <div className="flex flex-wrap gap-4 mb-2">
+                <div className="flex items-center">
+                  <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.connected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
+                  <p className={clusterStatus.connected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
+                    Połączenie: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.slurm_running ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
+                  <p className={clusterStatus.slurm_running ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
+                    SLURM: {clusterStatus.slurm_running ? 'Działa' : 'Nie działa'}
+                  </p>
+                </div>
               </div>
-              <div className="flex items-center">
-                <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.slurm_running ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
-                <p>SLURM: {clusterStatus.slurm_running ? 'Działa' : 'Nie działa'}</p>
-              </div>
-            </div>
+
+              {(!clusterStatus.connected || !clusterStatus.slurm_running) && (
+                <div className="bg-red-100/70 dark:bg-red-900/30 p-3 rounded-md mt-2 text-sm text-red-600 dark:text-red-300">
+                  <p className="flex items-center">
+                    <AlertCircle className="h-4 w-4 mr-2" />
+                    {!clusterStatus.connected 
+                      ? 'Nie można nawiązać połączenia SSH z klastrem. Nie musisz pisać do Mateusza, nic z tym nie zrobi ;)' 
+                      : 'System kolejkowania SLURM nie odpowiada. Zadania obliczeniowe nie mogą być uruchamiane w tym momencie.'}
+                  </p>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -465,6 +598,9 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
           <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
           <TabsTrigger value="active">Lista zadań</TabsTrigger>
           <TabsTrigger value="completed">Zadania zakończone</TabsTrigger>
+          {currentUser?.is_superuser && (
+            <TabsTrigger value="admin">Panel administracyjny</TabsTrigger>
+          )}
         </TabsList>
         
         {/* Active jobs tab (renamed from All jobs) */}
@@ -671,7 +807,201 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {/* Admin panel tab */}
+        {currentUser?.is_superuser && (
+          <TabsContent value="admin" className="mt-4">
+            <div className="space-y-6">
+              {/* Users Management */}
+              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Settings className="h-5 w-5" />
+                    Zarządzanie użytkownikami
+                  </CardTitle>
+                  <CardDescription>
+                    Lista wszystkich użytkowników systemu
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingAdminData ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Ładowanie danych...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-semibold">Użytkownicy ({allUsers.length})</h3>
+                        <CreateUserDialog onUserCreated={handleUserCreatedOrUpdated} />
+                      </div>
+                      
+                      <div className="grid gap-4">
+                        {allUsers.map((user) => (
+                          <Card key={user.id} className="bg-white/40 dark:bg-slate-900/40">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{user.username}</h4>
+                                    {user.is_superuser && (
+                                      <Badge variant="destructive" className="text-xs">
+                                        Admin
+                                      </Badge>
+                                    )}
+                                    {!user.is_active && (
+                                      <Badge variant="secondary" className="text-xs">
+                                        Nieaktywny
+                                      </Badge>
+                                    )}
+                                  </div>
+                                  <p className="text-sm text-muted-foreground">
+                                    {user.email || "Brak emaila"}
+                                  </p>
+                                  <p className="text-sm text-muted-foreground">
+                                    {user.first_name} {user.last_name}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">
+                                    Utworzony: {formatDate(user.created_at)}
+                                  </p>
+                                </div>
+                                <div className="flex gap-2">
+                                  <Button 
+                                    size="sm" 
+                                    variant="outline"
+                                    onClick={() => handleEditUser(user)}
+                                  >
+                                    Edytuj
+                                  </Button>
+                                  {user.id !== currentUser?.id && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="destructive"
+                                      onClick={() => handleDeleteUser(user.id)}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+
+              {/* All Jobs Management */}
+              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Server className="h-5 w-5" />
+                    Wszystkie kontenery
+                  </CardTitle>
+                  <CardDescription>
+                    Przegląd wszystkich kontenerów w systemie
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  {isLoadingAdminData ? (
+                    <div className="flex items-center justify-center py-8">
+                      <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                      <span>Ładowanie danych...</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      <div className="flex justify-between items-center">
+                        <h3 className="text-lg font-semibold">Kontenery ({allJobs.length})</h3>
+                        <Button 
+                          size="sm"
+                          variant="outline"
+                          onClick={fetchAdminData}
+                        >
+                          <RefreshCcw className="h-4 w-4 mr-2" />
+                          Odśwież
+                        </Button>
+                      </div>
+                      
+                      <div className="grid gap-4">
+                        {allJobs.map((job) => (
+                          <Card key={job.id} className="bg-white/40 dark:bg-slate-900/40">
+                            <CardContent className="p-4">
+                              <div className="flex justify-between items-start">
+                                <div className="space-y-2">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className="font-medium">{job.job_name}</h4>
+                                    <Badge 
+                                      variant={
+                                        job.status === "RUNNING" ? "default" :
+                                        job.status === "COMPLETED" ? "secondary" :
+                                        job.status === "FAILED" ? "destructive" :
+                                        job.status === "PENDING" ? "outline" : "secondary"
+                                      }
+                                      className="text-xs"
+                                    >
+                                      {job.status}
+                                    </Badge>
+                                  </div>
+                                  <div className="grid grid-cols-2 gap-4 text-sm text-muted-foreground">
+                                    <div>
+                                      <p><strong>Job ID:</strong> {job.job_id}</p>
+                                      <p><strong>Właściciel:</strong> ID {job.owner_id}</p>
+                                      <p><strong>Template:</strong> {job.template_name}</p>
+                                    </div>
+                                    <div>
+                                      <p><strong>Węzeł:</strong> {job.node || "Brak"}</p>
+                                      <p><strong>Partycja:</strong> {job.partition}</p>
+                                      <p><strong>Utworzony:</strong> {formatDate(job.created_at)}</p>
+                                    </div>
+                                  </div>
+                                  <div className="flex gap-4 text-sm text-muted-foreground">
+                                    <span><Cpu className="h-4 w-4 inline mr-1" />{job.num_cpus} CPU</span>
+                                    <span><HardDrive className="h-4 w-4 inline mr-1" />{job.memory_gb}GB RAM</span>
+                                    <span><Monitor className="h-4 w-4 inline mr-1" />{job.num_gpus} GPU</span>
+                                  </div>
+                                </div>
+                                <div className="flex flex-col gap-2">
+                                  {job.port && job.status === "RUNNING" && (
+                                    <Button 
+                                      size="sm" 
+                                      variant="outline"
+                                      onClick={() => {/* TODO: Open code server for admin */}}
+                                    >
+                                      <Code2 className="h-4 w-4 mr-2" />
+                                      Code Server
+                                    </Button>
+                                  )}
+                                  <Button 
+                                    size="sm" 
+                                    variant="destructive"
+                                    onClick={() => {/* TODO: Add admin job deletion */}}
+                                  >
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </div>
+                            </CardContent>
+                          </Card>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </TabsContent>
+        )}
       </Tabs>
+      
+      {/* Dialogs */}
+      <EditUserDialog
+        user={editingUser}
+        open={isEditDialogOpen}
+        onOpenChange={setIsEditDialogOpen}
+        onUserUpdated={handleUserCreatedOrUpdated}
+      />
       
     </div>
   );

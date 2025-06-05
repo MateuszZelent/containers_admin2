@@ -11,12 +11,16 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+    is_active: Optional[bool] = True
+    is_superuser: Optional[bool] = False
 
 
 class UserUpdate(UserBase):
     password: Optional[str] = None
     username: Optional[str] = None
     email: Optional[EmailStr] = None
+    is_active: Optional[bool] = None
+    is_superuser: Optional[bool] = None
     code_server_password: Optional[str] = None  # Added this field
 
 

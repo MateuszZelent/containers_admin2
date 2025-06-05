@@ -4,7 +4,11 @@ from sqlalchemy.orm import Session
 import os
 from caddy_api_client import CaddyAPIClient
 from app.core.logging import cluster_logger
-from app.core.auth import get_current_active_user, get_current_user
+from app.core.auth import (
+    get_current_active_user, 
+    get_current_user, 
+    get_current_superuser
+)
 from app.db.session import get_db
 from app.schemas.job import (
     JobCreate,
@@ -104,6 +108,40 @@ async def get_jobs(
         db.commit()
 
     return db_jobs
+
+
+@router.get("/admin/all", response_model=List[JobInDB])
+async def get_all_jobs_admin(
+    db: Session = Depends(get_db),
+    skip: int = 0,
+    limit: int = 100,
+    current_user: User = Depends(get_current_superuser),
+) -> Any:
+    """
+    Retrieve all jobs from all users. Admin only.
+    """
+    from app.services.slurm_monitor import monitor_service
+    
+    # Get all jobs from database
+    job_service = JobService(db)
+    all_jobs = db.query(Job).offset(skip).limit(limit).all()
+    
+    # Convert to JobInDB format and get current status
+    result_jobs = []
+    for job in all_jobs:
+        # Get current SLURM status from monitoring service
+        job_snapshots = await monitor_service.get_job_snapshot(
+            db, job.job_id
+        )
+        
+        job_data = JobInDB.from_orm(job)
+        if job_snapshots:
+            job_data.status = job_snapshots.state  # Using 'state' not 'status'
+            job_data.node = job_snapshots.node  # Using 'node' not 'node_list'
+        
+        result_jobs.append(job_data)
+    
+    return result_jobs
 
 
 @router.get("/active-jobs")

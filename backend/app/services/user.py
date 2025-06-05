@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +21,10 @@ class UserService:
         return db.query(User).filter(User.email == email).first()
 
     @staticmethod
+    def get_multi(db: Session, skip: int = 0, limit: int = 100) -> List[User]:
+        return db.query(User).offset(skip).limit(limit).all()
+
+    @staticmethod
     def authenticate(db: Session, username: str, password: str) -> Optional[User]:
         user = UserService.get_by_username(db, username)
         if not user:
@@ -34,8 +38,11 @@ class UserService:
         db_user = User(
             username=user_in.username,
             email=user_in.email,
+            first_name=user_in.first_name,
+            last_name=user_in.last_name,
             hashed_password=get_password_hash(user_in.password),
-            is_active=True,
+            is_active=getattr(user_in, 'is_active', True),
+            is_superuser=getattr(user_in, 'is_superuser', False),
         )
         db.add(db_user)
         db.commit()
@@ -56,4 +63,12 @@ class UserService:
         db.add(user)
         db.commit()
         db.refresh(user)
+        return user
+
+    @staticmethod
+    def remove(db: Session, user_id: int) -> Optional[User]:
+        user = db.query(User).filter(User.id == user_id).first()
+        if user:
+            db.delete(user)
+            db.commit()
         return user
