@@ -108,7 +108,7 @@ export default function TaskQueuePage() {
       return response;
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || "Nie udało się pobrać listy zadań";
-      toast.error(errorMessage);
+      // toast.error(errorMessage);
       console.error("Error fetching tasks:", error);
       throw error;
     } finally {

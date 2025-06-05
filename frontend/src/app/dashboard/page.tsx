@@ -129,7 +129,7 @@ export default function DashboardPage() {
       return response;
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, "Nie udało się pobrać listy zadań");
-      toast.error(errorMessage);
+      // toast.error(errorMessage);
       console.error("Error fetching jobs:", error);
       throw error;
     } finally {

@@ -616,3 +616,99 @@ async def check_tunnel_status(
             "It has been marked as closed.",
             "tunnel": tunnel_info,
         }
+
+
+@router.get("/user-resource-stats")
+def get_user_resource_stats(
+    current_user: User = Depends(get_current_active_user),
+    db: Session = Depends(get_db)
+):
+    """Get current user's resource usage statistics."""
+    # Get user's active jobs
+    active_jobs = db.query(Job).filter(
+        Job.owner_id == current_user.id,
+        Job.status.in_(["RUNNING", "PENDING"])
+    ).all()
+    
+    # Calculate current resource usage
+    used_containers = len(active_jobs)
+    used_gpus = sum(job.num_gpus for job in active_jobs)
+    
+    return {
+        "used_containers": used_containers,
+        "max_containers": current_user.max_containers or 6,
+        "used_gpus": used_gpus,
+        "max_gpus": current_user.max_gpus or 24,
+        "active_jobs": len(active_jobs)
+    }
+
+
+@router.get("/admin/all-users")
+def get_all_users_admin(
+    current_user: User = Depends(get_current_superuser),
+    db: Session = Depends(get_db)
+):
+    """Get all users for admin panel (superuser only)."""
+    users = db.query(User).order_by(User.created_at.desc()).all()
+    return users
+
+
+@router.put("/admin/users/{user_id}")
+def update_user_admin(
+    user_id: int,
+    user_update: dict,
+    current_user: User = Depends(get_current_superuser),
+    db: Session = Depends(get_db)
+):
+    """Update user (admin only)."""
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Update allowed fields
+    allowed_fields = [
+        "max_containers", "max_gpus", "is_active", "is_superuser",
+        "first_name", "last_name", "email"
+    ]
+    
+    for field, value in user_update.items():
+        if field in allowed_fields and hasattr(user, field):
+            setattr(user, field, value)
+    
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+@router.delete("/admin/users/{user_id}")
+def delete_user_admin(
+    user_id: int,
+    current_user: User = Depends(get_current_superuser),
+    db: Session = Depends(get_db)
+):
+    """Delete user (admin only)."""
+    if user_id == current_user.id:
+        raise HTTPException(
+            status_code=400, 
+            detail="Cannot delete your own account"
+        )
+    
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    # Check if user has active jobs
+    active_jobs = db.query(Job).filter(
+        Job.owner_id == user_id,
+        Job.status.in_(["RUNNING", "PENDING"])
+    ).count()
+    
+    if active_jobs > 0:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Cannot delete user with {active_jobs} active jobs"
+        )
+    
+    db.delete(user)
+    db.commit()
+    return {"message": "User deleted successfully"}

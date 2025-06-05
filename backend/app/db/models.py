@@ -37,8 +37,15 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     code_server_password = Column(String(255), nullable=True)
+    
+    # Resource limits
+    max_containers = Column(Integer, default=6)  # Max containers user can run
+    max_gpus = Column(Integer, default=24)  # Max GPUs user can use total
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
+    updated_at = Column(
+        DateTime(timezone=True), onupdate=func.now(), nullable=True
+    )
     jobs = relationship("Job", back_populates="owner")
     cli_tokens = relationship("CLIToken", back_populates="owner")
 
