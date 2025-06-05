@@ -11,9 +11,11 @@ from app.db.models import Base
 from app.routers import auth, users, jobs, task_queue, cli_tokens
 import debugpy
 
-# Ustaw punkt nasłuchiwania debuggera
-debugpy.listen(("0.0.0.0", 5678))  # Port 5678
-print("Debugger is active. Waiting for client to attach...")
+# Debug mode only for development
+if os.getenv("DEBUG", "false").lower() == "true":
+    debugpy.listen(("0.0.0.0", 5678))  # Port 5678
+    print("Debugger is active. Waiting for client to attach...")
+
 # Create database tables
 Base.metadata.create_all(bind=engine)
 

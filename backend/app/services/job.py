@@ -257,7 +257,9 @@ class JobService:
                                 setattr(db_job, "node", str(node))
 
                                 # Create SSH tunnel
-                                tunnel = tunnel_service.create_tunnel(db_job)
+                                tunnel = await tunnel_service.create_tunnel(
+                                    db_job
+                                )
                                 if tunnel:
                                     msg = f"Created tunnel: {job_id}"
                                     cluster_logger.info(msg)

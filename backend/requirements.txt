@@ -18,5 +18,5 @@ aiohttp>=3.8.0
 debugpy==1.6.7
 email-validator 
 psycopg2-binary 
-debugpy
+psutil>=5.9.0  # For process monitoring and management
 tenacity>=8.2.0  # Add retry functionality

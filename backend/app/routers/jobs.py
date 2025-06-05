@@ -396,7 +396,7 @@ def get_job_tunnels(
 
 
 @router.post("/{job_id}/tunnels", response_model=SSHTunnelInfo)
-def create_job_tunnel(
+async def create_job_tunnel(
     job_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -410,7 +410,7 @@ def create_job_tunnel(
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     tunnel_service = SSHTunnelService(db)
-    tunnel = tunnel_service.create_tunnel(job)
+    tunnel = await tunnel_service.create_tunnel(job)
     if not tunnel:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -420,7 +420,7 @@ def create_job_tunnel(
 
 
 @router.delete("/{job_id}/tunnels/{tunnel_id}")
-def close_job_tunnel(
+async def close_job_tunnel(
     job_id: int,
     tunnel_id: int,
     db: Session = Depends(get_db),
@@ -435,7 +435,7 @@ def close_job_tunnel(
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     tunnel_service = SSHTunnelService(db)
-    success = tunnel_service.close_tunnel(tunnel_id)
+    success = await tunnel_service.close_tunnel(tunnel_id)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Could not close SSH tunnel"
@@ -712,3 +712,76 @@ def delete_user_admin(
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
+
+
+@router.get("/tunnels/{tunnel_id}/health")
+async def check_tunnel_health(
+    tunnel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Perform health check on a specific SSH tunnel"""
+    # Check if tunnel exists and user has access
+    tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
+    if not tunnel:
+        raise HTTPException(status_code=404, detail="Tunnel not found")
+    
+    # Check if user owns the job associated with this tunnel
+    job = db.query(Job).filter(Job.id == tunnel.job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Associated job not found")
+    
+    if job.owner_id != current_user.id and not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    tunnel_service = SSHTunnelService(db)
+    health_info = await tunnel_service.health_check(tunnel_id)
+    
+    return {
+        "tunnel_id": health_info.tunnel_id,
+        "status": health_info.status.value,
+        "port_connectivity": health_info.port_connectivity,
+        "last_check": health_info.last_check,
+        "ssh_process": {
+            "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
+            "is_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
+            "memory_usage_mb": health_info.ssh_process.memory_usage if health_info.ssh_process else None,
+            "cpu_usage": health_info.ssh_process.cpu_usage if health_info.ssh_process else None,
+        } if health_info.ssh_process else None,
+        "socat_process": {
+            "pid": health_info.socat_process.pid if health_info.socat_process else None,
+            "is_running": health_info.socat_process.is_running if health_info.socat_process else False,
+            "memory_usage_mb": health_info.socat_process.memory_usage if health_info.socat_process else None,
+            "cpu_usage": health_info.socat_process.cpu_usage if health_info.socat_process else None,
+        } if health_info.socat_process else None,
+        "error_message": health_info.error_message
+    }
+
+
+@router.get("/tunnels/health-check-all")
+async def check_all_tunnels_health(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Perform health check on all active tunnels (admin only)"""
+    if not current_user.is_superuser:
+        raise HTTPException(status_code=403, detail="Admin access required")
+
+    tunnel_service = SSHTunnelService(db)
+    health_results = await tunnel_service.health_check_all_active_tunnels()
+    
+    return {
+        "total_tunnels": len(health_results),
+        "results": [
+            {
+                "tunnel_id": tunnel_id,
+                "status": health_info.status.value,
+                "port_connectivity": health_info.port_connectivity,
+                "last_check": health_info.last_check,
+                "ssh_process_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
+                "socat_process_running": health_info.socat_process.is_running if health_info.socat_process else False,
+                "error_message": health_info.error_message
+            }
+            for tunnel_id, health_info in health_results.items()
+        ]
+    }

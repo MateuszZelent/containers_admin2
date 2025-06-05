@@ -34,6 +34,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
     last_name: user?.last_name || "",
     password: "",
     is_active: user?.is_active || true,
+    max_containers: user?.max_containers || 0,
     is_superuser: user?.is_superuser || false,
   });
 
@@ -47,6 +48,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
         last_name: user.last_name || "",
         password: "",
         is_active: user.is_active,
+        max_containers: user.max_containers || 0,
         is_superuser: user.is_superuser,
       });
     }
@@ -73,6 +75,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
       if (formData.last_name !== user.last_name) updateData.last_name = formData.last_name;
       if (formData.password) updateData.password = formData.password;
       if (formData.is_active !== user.is_active) updateData.is_active = formData.is_active;
+      if (formData.max_containers !== user.max_containers) updateData.max_containers = formData.max_containers;
       if (formData.is_superuser !== user.is_superuser) updateData.is_superuser = formData.is_superuser;
 
       await adminApi.updateUser(user.id, updateData);
@@ -155,6 +158,19 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
+                className="col-span-3"
+                placeholder="Pozostaw puste, aby nie zmieniać"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_nodes" className="text-right">
+                Maksymalna ilość węzłów
+              </Label>
+              <Input
+                id="max_nodes"
+                type="max_nodes"
+                value={formData.password}
+                onChange={(e) => setFormData({ ...formData, max_containers: e.target.value })}
                 className="col-span-3"
                 placeholder="Pozostaw puste, aby nie zmieniać"
               />

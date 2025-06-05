@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { RefreshCcw, ArrowLeft, Link2, ExternalLink } from "lucide-react";
@@ -51,10 +51,18 @@ interface SSHTunnel {
   id: number;
   job_id: number;
   local_port: number;
+  external_port: number;
+  internal_port: number;
   remote_port: number;
   remote_host: string;
+  node: string;
   status: string;
+  ssh_pid?: number;
+  socat_pid?: number;
+  health_status?: string;
+  last_health_check?: string;
   created_at: string;
+  updated_at?: string;
 }
 
 interface TunnelStatus {
@@ -72,9 +80,10 @@ interface TunnelStatus {
   }
 }
 
-export default function JobDetailPage({ params }: { params: { id: string } }) {
+export default function JobDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const jobId = parseInt(params.id);
+  const resolvedParams = use(params);
+  const jobId = parseInt(resolvedParams.id);
   
   const [job, setJob] = useState<JobDetails | null>(null);
   const [jobStatus, setJobStatus] = useState<JobStatus | null>(null);
@@ -167,6 +176,25 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
           closeButton: true
         }
       );
+      console.error(error);
+    }
+  };
+
+  // Sprawdź health check tunelu
+  const checkTunnelHealth = async (tunnelId: number) => {
+    try {
+      const response = await jobsApi.checkTunnelHealth(jobId, tunnelId);
+      toast.success("Health check został wykonany", {
+        duration: 3000,
+        closeButton: true
+      });
+      fetchData(); // Odśwież dane po health check
+    } catch (error: unknown) {
+      const errorMessage = getErrorMessage(error, "Nie udało się wykonać health check");
+      toast.error(errorMessage, {
+        duration: 5000,
+        closeButton: true
+      });
       console.error(error);
     }
   };
@@ -279,10 +307,10 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
             <div className="flex justify-between py-1">
               <span className="font-medium">Status:</span>
               <span className={`px-2 py-1 text-xs rounded-full inline-flex items-center 
-                ${jobStatus?.status === 'RUNNING' ? 'bg-green-100 text-green-700' : 
-                jobStatus?.status === 'PENDING' ? 'bg-yellow-100 text-yellow-700' : 
-                jobStatus?.status === 'COMPLETED' ? 'bg-blue-100 text-blue-700' : 
-                'bg-gray-100 text-gray-700'}`}>
+                ${jobStatus?.status === 'RUNNING' ? 'bg-emerald-500/20 text-emerald-400 dark:bg-emerald-500/20 dark:text-emerald-300' : 
+                jobStatus?.status === 'PENDING' ? 'bg-amber-500/20 text-amber-700 dark:bg-amber-500/20 dark:text-amber-300' : 
+                jobStatus?.status === 'COMPLETED' ? 'bg-blue-500/20 text-blue-700 dark:bg-blue-500/20 dark:text-blue-300' : 
+                'bg-slate-500/20 text-slate-700 dark:bg-slate-500/20 dark:text-slate-300'}`}>
                 {jobStatus?.status}
               </span>
             </div>
@@ -405,11 +433,16 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                   <thead>
                     <tr className="border-b">
                       <th className="text-left py-2">ID</th>
+                      <th className="text-left py-2">Port lokalny</th>
                       <th className="text-left py-2">Port zewnętrzny</th>
                       <th className="text-left py-2">Port wewnętrzny</th>
                       <th className="text-left py-2">Host zdalny</th>
+                      <th className="text-left py-2">Węzeł</th>
                       <th className="text-left py-2">Status</th>
-                      <th className="text-left py-2">Utworzono</th>
+                      <th className="text-left py-2">Health Status</th>
+                      <th className="text-left py-2">PID SSH</th>
+                      <th className="text-left py-2">PID Socat</th>
+                      <th className="text-left py-2">Ostatni health check</th>
                       <th className="text-left py-2">Akcje</th>
                     </tr>
                   </thead>
@@ -418,38 +451,214 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                       <tr key={tunnel.id} className="border-b hover:bg-muted/50">
                         <td className="py-2">{tunnel.id}</td>
                         <td className="py-2">
-                          <span className="font-mono bg-muted px-1 py-0.5 rounded" 
-                                title="Port dostępny w przeglądarce i z zewnątrz kontenera">
+                          <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs" 
+                                title="Port lokalny tunelu SSH">
                             {tunnel.local_port}
                           </span>
                         </td>
                         <td className="py-2">
-                          <span className="font-mono bg-muted px-1 py-0.5 rounded" 
+                          <span className="font-mono bg-blue-500/20 text-blue-700 dark:text-blue-300 px-1 py-0.5 rounded text-xs" 
+                                title="Port dostępny w przeglądarce i z zewnątrz kontenera">
+                            {tunnel.external_port}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <span className="font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-1 py-0.5 rounded text-xs" 
                                 title="Port wewnętrzny tunelu SSH w kontenerze">
-                            {tunnel.remote_port}
+                            {tunnel.internal_port}
                           </span>
                         </td>
-                        <td className="py-2">{tunnel.remote_host}</td>
                         <td className="py-2">
-                          <span className={`inline-block px-2 py-1 text-xs rounded-full 
-                            ${tunnel.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-red-100 text-red-700'}`}>
+                          <span className="font-mono bg-muted px-1 py-0.5 rounded text-xs">
+                            {tunnel.remote_host}:{tunnel.remote_port}
+                          </span>
+                        </td>
+                        <td className="py-2">
+                          <Badge variant="outline" className="text-xs">
+                            {tunnel.node}
+                          </Badge>
+                        </td>
+                        <td className="py-2">
+                          <Badge variant={tunnel.status === 'ACTIVE' ? 'default' : 'destructive'} className="text-xs">
                             {tunnel.status}
-                          </span>
+                          </Badge>
                         </td>
-                        <td className="py-2">{formatDate(tunnel.created_at)}</td>
                         <td className="py-2">
-                          <Button 
-                            variant="outline" 
-                            size="sm" 
-                            onClick={() => closeTunnel(tunnel.id)}
-                          >
-                            Zamknij
-                          </Button>
+                          {tunnel.health_status ? (
+                            <Badge 
+                              variant={
+                                tunnel.health_status === 'HEALTHY' ? 'default' : 
+                                tunnel.health_status === 'UNHEALTHY' ? 'destructive' : 
+                                'secondary'
+                              } 
+                              className="text-xs"
+                            >
+                              {tunnel.health_status}
+                            </Badge>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          {tunnel.ssh_pid ? (
+                            <span className="font-mono bg-amber-500/20 text-amber-700 dark:text-amber-300 px-1 py-0.5 rounded text-xs" 
+                                  title={`PID procesu SSH: ${tunnel.ssh_pid}`}>
+                              {tunnel.ssh_pid}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          {tunnel.socat_pid ? (
+                            <span className="font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300 px-1 py-0.5 rounded text-xs" 
+                                  title={`PID procesu socat: ${tunnel.socat_pid}`}>
+                              {tunnel.socat_pid}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">-</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          {tunnel.last_health_check ? (
+                            <span className="text-xs" title={formatDate(tunnel.last_health_check)}>
+                              {new Date(tunnel.last_health_check).toLocaleString('pl-PL', {
+                                month: '2-digit',
+                                day: '2-digit',
+                                hour: '2-digit',
+                                minute: '2-digit'
+                              })}
+                            </span>
+                          ) : (
+                            <span className="text-muted-foreground text-xs">Nigdy</span>
+                          )}
+                        </td>
+                        <td className="py-2">
+                          <div className="flex gap-1">
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => checkTunnelHealth(tunnel.id)}
+                              className="px-2 py-1 text-xs"
+                              title="Sprawdź stan tunelu"
+                            >
+                              Health
+                            </Button>
+                            <Button 
+                              variant="outline" 
+                              size="sm" 
+                              onClick={() => closeTunnel(tunnel.id)}
+                              className="px-2 py-1 text-xs"
+                              title="Zamknij tunel"
+                            >
+                              Zamknij
+                            </Button>
+                          </div>
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+              
+              {/* Informacje o architekturze tuneli */}
+              <div className="mt-6 space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Opis portów</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-blue-500/20 text-blue-700 dark:text-blue-300 px-2 py-1 rounded text-xs">Port zewnętrzny</span>
+                        <span>- Dostępny z przeglądarki (http://node:port)</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 px-2 py-1 rounded text-xs">Port wewnętrzny</span>
+                        <span>- Port tunelu SSH w kontenerze</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-muted px-2 py-1 rounded text-xs">Port lokalny</span>
+                        <span>- Port lokalny tunelu SSH</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm">Status procesów</CardTitle>
+                    </CardHeader>
+                    <CardContent className="space-y-2 text-sm">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-amber-500/20 text-amber-700 dark:text-amber-300 px-2 py-1 rounded text-xs">SSH PID</span>
+                        <span>- Identyfikator procesu SSH</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono bg-purple-500/20 text-purple-700 dark:text-purple-300 px-2 py-1 rounded text-xs">Socat PID</span>
+                        <span>- Identyfikator procesu Socat</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Badge variant="default" className="text-xs">HEALTHY</Badge>
+                        <span>- Tunel działa poprawnie</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </div>
+
+                {/* Diagram przepływu danych */}
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-sm">Diagram przepływu danych przez tunel SSH</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="flex items-center justify-center p-4">
+                      <div className="flex items-center space-x-4 text-sm">
+                        <div className="text-center">
+                          <div className="border rounded-md px-3 py-2 bg-blue-500/20 dark:bg-blue-500/20 text-blue-700 dark:text-blue-300">
+                            <div className="font-medium">Przeglądarka</div>
+                            <div className="text-xs opacity-80">http://node:external_port</div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <div className="w-8 h-0.5 bg-muted-foreground"></div>
+                          <div className="text-xs text-muted-foreground mx-1">→</div>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="border rounded-md px-3 py-2 bg-emerald-500/20 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+                            <div className="font-medium">Socat</div>
+                            <div className="text-xs opacity-80">Port forwarding</div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <div className="w-8 h-0.5 bg-muted-foreground"></div>
+                          <div className="text-xs text-muted-foreground mx-1">→</div>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="border rounded-md px-3 py-2 bg-amber-500/20 dark:bg-amber-500/20 text-amber-700 dark:text-amber-300">
+                            <div className="font-medium">SSH Tunel</div>
+                            <div className="text-xs opacity-80">localhost:local_port</div>
+                          </div>
+                        </div>
+                        
+                        <div className="flex items-center">
+                          <div className="w-8 h-0.5 bg-muted-foreground"></div>
+                          <div className="text-xs text-muted-foreground mx-1">→</div>
+                        </div>
+                        
+                        <div className="text-center">
+                          <div className="border rounded-md px-3 py-2 bg-purple-500/20 dark:bg-purple-500/20 text-purple-700 dark:text-purple-300">
+                            <div className="font-medium">Kontener</div>
+                            <div className="text-xs opacity-80">remote_host:remote_port</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
               </div>
               
               {/* Diagram wizualizujący przekierowanie portów */}
@@ -539,7 +748,7 @@ export default function JobDetailPage({ params }: { params: { id: string } }) {
                 {codeServerURL ? (
                   <div className="mt-2">
                     <p>
-                      URL: <a href={codeServerURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      URL: <a href={codeServerURL} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline">
                         {codeServerURL}
                       </a>
                     </p>

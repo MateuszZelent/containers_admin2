@@ -33,6 +33,8 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     password: "",
     is_active: true,
     is_superuser: false,
+    max_containers: 6,
+    max_gpus: 24,
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -56,6 +58,8 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
         password: "",
         is_active: true,
         is_superuser: false,
+        max_containers: 6,
+        max_gpus: 24,  
       });
       onUserCreated?.();
     } catch (error: any) {

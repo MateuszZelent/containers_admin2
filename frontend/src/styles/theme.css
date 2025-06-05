@@ -121,3 +121,45 @@ body {
   border-radius: 0 !important;
   box-shadow: none !important;
 }
+
+/* Glass tabs styling to match dashboard theme */
+[data-slot="tabs-list"] {
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.dark [data-slot="tabs-list"] {
+  background: rgba(30, 41, 59, 0.4);
+  border: 1px solid rgba(71, 85, 105, 0.6);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+[data-slot="tabs-trigger"] {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+[data-slot="tabs-trigger"]:hover {
+  background: rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.dark [data-slot="tabs-trigger"]:hover {
+  background: rgba(71, 85, 105, 0.5);
+}
+
+[data-slot="tabs-trigger"][data-state="active"] {
+  background: rgba(255, 255, 255, 0.8);
+  color: rgb(15, 23, 42);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  backdrop-filter: blur(8px);
+}
+
+.dark [data-slot="tabs-trigger"][data-state="active"] {
+  background: rgba(71, 85, 105, 0.7);
+  color: rgb(241, 245, 249);
+  border: 1px solid rgba(100, 116, 139, 0.5);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+}

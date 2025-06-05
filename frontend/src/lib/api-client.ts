@@ -267,6 +267,8 @@ export const adminApi = {
     password?: string;
     is_active?: boolean;
     is_superuser?: boolean;
+    max_containers?: number; // Nowa opcja do aktualizacji
+    max_gpus?: number; // Nowa opcja do aktualizacji
   }) => apiClient.put(`/users/${userId}`, userData),
   
   // Delete user (admin only)
@@ -367,6 +369,10 @@ export const jobsApi = {
   // Close SSH tunnel
   closeJobTunnel: (jobId: number, tunnelId: number) => 
     apiClient.delete(`/jobs/${jobId}/tunnels/${tunnelId}`),
+    
+  // Check tunnel health
+  checkTunnelHealth: (jobId: number, tunnelId: number) => 
+    apiClient.post(`/jobs/${jobId}/tunnels/${tunnelId}/health-check`),
 };
 
 // CLI Tokens API

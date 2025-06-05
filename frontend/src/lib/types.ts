@@ -8,6 +8,8 @@ export interface User {
   is_superuser: boolean;
   created_at: string;
   updated_at?: string;
+  max_containers?: number;
+  max_gpus?: number;
 }
 
 export interface SSHTunnel {

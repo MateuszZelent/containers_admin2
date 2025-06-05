@@ -2,7 +2,10 @@ import asyncio
 import random
 import subprocess
 import os
+import psutil
 from typing import Optional, List, Dict, Tuple
+from enum import Enum
+from dataclasses import dataclass
 from sqlalchemy.orm import Session
 from app.db.models import SSHTunnel, Job
 from app.core.logging import cluster_logger
@@ -11,6 +14,45 @@ from app.schemas.job import SSHTunnelInfo
 from datetime import datetime, timedelta
 import socket
 import time
+import aiohttp
+
+
+class TunnelStatus(Enum):
+    """Enum for tunnel status values."""
+    ACTIVE = "ACTIVE"
+    INACTIVE = "INACTIVE"
+    FAILED = "FAILED"
+    DEAD = "DEAD"
+    CLOSED = "CLOSED"
+
+
+class HealthStatus(Enum):
+    """Enum for health check status values."""
+    HEALTHY = "HEALTHY"
+    UNHEALTHY = "UNHEALTHY"
+    UNKNOWN = "UNKNOWN"
+
+
+@dataclass
+class ProcessInfo:
+    """Data class for process information."""
+    pid: int
+    command: str
+    is_running: bool
+    memory_usage: Optional[float] = None
+    cpu_usage: Optional[float] = None
+
+
+@dataclass
+class TunnelHealthInfo:
+    """Data class for tunnel health information."""
+    tunnel_id: int
+    status: HealthStatus
+    ssh_process: Optional[ProcessInfo]
+    socat_process: Optional[ProcessInfo]
+    port_connectivity: bool
+    last_check: datetime
+    error_message: Optional[str] = None
 
 
 class SSHTunnelService:
@@ -508,7 +550,7 @@ class SSHTunnelService:
         return None
 
     async def create_tunnel(self, job: Job) -> Optional[SSHTunnelInfo]:
-        """Create an SSH tunnel for a job (async version)"""
+        """Create an SSH tunnel for a job with enhanced PID tracking"""
         # Ensure tunnels are restored first
         await self.ensure_tunnels_restored()
 
@@ -563,12 +605,20 @@ class SSHTunnelService:
             remote_host=job.node,
             node=job.node,
             status="ACTIVE",
+            ssh_pid=ssh_pid,  # Store SSH process PID
+            socat_pid=socat_pid,  # Store socat process PID
+            health_status=HealthStatus.HEALTHY.value,  # Initial health status
             created_at=now,
+            last_health_check=now,  # Initial health check timestamp
         )
 
         self.db.add(tunnel)
         self.db.commit()
         self.db.refresh(tunnel)
+
+        cluster_logger.info(
+            f"Created tunnel {tunnel.id} with SSH PID: {ssh_pid}, socat PID: {socat_pid}"
+        )
 
         return SSHTunnelInfo(
             id=tunnel.id,
@@ -1101,20 +1151,254 @@ class SSHTunnelService:
             cluster_logger.error(f"Error getting PID for pattern '{pattern}': {str(e)}")
             return None
 
-    # Synchronous versions of methods for backward compatibility
+    async def health_check(self, tunnel_id: int) -> TunnelHealthInfo:
+        """
+        Perform comprehensive health check on a specific tunnel.
+        
+        Args:
+            tunnel_id: ID of the tunnel to check
+            
+        Returns:
+            TunnelHealthInfo with detailed health status
+        """
+        cluster_logger.info(f"Performing health check for tunnel {tunnel_id}")
+        
+        tunnel = self.db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
+        if not tunnel:
+            return TunnelHealthInfo(
+                tunnel_id=tunnel_id,
+                status=HealthStatus.UNKNOWN,
+                ssh_process=None,
+                socat_process=None,
+                port_connectivity=False,
+                last_check=datetime.utcnow(),
+                error_message="Tunnel not found in database"
+            )
+        
+        # Check SSH process health
+        ssh_process = None
+        if tunnel.ssh_pid:
+            ssh_process = await self._check_process_health(tunnel.ssh_pid)
+        
+        # Check socat process health
+        socat_process = None
+        if tunnel.socat_pid:
+            socat_process = await self._check_process_health(tunnel.socat_pid)
+        
+        # Test port connectivity
+        port_connectivity = False
+        if tunnel.external_port:
+            port_connectivity = await self.test_tunnel(
+                tunnel.external_port, tunnel.node
+            )
+        
+        # Determine overall health status
+        health_status = self._determine_health_status(
+            ssh_process, socat_process, port_connectivity
+        )
+        
+        # Update database with health check results
+        tunnel.last_health_check = datetime.utcnow()
+        tunnel.health_status = health_status.value
+        self.db.commit()
+        
+        health_info = TunnelHealthInfo(
+            tunnel_id=tunnel_id,
+            status=health_status,
+            ssh_process=ssh_process,
+            socat_process=socat_process,
+            port_connectivity=port_connectivity,
+            last_check=tunnel.last_health_check
+        )
+        
+        cluster_logger.info(
+            f"Health check completed for tunnel {tunnel_id}: {health_status.value}"
+        )
+        
+        return health_info
 
-    def _is_port_in_use(self, port: int, check_external: bool = False) -> bool:
-        """Synchronous version of _is_port_in_use_async for backward compatibility"""
+    async def _check_process_health(self, pid: int) -> Optional[ProcessInfo]:
+        """
+        Check the health of a specific process.
+        
+        Args:
+            pid: Process ID to check
+            
+        Returns:
+            ProcessInfo if process exists, None otherwise
+        """
         try:
-            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-                s.settimeout(0.5)
-                address = "0.0.0.0" if check_external else "127.0.0.1"
-                cluster_logger.debug(f"Checking if port {port} is in use on {address}")
-                result = s.connect_ex((address, port))
-                in_use = result == 0
-                if in_use:
-                    cluster_logger.debug(f"Port {port} is in use")
-                return in_use
-        except (socket.timeout, socket.error) as e:
-            cluster_logger.warning(f"Error checking port {port}: {str(e)}")
+            process = psutil.Process(pid)
+            
+            # Check if process is still running
+            if not process.is_running():
+                return None
+            
+            # Get process information
+            cmdline = ' '.join(process.cmdline())
+            memory_info = process.memory_info()
+            cpu_percent = process.cpu_percent()
+            
+            return ProcessInfo(
+                pid=pid,
+                command=cmdline,
+                is_running=True,
+                memory_usage=memory_info.rss / 1024 / 1024,  # MB
+                cpu_usage=cpu_percent
+            )
+            
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            return None
+        except Exception as e:
+            cluster_logger.error(f"Error checking process {pid}: {str(e)}")
+            return None
+
+    def _determine_health_status(
+        self, 
+        ssh_process: Optional[ProcessInfo], 
+        socat_process: Optional[ProcessInfo], 
+        port_connectivity: bool
+    ) -> HealthStatus:
+        """
+        Determine overall health status based on process and connectivity checks.
+        
+        Args:
+            ssh_process: SSH process information
+            socat_process: Socat process information
+            port_connectivity: Whether port is accessible
+            
+        Returns:
+            Overall health status
+        """
+        if ssh_process and socat_process and port_connectivity:
+            return HealthStatus.HEALTHY
+        elif ssh_process and socat_process:
+            return HealthStatus.UNHEALTHY  # Processes running but no connectivity
+        else:
+            return HealthStatus.UNHEALTHY  # Missing processes
+
+    async def _terminate_process_safely(self, pid: int) -> bool:
+        """
+        Safely terminate a process with escalating signals.
+        
+        Args:
+            pid: Process ID to terminate
+            
+        Returns:
+            True if successful, False otherwise
+        """
+        try:
+            process = psutil.Process(pid)
+            
+            if not process.is_running():
+                return True
+            
+            # Try SIGTERM first (graceful)
+            process.terminate()
+            
+            # Wait up to 5 seconds for graceful termination
+            try:
+                process.wait(timeout=5)
+                cluster_logger.debug(f"Process {pid} terminated gracefully")
+                return True
+            except psutil.TimeoutExpired:
+                pass
+            
+            # If still running, use SIGKILL
+            if process.is_running():
+                process.kill()
+                process.wait(timeout=2)
+                cluster_logger.debug(f"Process {pid} killed forcefully")
+                return True
+                
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            # Process already gone or no permission
             return True
+        except Exception as e:
+            cluster_logger.error(f"Error terminating process {pid}: {str(e)}")
+            return False
+
+    async def health_check_all_active_tunnels(self) -> Dict[int, TunnelHealthInfo]:
+        """
+        Perform health check on all active tunnels.
+        
+        Returns:
+            Dictionary mapping tunnel IDs to their health information
+        """
+        cluster_logger.info("Starting health check for all active tunnels")
+        
+        active_tunnels = self.db.query(SSHTunnel).filter(
+            SSHTunnel.status == TunnelStatus.ACTIVE.value
+        ).all()
+        
+        health_results = {}
+        
+        for tunnel in active_tunnels:
+            try:
+                health_info = await self.health_check(tunnel.id)
+                health_results[tunnel.id] = health_info
+                
+                # Auto-repair unhealthy tunnels if possible
+                if health_info.status == HealthStatus.UNHEALTHY:
+                    cluster_logger.warning(
+                        f"Tunnel {tunnel.id} is unhealthy, attempting repair"
+                    )
+                    await self._attempt_tunnel_repair(tunnel)
+                    
+            except Exception as e:
+                cluster_logger.error(
+                    f"Error during health check for tunnel {tunnel.id}: {str(e)}"
+                )
+                health_results[tunnel.id] = TunnelHealthInfo(
+                    tunnel_id=tunnel.id,
+                    status=HealthStatus.UNKNOWN,
+                    ssh_process=None,
+                    socat_process=None,
+                    port_connectivity=False,
+                    last_check=datetime.utcnow(),
+                    error_message=str(e)
+                )
+        
+        cluster_logger.info(
+            f"Health check completed for {len(health_results)} tunnels"
+        )
+        
+        return health_results
+
+    async def _attempt_tunnel_repair(self, tunnel: SSHTunnel) -> bool:
+        """
+        Attempt to repair an unhealthy tunnel.
+        
+        Args:
+            tunnel: Tunnel object to repair
+            
+        Returns:
+            True if repair successful, False otherwise
+        """
+        cluster_logger.info(f"Attempting to repair tunnel {tunnel.id}")
+        
+        try:
+            # Close existing tunnel
+            await self.close_tunnel(tunnel.id)
+            
+            # Get associated job
+            job = self.db.query(Job).filter(Job.id == tunnel.job_id).first()
+            if not job:
+                cluster_logger.error(f"Job {tunnel.job_id} not found for tunnel repair")
+                return False
+            
+            # Create new tunnel
+            new_tunnel = await self.create_tunnel(job)
+            
+            if new_tunnel:
+                cluster_logger.info(f"Successfully repaired tunnel {tunnel.id}")
+                return True
+            else:
+                cluster_logger.error(f"Failed to repair tunnel {tunnel.id}")
+                return False
+                
+        except Exception as e:
+            cluster_logger.error(f"Error during tunnel repair: {str(e)}")
+            return False
+
+    # ...existing code...

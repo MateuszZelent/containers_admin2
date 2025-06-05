@@ -95,6 +95,15 @@ class SSHTunnel(Base):
     remote_host = Column(String)  # Węzeł na którym działa kontener
     node = Column(String)  # Węzeł na którym działa kontener
     status = Column(String)  # ACTIVE, INACTIVE, FAILED
+    
+    # PID tracking fields
+    ssh_pid = Column(Integer, nullable=True)  # PID procesu SSH
+    socat_pid = Column(Integer, nullable=True)  # PID procesu socat
+    
+    # Health monitoring fields
+    last_health_check = Column(DateTime(timezone=True), nullable=True)
+    health_status = Column(String, nullable=True)  # HEALTHY, UNHEALTHY, UNKNOWN
+    
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     job = relationship("Job", back_populates="tunnels")
