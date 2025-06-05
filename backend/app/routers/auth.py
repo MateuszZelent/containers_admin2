@@ -67,7 +67,7 @@ async def get_current_user_info(
     current_user: User = Depends(get_current_active_user_with_cli_support),
 ) -> Any:
     """
-    Get current user information (works with both JWT and CLI tokens).
+    Get current user information with resource limits (works with both JWT and CLI tokens).
     """
     return {
         "id": current_user.id,
@@ -79,4 +79,6 @@ async def get_current_user_info(
         "is_superuser": current_user.is_superuser,
         "created_at": current_user.created_at,
         "updated_at": current_user.updated_at,
+        "max_containers": current_user.max_containers or 6,
+        "max_gpus": current_user.max_gpus or 24,
     }

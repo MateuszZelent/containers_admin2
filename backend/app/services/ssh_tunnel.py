@@ -680,11 +680,18 @@ class SSHTunnelService:
                 id=tunnel.id,
                 job_id=tunnel.job_id,
                 local_port=tunnel.external_port,  # Use external_port as the local_port for frontend
+                external_port=tunnel.external_port,
+                internal_port=tunnel.internal_port,
                 remote_port=tunnel.remote_port,
                 remote_host=tunnel.remote_host,
                 node=tunnel.node,
                 status=tunnel.status,
+                ssh_pid=tunnel.ssh_pid,
+                socat_pid=tunnel.socat_pid,
+                health_status=tunnel.health_status,
+                last_health_check=tunnel.last_health_check,
                 created_at=tunnel.created_at,
+                updated_at=tunnel.updated_at,
             )
             for tunnel in tunnels
         ]

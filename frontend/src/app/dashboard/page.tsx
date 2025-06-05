@@ -28,7 +28,8 @@ import {
   Cpu,
   HardDrive,
   Monitor,
-  Network
+  Network,
+  Zap
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -457,6 +458,17 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
   const getActiveJobs = useCallback(() => activeJobsList, [activeJobsList]);
   const getCompletedJobs = useCallback(() => completedJobsList, [completedJobsList]);
 
+  // Calculate used resources from active jobs
+  const getUsedContainers = useCallback(() => {
+    return getActiveJobs().filter(job => job.status === "RUNNING").length;
+  }, [getActiveJobs]);
+
+  const getUsedGPUs = useCallback(() => {
+    return getActiveJobs()
+      .filter(job => job.status === "RUNNING")
+      .reduce((total, job) => total + (job.num_gpus || 0), 0);
+  }, [getActiveJobs]);
+
   // Determine if cluster is fully operational
   const isClusterOperational = useMemo(() => {
     return clusterStatus && clusterStatus.connected && clusterStatus.slurm_running;
@@ -614,7 +626,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
             </CardHeader>
             <CardContent>
               {/* Header section with stats */}
-              <div className="grid gap-6 md:grid-cols-3 mb-6">
+              <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-5 mb-6">
             <Card className="bg-white/60 backdrop-blur-sm border-emerald-200/60 hover:bg-white/70 hover:border-emerald-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-emerald-700/40 dark:hover:bg-slate-800/70 dark:hover:border-emerald-600/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -653,6 +665,34 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                     </p>
                   </div>
                   <Server className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/60 backdrop-blur-sm border-purple-200/60 hover:bg-white/70 hover:border-purple-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-purple-700/40 dark:hover:bg-slate-800/70 dark:hover:border-purple-600/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Używane węzły</p>
+                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                      {currentUser ? `${getUsedContainers()}/${currentUser.max_containers || 6}` : "–"}
+                    </p>
+                  </div>
+                  <Cpu className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="bg-white/60 backdrop-blur-sm border-orange-200/60 hover:bg-white/70 hover:border-orange-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-orange-700/40 dark:hover:bg-slate-800/70 dark:hover:border-orange-600/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Używane GPU</p>
+                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                      {currentUser ? `${getUsedGPUs()}/${currentUser.max_gpus || 24}` : "–"}
+                    </p>
+                  </div>
+                  <Zap className="h-8 w-8 text-orange-600 dark:text-orange-400" />
                 </div>
               </CardContent>
             </Card>

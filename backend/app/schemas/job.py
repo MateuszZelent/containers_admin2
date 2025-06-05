@@ -68,11 +68,18 @@ class SSHTunnelInfo(BaseModel):
     id: int
     job_id: int
     local_port: Optional[int]
+    external_port: Optional[int] = None
+    internal_port: Optional[int] = None
     remote_port: int
     remote_host: Optional[str] = None
     node: str
     status: str
+    ssh_pid: Optional[int] = None
+    socat_pid: Optional[int] = None
+    health_status: Optional[str] = None
+    last_health_check: Optional[datetime] = None
     created_at: datetime
+    updated_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True

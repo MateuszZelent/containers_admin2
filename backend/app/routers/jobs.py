@@ -618,31 +618,6 @@ async def check_tunnel_status(
         }
 
 
-@router.get("/user-resource-stats")
-def get_user_resource_stats(
-    current_user: User = Depends(get_current_active_user),
-    db: Session = Depends(get_db)
-):
-    """Get current user's resource usage statistics."""
-    # Get user's active jobs
-    active_jobs = db.query(Job).filter(
-        Job.owner_id == current_user.id,
-        Job.status.in_(["RUNNING", "PENDING"])
-    ).all()
-    
-    # Calculate current resource usage
-    used_containers = len(active_jobs)
-    used_gpus = sum(job.num_gpus for job in active_jobs)
-    
-    return {
-        "used_containers": used_containers,
-        "max_containers": current_user.max_containers or 6,
-        "used_gpus": used_gpus,
-        "max_gpus": current_user.max_gpus or 24,
-        "active_jobs": len(active_jobs)
-    }
-
-
 @router.get("/admin/all-users")
 def get_all_users_admin(
     current_user: User = Depends(get_current_superuser),
@@ -784,4 +759,52 @@ async def check_all_tunnels_health(
             }
             for tunnel_id, health_info in health_results.items()
         ]
+    }
+
+
+@router.post("/{job_id}/tunnels/{tunnel_id}/health-check")
+async def check_job_tunnel_health(
+    job_id: int,
+    tunnel_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Perform health check on a specific SSH tunnel for a job"""
+    # Check job access
+    job_service = JobService(db)
+    job = job_service.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not authorized to access this job")
+
+    # Check if tunnel belongs to this job
+    tunnel = db.query(SSHTunnel).filter(
+        SSHTunnel.id == tunnel_id,
+        SSHTunnel.job_id == job_id
+    ).first()
+    if not tunnel:
+        raise HTTPException(status_code=404, detail="Tunnel not found for this job")
+
+    tunnel_service = SSHTunnelService(db)
+    health_info = await tunnel_service.health_check(tunnel_id)
+    
+    return {
+        "tunnel_id": health_info.tunnel_id,
+        "status": health_info.status.value,
+        "port_connectivity": health_info.port_connectivity,
+        "last_check": health_info.last_check,
+        "ssh_process": {
+            "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
+            "is_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
+            "memory_usage_mb": health_info.ssh_process.memory_usage if health_info.ssh_process else None,
+            "cpu_usage": health_info.ssh_process.cpu_usage if health_info.ssh_process else None,
+        } if health_info.ssh_process else None,
+        "socat_process": {
+            "pid": health_info.socat_process.pid if health_info.socat_process else None,
+            "is_running": health_info.socat_process.is_running if health_info.socat_process else False,
+            "memory_usage_mb": health_info.socat_process.memory_usage if health_info.socat_process else None,
+            "cpu_usage": health_info.socat_process.cpu_usage if health_info.socat_process else None,
+        } if health_info.socat_process else None,
+        "error_message": health_info.error_message
     }
