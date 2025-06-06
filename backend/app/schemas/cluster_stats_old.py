@@ -42,7 +42,7 @@ class ClusterStatsUpdate(BaseModel):
 
 
 class ClusterStats(ClusterStatsBase):
-    """Schema for cluster statistics from database."""
+    """Full schema for cluster statistics."""
     id: int
     timestamp: datetime
 

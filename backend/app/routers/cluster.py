@@ -3,7 +3,7 @@ from sqlalchemy.orm import Session
 from typing import List
 
 from app.db.session import get_db
-from app.schemas.cluster import ClusterStats, ClusterStatsCreate
+from app.schemas.cluster_stats import ClusterStats, ClusterStatsCreate
 from app.services.cluster_stats import ClusterStatsService
 from app.core.auth import get_current_active_user_with_cli_support, get_current_superuser_with_cli_support
 from app.db.models import User

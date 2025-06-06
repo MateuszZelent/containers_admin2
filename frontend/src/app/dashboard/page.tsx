@@ -39,19 +39,27 @@ import { ModernJobCard } from "./components/modern-job-card";
 import { AnimatePresence } from "framer-motion";
 import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
+import { ClusterStatsCard } from "@/components/cluster-stats-card";
 
 // Define interface for cluster stats  
 interface ClusterStats {
-  used_nodes: number;
+  id: number;
+  // Nowe szczegółowe pola węzłów
+  free_nodes: number;
+  busy_nodes: number;
+  unavailable_nodes: number;
   total_nodes: number;
-  used_gpus: number;
+  // Nowe szczegółowe pola GPU
+  free_gpus: number;
+  active_gpus: number;
+  standby_gpus: number;
+  busy_gpus: number;
   total_gpus: number;
-  utilization_percent?: {
-    nodes: number;
-    gpus: number;
-  };
-  timestamp?: string;
-  status: string;
+  // Legacy pola (dla kompatybilności wstecznej)
+  used_nodes: number;
+  used_gpus: number;
+  timestamp: string;
+  source?: string;
 }
 
 // Define interface for tunnel data
@@ -587,7 +595,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
       >
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center">
-            Status klastra
+            Status połączenia z klastrem PCSS
             {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
               <AlertCircle className="ml-2 h-5 w-5 text-red-500 dark:text-red-400" />
             )}
@@ -612,15 +620,15 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                 <div className="flex items-center">
                   <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.connected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
                   <p className={clusterStatus.connected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    Połączenie: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}
+                    Połączenie SSH: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}
                   </p>
                 </div>
-                <div className="flex items-center">
+                {/* <div className="flex items-center">
                   <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.slurm_running ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
                   <p className={clusterStatus.slurm_running ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    SLURM: {clusterStatus.slurm_running ? 'Działa' : 'Nie działa'}
+                    System kolejkowy SLURM: {clusterStatus.slurm_running ? 'Działa' : 'Nie działa'}
                   </p>
-                </div>
+                </div> */}
               </div>
 
               {(!clusterStatus.connected || !clusterStatus.slurm_running) && (
@@ -731,40 +739,8 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
               </CardContent>
             </Card>
 
-            {/* PCSS Cluster Stats */}
-            <Card className="bg-white/60 backdrop-blur-sm border-cyan-200/60 hover:bg-white/70 hover:border-cyan-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-cyan-700/40 dark:hover:bg-slate-800/70 dark:hover:border-cyan-600/50">
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Klaster PCSS</p>
-                    <div className="text-lg font-bold text-cyan-900 dark:text-cyan-100">
-                      {isClusterStatsLoading ? (
-                        <div className="space-y-1">
-                          <div className="h-3 w-20 bg-cyan-200/50 dark:bg-cyan-700/50 rounded animate-pulse"></div>
-                          <div className="h-3 w-16 bg-cyan-200/50 dark:bg-cyan-700/50 rounded animate-pulse"></div>
-                        </div>
-                      ) : clusterStats ? (
-                        <div className="space-y-1">
-                          <div className="text-xs text-cyan-600 dark:text-cyan-400">
-                            Węzły: {clusterStats.used_nodes}/{clusterStats.total_nodes}
-                          </div>
-                          <div className="text-xs text-cyan-600 dark:text-cyan-400">
-                            GPU: {clusterStats.used_gpus}/{clusterStats.total_gpus}
-                          </div>
-                        </div>
-                      ) : (
-                        <span className="text-xs text-gray-500 dark:text-gray-400">Brak danych</span>
-                      )}
-                    </div>
-                  </div>
-                  <Monitor className={`h-8 w-8 transition-colors duration-300 ${
-                    isClusterStatsLoading 
-                      ? 'text-cyan-400/50 dark:text-cyan-500/50' 
-                      : 'text-cyan-600 dark:text-cyan-400'
-                  }`} />
-                </div>
-              </CardContent>
-            </Card>
+            {/* PCSS Cluster Stats Card */}
+            <ClusterStatsCard onRefresh={fetchClusterStats} />
           </div>
           
           {/* Loading state with skeleton cards only when there are no jobs yet */}

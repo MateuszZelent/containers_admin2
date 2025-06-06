@@ -46,10 +46,20 @@ export interface Job {
 
 export interface ClusterStats {
   id: number;
-  used_nodes: number;
+  // Nowe szczegółowe pola węzłów
+  free_nodes: number;
+  busy_nodes: number;
+  unavailable_nodes: number;
   total_nodes: number;
-  used_gpus: number;
+  // Nowe szczegółowe pola GPU
+  free_gpus: number;
+  active_gpus: number;
+  standby_gpus: number;
+  busy_gpus: number;
   total_gpus: number;
+  // Legacy pola (dla kompatybilności wstecznej)
+  used_nodes: number;
+  used_gpus: number;
   timestamp: string;
   source?: string;
 }

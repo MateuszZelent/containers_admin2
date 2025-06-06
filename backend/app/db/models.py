@@ -331,17 +331,36 @@ class ClusterStats(Base):
     __tablename__ = "cluster_stats"
     
     id = Column(Integer, primary_key=True, index=True)
-    used_nodes = Column(Integer, nullable=False)  # Number of used nodes
-    total_nodes = Column(Integer, nullable=False)  # Total available nodes
-    used_gpus = Column(Integer, nullable=False)  # Number of used GPUs
-    total_gpus = Column(Integer, nullable=False)  # Total available GPUs
+    
+    # Węzły (nodes)
+    free_nodes = Column(Integer, nullable=False, default=0)
+    busy_nodes = Column(Integer, nullable=False, default=0)
+    unavailable_nodes = Column(Integer, nullable=False, default=0)
+    total_nodes = Column(Integer, nullable=False, default=0)
+    
+    # GPU
+    free_gpus = Column(Integer, nullable=False, default=0)
+    active_gpus = Column(Integer, nullable=False, default=0)  # aktywne GPU
+    standby_gpus = Column(Integer, nullable=False, default=0)  # standby GPU
+    busy_gpus = Column(Integer, nullable=False, default=0)  # zajęte GPU
+    total_gpus = Column(Integer, nullable=False, default=0)
+
+    # Legacy fields (keep for backward compatibility during migration)
+    used_nodes = Column(Integer, nullable=True)  # Number of used nodes
+    used_gpus = Column(Integer, nullable=True)  # Number of used GPUs
+
     timestamp = Column(
-        DateTime(timezone=True), 
-        server_default=func.now(), 
+        DateTime(timezone=True),
+        server_default=func.now(),
         nullable=False
     )
-    source = Column(String, nullable=True)  # Source of the data (e.g., 'check.sh')
-    
+    source = Column(String, nullable=True)  # Source (e.g., 'check.sh')
+
     def __repr__(self):
-        return (f"<ClusterStats(nodes={self.used_nodes}/{self.total_nodes}, "
-                f"gpus={self.used_gpus}/{self.total_gpus})>")
+        return (
+            f"<ClusterStats("
+            f"nodes=free:{self.free_nodes}/busy:{self.busy_nodes}/"
+            f"unavailable:{self.unavailable_nodes}/total:{self.total_nodes}, "
+            f"gpus=free:{self.free_gpus}/busy:{self.busy_gpus}/"
+            f"total:{self.total_gpus})>"
+        )

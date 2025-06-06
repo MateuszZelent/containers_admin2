@@ -68,6 +68,17 @@ const data = {
         },
       ],
     },
+    {
+      title: "AMUflow",
+      url: "/dashboard/admin/amuflow",
+      icon: IconInnerShadowTop,
+      items: [
+        {
+          title: "Flow Designer",
+          url: "/dashboard/admin/amuflow/flow",
+        },
+      ],
+    },
   ],
   navClouds: [
     {

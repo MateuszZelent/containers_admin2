@@ -81,8 +81,9 @@ export default function LoginPage() {
       <div className="mx-auto flex w-full flex-col justify-center space-y-6 sm:w-[350px]">
         <div className="flex flex-col space-y-2 text-center">
           <h1 className="text-2xl font-semibold tracking-tight">
-            SLURM Container Manager
+            AMUcontainers
           </h1>
+          <h2 className="text-lg font-medium">Mateusz Zelent</h2>
           <p className="text-sm text-muted-foreground">
             Zaloguj się, aby zarządzać kontenerami na klastrze obliczeniowym
           </p>

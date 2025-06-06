@@ -150,6 +150,23 @@ class TaskQueueService:
     def create_task(self, data: TaskQueueJobCreate, owner_id: int) -> TaskQueueJob:
         """Create a new task in the queue."""
         try:
+            # Check for duplicate task names for this user
+            existing_task = (
+                self.db.query(TaskQueueJob)
+                .filter(
+                    TaskQueueJob.name == data.name,
+                    TaskQueueJob.owner_id == owner_id
+                )
+                .first()
+            )
+            
+            if existing_task:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"Zadanie o nazwie '{data.name}' już istnieje. "
+                           f"Wybierz inną nazwę.",
+                )
+
             # Generate unique task ID
             task_id = f"task_{uuid.uuid4().hex[:8]}"
 
