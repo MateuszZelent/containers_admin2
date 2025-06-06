@@ -43,3 +43,13 @@ export interface Job {
   owner_id: number;
   tunnels: SSHTunnel[];
 }
+
+export interface ClusterStats {
+  id: number;
+  used_nodes: number;
+  total_nodes: number;
+  used_gpus: number;
+  total_gpus: number;
+  timestamp: string;
+  source?: string;
+}

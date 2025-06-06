@@ -410,4 +410,23 @@ export const cliTokensApi = {
     apiClient.post('/cli-tokens/cleanup-expired'),
 };
 
+// Cluster API
+export const clusterApi = {
+  // Get current cluster statistics  
+  getStats: () => apiClient.get('/cluster/stats'),
+  
+  // Force update cluster statistics (admin/CLI only)
+  updateStats: () => apiClient.post('/cluster/stats/update'),
+  
+  // Get cluster summary with utilization percentages
+  getSummary: () => apiClient.get('/cluster/stats/summary'),
+  
+  // Get historical cluster statistics
+  getStatsHistory: (limit?: number) => 
+    apiClient.get(`/cluster/stats/history${limit ? `?limit=${limit}` : ''}`),
+  
+  // Test cluster stats script execution (admin only)
+  testScript: () => apiClient.get('/cluster/stats/test-script'),
+};
+
 export default apiClient;

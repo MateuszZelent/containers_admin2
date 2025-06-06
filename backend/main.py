@@ -8,13 +8,16 @@ from app.core.config import settings
 from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
-from app.routers import auth, users, jobs, task_queue, cli_tokens
+from app.routers import auth, users, jobs, task_queue, cli_tokens, cluster
 import debugpy
 
+# Import cluster monitoring
+from app.services.cluster_monitoring_task import cluster_monitoring_task
+
 # Debug mode only for development
-if os.getenv("DEBUG", "false").lower() == "true":
-    debugpy.listen(("0.0.0.0", 5678))  # Port 5678
-    print("Debugger is active. Waiting for client to attach...")
+
+debugpy.listen(("0.0.0.0", 5678))  # Port 5678
+print("Debugger is active. Waiting for client to attach...")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -43,6 +46,10 @@ app.include_router(
 )
 app.include_router(
     cli_tokens.router, prefix=f"{settings.API_V1_STR}/cli-tokens", tags=["cli-tokens"]
+)
+
+app.include_router(
+    cluster.router, prefix=f"{settings.API_V1_STR}/cluster", tags=["cluster"]
 )
 
 
@@ -81,6 +88,10 @@ async def startup_event():
         logger.info("SLURM monitoring service started successfully")
     except Exception as e:
         logger.error(f"Failed to start SLURM monitoring service: {str(e)}")
+
+    # Start cluster monitoring
+    await cluster_monitoring_task.start()
+    logger.info("Background cluster monitoring started")
 
 
 @app.get("/")
@@ -139,6 +150,16 @@ async def restore_ssh_tunnels():
         logger.info(f"SSH tunnel restoration complete: {result}")
     except Exception as e:
         logger.error(f"Error restoring SSH tunnels: {str(e)}")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Clean up on application shutdown."""
+    logger.info(f"Shutting down {settings.PROJECT_NAME}")
+
+    # Stop background services
+    await cluster_monitoring_task.stop()
+    logger.info("Background cluster monitoring stopped")
 
 
 if __name__ == "__main__":

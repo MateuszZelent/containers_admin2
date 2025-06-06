@@ -324,3 +324,24 @@ class ClusterStatus(Base):
 
     def __repr__(self):
         return f"<ClusterStatus(connected={self.is_connected}, last_check='{self.last_check}')>"
+
+
+class ClusterStats(Base):
+    """Model for storing PCSS cluster statistics."""
+    __tablename__ = "cluster_stats"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    used_nodes = Column(Integer, nullable=False)  # Number of used nodes
+    total_nodes = Column(Integer, nullable=False)  # Total available nodes
+    used_gpus = Column(Integer, nullable=False)  # Number of used GPUs
+    total_gpus = Column(Integer, nullable=False)  # Total available GPUs
+    timestamp = Column(
+        DateTime(timezone=True), 
+        server_default=func.now(), 
+        nullable=False
+    )
+    source = Column(String, nullable=True)  # Source of the data (e.g., 'check.sh')
+    
+    def __repr__(self):
+        return (f"<ClusterStats(nodes={self.used_nodes}/{self.total_nodes}, "
+                f"gpus={self.used_gpus}/{self.total_gpus})>")

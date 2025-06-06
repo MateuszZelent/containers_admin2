@@ -85,6 +85,9 @@ class SlurmMonitorService:
             # Update job snapshots
             await self._update_job_snapshots(db)
             
+            # Update cluster statistics (nodes/GPU info)
+            await self._update_cluster_statistics(db)
+            
             db.commit()
             cluster_logger.debug("Successfully updated cluster data")
             
@@ -362,6 +365,28 @@ class SlurmMonitorService:
             SlurmJobSnapshot.job_id == job_id,
             SlurmJobSnapshot.is_current.is_(True)
         ).first()
+    
+    async def _update_cluster_statistics(self, db: Session):
+        """Update cluster statistics (nodes/GPU info) in database."""
+        try:
+            from app.services.cluster_stats_monitor import (
+                ClusterStatsMonitorService
+            )
+            
+            # Create cluster stats monitor service
+            cluster_stats_monitor = ClusterStatsMonitorService(db)
+            
+            # Update cluster statistics
+            success = await cluster_stats_monitor.update_cluster_stats()
+            
+            if success:
+                cluster_logger.debug("Successfully updated cluster statistics")
+            else:
+                cluster_logger.warning("Failed to update cluster statistics")
+                
+        except Exception as e:
+            cluster_logger.error(f"Error updating cluster statistics: {e}")
+            # Don't fail the whole monitoring cycle if cluster stats fail
 
 
 # Global monitor service instance

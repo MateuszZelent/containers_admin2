@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { jobsApi, adminApi, userApi } from "@/lib/api-client";
+import { jobsApi, adminApi, userApi, clusterApi } from "@/lib/api-client";
 import { 
   Plus, 
   RefreshCcw, 
@@ -39,6 +39,20 @@ import { ModernJobCard } from "./components/modern-job-card";
 import { AnimatePresence } from "framer-motion";
 import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
+
+// Define interface for cluster stats  
+interface ClusterStats {
+  used_nodes: number;
+  total_nodes: number;
+  used_gpus: number;
+  total_gpus: number;
+  utilization_percent?: {
+    nodes: number;
+    gpus: number;
+  };
+  timestamp?: string;
+  status: string;
+}
 
 // Define interface for tunnel data
 interface TunnelData {
@@ -102,6 +116,7 @@ export default function DashboardPage() {
   const [isJobsLoading, setIsJobsLoading] = useState(false);
   const [isActiveJobsLoading, setIsActiveJobsLoading] = useState(false);
   const [isClusterStatusLoading, setIsClusterStatusLoading] = useState(false);
+  const [isClusterStatsLoading, setIsClusterStatsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Operation states
@@ -109,6 +124,7 @@ export default function DashboardPage() {
   
   // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
+  const [clusterStats, setClusterStats] = useState<ClusterStats | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
@@ -200,6 +216,22 @@ export default function DashboardPage() {
       throw error;
     } finally {
       setIsClusterStatusLoading(false);
+    }
+  }, []);
+
+  // Fetch cluster stats
+  const fetchClusterStats = useCallback(async () => {
+    setIsClusterStatsLoading(true);
+    try {
+      const response = await clusterApi.getStats();
+      setClusterStats(response.data);
+      return response;
+    } catch (error: unknown) {
+      console.error("Error fetching cluster stats:", error);
+      setClusterStats(null);
+      throw error;
+    } finally {
+      setIsClusterStatsLoading(false);
     }
   }, []);
 
@@ -310,6 +342,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
           fetchJobs(),
           fetchActiveJobs(),
           checkClusterStatus(),
+          fetchClusterStats(),
           fetchCurrentUser()
         ]);
       } catch (error) {
@@ -318,7 +351,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     };
     
     initialFetch();
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchCurrentUser]);
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchClusterStats, fetchCurrentUser]);
 
   // Fetch tunnels when jobs change
   useEffect(() => {
@@ -353,7 +386,8 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
       await Promise.all([
         fetchJobs(), 
         fetchActiveJobs(), 
-        checkClusterStatus()
+        checkClusterStatus(),
+        fetchClusterStats()
       ]);
       
       if (showFeedback) {
@@ -371,7 +405,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchClusterStats]);
 
   // Auto-refresh timer
   useEffect(() => {
@@ -626,7 +660,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
             </CardHeader>
             <CardContent>
               {/* Header section with stats */}
-              <div className="grid gap-6 md:grid-cols-3 lg:grid-cols-5 mb-6">
+              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
             <Card className="bg-white/60 backdrop-blur-sm border-emerald-200/60 hover:bg-white/70 hover:border-emerald-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-emerald-700/40 dark:hover:bg-slate-800/70 dark:hover:border-emerald-600/50">
               <CardContent className="p-4">
                 <div className="flex items-center justify-between">
@@ -693,6 +727,41 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                     </p>
                   </div>
                   <Zap className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* PCSS Cluster Stats */}
+            <Card className="bg-white/60 backdrop-blur-sm border-cyan-200/60 hover:bg-white/70 hover:border-cyan-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-cyan-700/40 dark:hover:bg-slate-800/70 dark:hover:border-cyan-600/50">
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Klaster PCSS</p>
+                    <div className="text-lg font-bold text-cyan-900 dark:text-cyan-100">
+                      {isClusterStatsLoading ? (
+                        <div className="space-y-1">
+                          <div className="h-3 w-20 bg-cyan-200/50 dark:bg-cyan-700/50 rounded animate-pulse"></div>
+                          <div className="h-3 w-16 bg-cyan-200/50 dark:bg-cyan-700/50 rounded animate-pulse"></div>
+                        </div>
+                      ) : clusterStats ? (
+                        <div className="space-y-1">
+                          <div className="text-xs text-cyan-600 dark:text-cyan-400">
+                            Węzły: {clusterStats.used_nodes}/{clusterStats.total_nodes}
+                          </div>
+                          <div className="text-xs text-cyan-600 dark:text-cyan-400">
+                            GPU: {clusterStats.used_gpus}/{clusterStats.total_gpus}
+                          </div>
+                        </div>
+                      ) : (
+                        <span className="text-xs text-gray-500 dark:text-gray-400">Brak danych</span>
+                      )}
+                    </div>
+                  </div>
+                  <Monitor className={`h-8 w-8 transition-colors duration-300 ${
+                    isClusterStatsLoading 
+                      ? 'text-cyan-400/50 dark:text-cyan-500/50' 
+                      : 'text-cyan-600 dark:text-cyan-400'
+                  }`} />
                 </div>
               </CardContent>
             </Card>
