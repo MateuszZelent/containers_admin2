@@ -1,0 +1,102 @@
+amucontainers.orion.zfns.eu.org {
+    tls mateusz.zelent@amu.edu.pl
+    
+    # Enable proper response buffering and timeouts
+    @static {
+        path /_next/static/* /static/* /favicon.ico /robots.txt /sitemap.xml *.woff2 *.woff *.ttf *.otf *.css *.js *.png *.jpg *.jpeg *.gif *.svg *.ico
+    }
+    
+    # WebSocket for Next.js HMR - more specific matcher
+    @nextjs_ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /_next/webpack-hmr
+    }
+    reverse_proxy @nextjs_ws localhost:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up Connection "Upgrade"
+        header_up Upgrade "websocket"
+        
+        # WebSocket specific settings
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 0
+            expect_continue_timeout 0
+        }
+    }
+
+    # WebSocket for FastAPI
+    @api_ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /api/ws/* /ws/*
+    }
+    reverse_proxy @api_ws localhost:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        header_up Connection "Upgrade"
+        header_up Upgrade "websocket"
+    }
+
+    # API requests to FastAPI backend
+    @api {
+        path /api/*
+    }
+    reverse_proxy @api localhost:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # Add CORS headers for API requests
+        header Access-Control-Allow-Origin "*"
+        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
+        header Access-Control-Allow-Headers "Content-Type, Authorization"
+    }
+
+    # All other requests to Next.js frontend with proper headers
+    reverse_proxy localhost:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        header_up X-Forwarded-For {remote_host}
+        header_up X-Forwarded-Proto {scheme}
+        header_up X-Forwarded-Host {host}
+        
+        # Increase timeouts for better reliability
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
+        
+        # Add security headers
+        header X-Frame-Options "SAMEORIGIN"
+        header X-Content-Type-Options "nosniff"
+        header Referrer-Policy "strict-origin-when-cross-origin"
+    }
+
+    # Enable logging for debugging
+    log {
+        output file /var/log/caddy/access.log
+        format console
+    }
+
+    # Handle errors gracefully
+    handle_errors {
+        @404 {
+            expression int({http.error.status_code}) == 404
+        }
+        @5xx {
+            expression int({http.error.status_code}) >= 500
+        }
+        respond @404 "Page not found" 404
+        respond @5xx "Internal server error" 500
+    }
+}

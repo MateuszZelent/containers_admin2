@@ -137,21 +137,21 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 # @app.on_event("startup")
-# async def restore_ssh_tunnels():
-#     """Restore SSH tunnels from database after server restart."""
-#     logger.info("Restoring SSH tunnels after server startup")
-#     try:
-#         # Get a database session
-#         db = next(get_db())
-#         # Create SSH tunnel service
-#         from app.services.ssh_tunnel import SSHTunnelService
+async def restore_ssh_tunnels():
+    """Restore SSH tunnels from database after server restart."""
+    logger.info("Restoring SSH tunnels after server startup")
+    try:
+        # Get a database session
+        db = next(get_db()) 
+        # Create SSH tunnel service
+        from app.services.ssh_tunnel import SSHTunnelService
 
-#         tunnel_service = SSHTunnelService(db)
-#         # Restore active tunnels
-#         result = await tunnel_service.restore_active_tunnels()
-#         logger.info(f"SSH tunnel restoration complete: {result}")
-#     except Exception as e:
-#         logger.error(f"Error restoring SSH tunnels: {str(e)}")
+        tunnel_service = SSHTunnelService(db)
+        # Restore active tunnels
+        result = await tunnel_service.restore_active_tunnels()
+        logger.info(f"SSH tunnel restoration complete: {result}")
+    except Exception as e:
+        logger.error(f"Error restoring SSH tunnels: {str(e)}")
 
 
 @app.on_event("shutdown")

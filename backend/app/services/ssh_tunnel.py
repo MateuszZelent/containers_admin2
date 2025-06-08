@@ -148,12 +148,24 @@ class SSHTunnelService:
                         )
 
                         # Try to get PIDs of the processes for tracking
-                        ssh_pid = await self._get_pid_for_pattern(
-                            f"ssh.*{tunnel.internal_port}:{tunnel.node}:{tunnel.remote_port}"
+                        ssh_pid = await self._find_ssh_tunnel_pid(
+                            tunnel.internal_port, tunnel.node, tunnel.remote_port
                         )
-                        socat_pid = await self._get_pid_for_pattern(
-                            f"socat.*TCP-LISTEN:{tunnel.external_port}"
+                        socat_pid = await self._find_socat_forwarder_pid(
+                            tunnel.external_port
                         )
+
+                        # Update tunnel with found PIDs
+                        if ssh_pid and ssh_pid != tunnel.ssh_pid:
+                            tunnel.ssh_pid = ssh_pid
+                            cluster_logger.info(
+                                f"Updated SSH PID for tunnel {tunnel.id}: {ssh_pid}"
+                            )
+                        if socat_pid and socat_pid != tunnel.socat_pid:
+                            tunnel.socat_pid = socat_pid
+                            cluster_logger.info(
+                                f"Updated socat PID for tunnel {tunnel.id}: {socat_pid}"
+                            )
 
                         if ssh_pid:
                             self._processes[tunnel.internal_port] = ssh_pid
@@ -559,30 +571,44 @@ class SSHTunnelService:
         await self.ensure_tunnels_restored()
 
         if not job.port or not job.node:
+            cluster_logger.warning(f"Job {job.id} missing port or node information")
             return None
 
         # Find ports for internal and external connections
         internal_port = await self.find_free_local_port()
         if not internal_port:
+            cluster_logger.error("Could not find free internal port")
             return None
 
         external_port = await self.find_free_local_port()
         if not external_port:
+            cluster_logger.error("Could not find free external port")
             return None
 
+        cluster_logger.info(
+            f"Creating tunnel for job {job.id}: "
+            f"internal:{internal_port} -> external:{external_port} -> "
+            f"{job.node}:{job.port}"
+        )
+
         # Establish SSH tunnel
-        success, ssh_pid = await self._establish_ssh_tunnel_async(
+        ssh_success, ssh_pid = await self._establish_ssh_tunnel_async(
             local_port=internal_port,
             remote_port=job.port,
             remote_host=settings.SLURM_HOST,
             node=job.node,
         )
-        if not success:
+        
+        if not ssh_success:
+            cluster_logger.error(f"Failed to establish SSH tunnel for job {job.id}")
             return None
 
         # Keep track of SSH process
         if ssh_pid:
             self._processes[internal_port] = ssh_pid
+            cluster_logger.info(f"SSH tunnel established with PID {ssh_pid}")
+        else:
+            cluster_logger.warning("SSH tunnel established but PID not tracked")
 
         # Start socat forwarder
         socat_success, socat_pid = await self._start_socat_forwarder_async(
@@ -591,16 +617,31 @@ class SSHTunnelService:
 
         if not socat_success:
             # If socat failed, close the SSH tunnel
+            cluster_logger.error("Socat forwarder failed, cleaning up SSH tunnel")
             await self._kill_ssh_tunnel_async(internal_port)
             return None
 
         # Keep track of socat process
         if socat_pid:
             self._processes[external_port] = socat_pid
+            cluster_logger.info(f"Socat forwarder established with PID {socat_pid}")
+        else:
+            cluster_logger.warning("Socat forwarder established but PID not tracked")
+
+        # Verify tunnel is working before saving to database
+        tunnel_working = await self.test_tunnel(external_port, job.node)
+        if not tunnel_working:
+            cluster_logger.error(
+                f"Tunnel test failed for job {job.id}, cleaning up"
+            )
+            await self._kill_ssh_tunnel_async(internal_port)
+            await self._kill_socat_forwarder_async(external_port)
+            return None
 
         # Create timestamp for the tunnel
         now = datetime.utcnow()
 
+        # Create tunnel record with verified PID information
         tunnel = SSHTunnel(
             job_id=job.id,
             external_port=external_port,
@@ -609,36 +650,50 @@ class SSHTunnelService:
             remote_host=job.node,
             node=job.node,
             status="ACTIVE",
-            ssh_pid=ssh_pid,  # Store SSH process PID
-            socat_pid=socat_pid,  # Store socat process PID
-            health_status=HealthStatus.HEALTHY.value,  # Initial health status
+            ssh_pid=ssh_pid,  # Store SSH process PID (can be None)
+            socat_pid=socat_pid,  # Store socat process PID (can be None)
+            health_status=HealthStatus.HEALTHY.value,  # Initial healthy status
             created_at=now,
             last_health_check=now,  # Initial health check timestamp
         )
 
-        self.db.add(tunnel)
-        self.db.commit()
-        self.db.refresh(tunnel)
+        try:
+            self.db.add(tunnel)
+            self.db.commit()
+            self.db.refresh(tunnel)
+            
+            cluster_logger.info(
+                f"Successfully created tunnel {tunnel.id} for job {job.id} - "
+                f"SSH PID: {ssh_pid}, socat PID: {socat_pid}, "
+                f"external port: {external_port}"
+            )
 
-        cluster_logger.info(
-            f"Created tunnel {tunnel.id} with SSH PID: {ssh_pid}, socat PID: {socat_pid}"
-        )
+            # Perform immediate health check to verify everything is working
+            health_info = await self.health_check(tunnel.id)
+            cluster_logger.info(
+                f"Initial health check for tunnel {tunnel.id}: {health_info.status.value}"
+            )
 
-        return SSHTunnelInfo(
-            id=tunnel.id,
-            job_id=tunnel.job_id,
-            local_port=external_port,
-            remote_port=tunnel.remote_port,
-            remote_host=tunnel.remote_host,
-            node=tunnel.node,
-            status=tunnel.status,
-            created_at=tunnel.created_at,
-        )
+            return SSHTunnelInfo(
+                id=tunnel.id,
+                job_id=tunnel.job_id,
+                local_port=external_port,
+                remote_port=tunnel.remote_port,
+                remote_host=tunnel.remote_host,
+                node=tunnel.node,
+                status=tunnel.status,
+                created_at=tunnel.created_at,
+            )
+            
+        except Exception as e:
+            cluster_logger.error(f"Failed to save tunnel to database: {str(e)}")
+            # Clean up processes if database save failed
+            await self._kill_ssh_tunnel_async(internal_port)
+            await self._kill_socat_forwarder_async(external_port)
+            return None
 
     async def close_tunnel(self, tunnel_id: int) -> bool:
         """Close an SSH tunnel (async version)"""
-        # Ensure tunnels are restored first
-        await self.ensure_tunnels_restored()
 
         tunnel = self.db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
         if not tunnel:
@@ -657,8 +712,6 @@ class SSHTunnelService:
 
     async def close_job_tunnels(self, job_id: int) -> bool:
         """Close all tunnels for a specific job (async version)"""
-        # Ensure tunnels are restored first
-        await self.ensure_tunnels_restored()
 
         tunnels = self.db.query(SSHTunnel).filter(SSHTunnel.job_id == job_id).all()
         success = True
@@ -740,14 +793,13 @@ class SSHTunnelService:
     async def _establish_ssh_tunnel_async(
         self, local_port: int, remote_port: int, remote_host: str, node: str
     ) -> Tuple[bool, Optional[int]]:
-        """Establish SSH tunnel to the remote host (async version)."""
+        """Establish SSH tunnel to the remote host with proper PID tracking."""
         try:
             cmd = [
                 "ssh",
                 "-N",  # Don't execute remote command
-                "-f",  # Go to background
-                "-L",
-                f"{local_port}:{node}:{remote_port}",
+                "-f",  # Go to background after auth
+                "-L", f"{local_port}:{node}:{remote_port}",
                 f"{settings.SLURM_USER}@{remote_host}",
             ]
 
@@ -757,7 +809,6 @@ class SSHTunnelService:
             process = await asyncio.create_subprocess_exec(
                 *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
             )
-
             stdout, stderr = await process.communicate()
 
             if process.returncode != 0:
@@ -765,27 +816,28 @@ class SSHTunnelService:
                 cluster_logger.error(f"Failed to establish SSH tunnel: {error_msg}")
                 return False, None
 
-            # Wait for the tunnel to be established
-            await asyncio.sleep(1)
+            # Wait for SSH tunnel to be established
+            await asyncio.sleep(2)
 
-            # Check if the port is now in use (verification)
+            # Check if port is active
             if not await self._is_port_in_use_async(local_port, check_external=False):
                 cluster_logger.error(
-                    f"SSH tunnel port {local_port} is not listening after start attempt"
+                    f"SSH tunnel port {local_port} is not listening after start"
                 )
                 return False, None
 
-            # Try to get the PID of the SSH process
-            pid = await self._get_pid_for_pattern(
-                f"ssh.*{local_port}:{node}:{remote_port}"
-            )
-
-            if pid:
-                cluster_logger.debug(f"SSH tunnel established with PID {pid}")
-                return True, pid
+            # Find the actual SSH tunnel PID
+            # SSH with -f creates a background process, we need to find it
+            ssh_pid = await self._find_ssh_tunnel_pid(local_port, node, remote_port)
+            
+            if ssh_pid:
+                cluster_logger.info(
+                    f"SSH tunnel established with PID {ssh_pid} on port {local_port}"
+                )
+                return True, ssh_pid
             else:
-                cluster_logger.debug(
-                    f"SSH tunnel established, but couldn't determine PID"
+                cluster_logger.warning(
+                    f"SSH tunnel on port {local_port} is working but PID not found"
                 )
                 return True, None
 
@@ -921,32 +973,29 @@ class SSHTunnelService:
             cluster_logger.debug(
                 f"Found existing tunnel id={existing_tunnel.id} for job {job.id}"
             )
-            is_working = False
-            if (
-                hasattr(existing_tunnel, "external_port")
-                and existing_tunnel.external_port
-            ):
-                is_working = await self.test_tunnel(
-                    existing_tunnel.external_port, existing_tunnel.node
-                )
-
-            if is_working:
-                cluster_logger.info(f"Existing tunnel for job {job.id} is working")
-                return SSHTunnelInfo(
-                    id=existing_tunnel.id,
-                    job_id=existing_tunnel.job_id,
-                    local_port=existing_tunnel.external_port,
-                    remote_port=existing_tunnel.remote_port,
-                    remote_host=existing_tunnel.remote_host,
-                    node=existing_tunnel.node,
-                    status=existing_tunnel.status,
-                    created_at=existing_tunnel.created_at,
-                )
-            else:
-                cluster_logger.warning(
-                    f"Existing tunnel for job {job.id} is not working - cleaning up"
-                )
-                await self._cleanup_dead_tunnel(existing_tunnel.id)
+            
+            # Always return existing active tunnel - don't test it here
+            # Testing can be unreliable and we don't want to recreate working tunnels
+            cluster_logger.info(
+                f"Returning existing tunnel {existing_tunnel.id} for job {job.id}"
+            )
+            return SSHTunnelInfo(
+                id=existing_tunnel.id,
+                job_id=existing_tunnel.job_id,
+                local_port=existing_tunnel.external_port,
+                external_port=existing_tunnel.external_port,
+                internal_port=existing_tunnel.internal_port,
+                remote_port=existing_tunnel.remote_port,
+                remote_host=existing_tunnel.remote_host,
+                node=existing_tunnel.node,
+                status=existing_tunnel.status,
+                ssh_pid=existing_tunnel.ssh_pid,
+                socat_pid=existing_tunnel.socat_pid,
+                health_status=existing_tunnel.health_status,
+                last_health_check=existing_tunnel.last_health_check,
+                created_at=existing_tunnel.created_at,
+                updated_at=existing_tunnel.updated_at,
+            )
 
         # If no active tunnel or it wasn't working, create a new one
         cluster_logger.info(f"Creating new tunnel for job {job.id}")
@@ -955,7 +1004,7 @@ class SSHTunnelService:
     async def _start_socat_forwarder_async(
         self, external_port: int, internal_port: int
     ) -> Tuple[bool, Optional[int]]:
-        """Start socat process to forward external port to internal localhost port (async version)."""
+        """Start socat process to forward external port to internal localhost port."""
         try:
             # First ensure the port is really free by double-checking
             if await self._is_port_in_use_async(external_port, check_external=True):
@@ -972,7 +1021,7 @@ class SSHTunnelService:
                 # Check again if the port is free now
                 if await self._is_port_in_use_async(external_port, check_external=True):
                     cluster_logger.error(
-                        f"Port {external_port} still in use after attempted cleanup"
+                        f"Port {external_port} still in use after cleanup"
                     )
                     return False, None
 
@@ -993,8 +1042,8 @@ class SSHTunnelService:
                 start_new_session=True,
             )
 
-            # Wait a moment for socat to start
-            await asyncio.sleep(1)
+            # Wait longer for socat to start
+            await asyncio.sleep(2)
 
             # Check if process is still running
             if process.returncode is not None:
@@ -1011,25 +1060,43 @@ class SSHTunnelService:
                 )
                 return False, None
 
-            # Get the PID if possible
-            pid = process.pid
-
-            if not pid:
-                # Try to find the PID using pgrep
-                pid = await self._get_pid_for_pattern(
-                    f"socat.*TCP-LISTEN:{external_port}"
-                )
+            # Get the PID - try to find the actual socat process
+            pid = None
+            
+            # First try to find PID using our specialized function
+            pid = await self._find_socat_forwarder_pid(external_port)
+            
+            # If not found, try the process object PID as fallback
+            if not pid and process.pid:
+                # Verify this PID is actually a socat process
+                if await self._verify_pid_matches_pattern(
+                    process.pid, f"socat.*{external_port}"
+                ):
+                    pid = process.pid
+                    cluster_logger.debug(
+                        f"Using process.pid {pid} for socat on port {external_port}"
+                    )
 
             if pid:
-                cluster_logger.info(
-                    f"Socat forwarder started with PID {pid} on port {external_port}"
-                )
-            else:
-                cluster_logger.info(
-                    f"Socat forwarder started on port {external_port} but couldn't determine PID"
-                )
+                # Verify the process is actually running
+                if await self._verify_process_running(pid):
+                    cluster_logger.info(
+                        f"Socat forwarder started successfully with PID {pid} "
+                        f"on port {external_port}"
+                    )
+                    return True, pid
+                else:
+                    cluster_logger.warning(
+                        f"Found PID {pid} but socat process is not running"
+                    )
 
-            return True, pid
+            # If we still don't have a PID, socat might work but we can't track it
+            cluster_logger.warning(
+                f"Socat forwarder started but couldn't determine PID reliably "
+                f"on port {external_port}"
+            )
+            return True, None
+
         except Exception as e:
             cluster_logger.error(f"Error starting socat forwarder: {str(e)}")
             return False, None
@@ -1166,26 +1233,96 @@ class SSHTunnelService:
         self.db.commit()
         cluster_logger.warning(f"Emergency cleanup: Deleted {count} inactive tunnels")
 
-    async def _get_pid_for_pattern(self, pattern: str) -> Optional[int]:
-        """Helper method to find a process PID given a pattern"""
+    async def _verify_process_running(self, pid: int) -> bool:
+        """Verify that a process with given PID is actually running"""
         try:
-            cmd = f"pgrep -f '{pattern}'"
+            # Use psutil to check if process is running
+            import psutil
+            return psutil.pid_exists(pid)
+        except Exception:
+            try:
+                # Fallback to kill -0 signal test
+                process = await asyncio.create_subprocess_shell(
+                    f"kill -0 {pid}",
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE
+                )
+                await process.communicate()
+                return process.returncode == 0
+            except Exception:
+                return False
+
+    async def _get_pid_for_pattern(self, pattern: str) -> Optional[int]:
+        """Helper method to find a process PID given a pattern with retries"""
+        max_attempts = 3
+        for attempt in range(max_attempts):
+            try:
+                # Use pgrep with more specific options
+                cmd = f"pgrep -f '{pattern}'"
+                process = await asyncio.create_subprocess_shell(
+                    cmd, 
+                    stdout=asyncio.subprocess.PIPE, 
+                    stderr=asyncio.subprocess.PIPE
+                )
+                stdout, stderr = await process.communicate()
+                output = stdout.decode().strip()
+
+                if output:
+                    # Get all PIDs and verify they're running
+                    pids = output.split("\n")
+                    for pid_str in pids:
+                        try:
+                            pid = int(pid_str.strip())
+                            # Verify this PID is actually running and matches our pattern
+                            if await self._verify_process_running(pid):
+                                cluster_logger.debug(
+                                    f"Found verified PID {pid} for pattern '{pattern}'"
+                                )
+                                return pid
+                        except (ValueError, TypeError):
+                            continue
+                
+                # If no valid PID found, wait and retry
+                if attempt < max_attempts - 1:
+                    cluster_logger.debug(
+                        f"No valid PID found for pattern '{pattern}', "
+                        f"retry {attempt + 1}/{max_attempts}"
+                    )
+                    await asyncio.sleep(1)
+                else:
+                    cluster_logger.debug(
+                        f"No process found for pattern '{pattern}' after {max_attempts} attempts"
+                    )
+                    
+            except Exception as e:
+                cluster_logger.error(
+                    f"Error getting PID for pattern '{pattern}': {str(e)}"
+                )
+                if attempt < max_attempts - 1:
+                    await asyncio.sleep(1)
+                    
+        return None
+
+    async def _verify_pid_matches_pattern(self, pid: int, pattern: str) -> bool:
+        """Verify that a PID's command line matches the expected pattern"""
+        try:
+            # Get the command line for this PID
+            cmd = f"ps -p {pid} -o cmd --no-headers"
             process = await asyncio.create_subprocess_shell(
-                cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
+                cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE
             )
             stdout, _ = await process.communicate()
-            output = stdout.decode().strip()
-
-            if output:
-                # Return the first PID if multiple are found
-                try:
-                    return int(output.split("\n")[0])
-                except (ValueError, IndexError):
-                    return None
-            return None
-        except Exception as e:
-            cluster_logger.error(f"Error getting PID for pattern '{pattern}': {str(e)}")
-            return None
+            
+            if process.returncode == 0:
+                cmdline = stdout.decode().strip()
+                # Use simple pattern matching instead of regex for reliability
+                pattern_simple = pattern.replace(".*", "")
+                return pattern_simple in cmdline
+            return False
+        except Exception:
+            return False
 
     async def health_check(self, tunnel_id: int) -> TunnelHealthInfo:
         """
@@ -1306,12 +1443,22 @@ class SSHTunnelService:
         Returns:
             Overall health status
         """
-        if ssh_process and socat_process and port_connectivity:
-            return HealthStatus.HEALTHY
-        elif ssh_process and socat_process:
-            return HealthStatus.UNHEALTHY  # Processes running but no connectivity
+        # If port connectivity works, tunnel is functional regardless of process tracking
+        if port_connectivity:
+            # If we have both processes and connectivity, it's definitely healthy
+            if ssh_process and socat_process:
+                return HealthStatus.HEALTHY
+            # If we have connectivity but missing process info, it's still healthy
+            # (process tracking might be incomplete after restart)
+            elif socat_process or ssh_process:
+                return HealthStatus.HEALTHY
+            else:
+                # Port works but no tracked processes - likely after service restart
+                # Still consider healthy since the tunnel actually works
+                return HealthStatus.HEALTHY
         else:
-            return HealthStatus.UNHEALTHY  # Missing processes
+            # No connectivity - tunnel is not working
+            return HealthStatus.UNHEALTHY
 
     async def _terminate_process_safely(self, pid: int) -> bool:
         """
@@ -1437,4 +1584,107 @@ class SSHTunnelService:
             cluster_logger.error(f"Error during tunnel repair: {str(e)}")
             return False
 
-    # ...existing code...
+    async def _update_tunnel_pids(self, tunnel: SSHTunnel) -> bool:
+        """
+        Update missing PIDs for an existing tunnel by finding running processes.
+        
+        Args:
+            tunnel: Tunnel object to update
+            
+        Returns:
+            True if any PIDs were updated, False otherwise
+        """
+        updated = False
+        
+        # Try to find SSH process if PID is missing
+        if not tunnel.ssh_pid and tunnel.internal_port:
+            ssh_pattern = f"ssh.*{tunnel.internal_port}:{tunnel.node}:{tunnel.remote_port}"
+            ssh_pid = await self._get_pid_for_pattern(ssh_pattern)
+            if ssh_pid:
+                tunnel.ssh_pid = ssh_pid
+                updated = True
+                cluster_logger.info(
+                    f"Updated SSH PID for tunnel {tunnel.id}: {ssh_pid}"
+                )
+        
+        # Try to find socat process if PID is missing
+        if not tunnel.socat_pid and tunnel.external_port:
+            socat_pattern = f"socat.*TCP-LISTEN:{tunnel.external_port}"
+            socat_pid = await self._get_pid_for_pattern(socat_pattern)
+            if socat_pid:
+                tunnel.socat_pid = socat_pid
+                updated = True
+                cluster_logger.info(
+                    f"Updated socat PID for tunnel {tunnel.id}: {socat_pid}"
+                )
+        
+        if updated:
+            self.db.commit()
+            cluster_logger.info(
+                f"Updated PIDs for tunnel {tunnel.id} - "
+                f"SSH: {tunnel.ssh_pid}, socat: {tunnel.socat_pid}"
+            )
+        
+        return updated
+
+    async def _find_ssh_tunnel_pid(
+        self, local_port: int, node: str, remote_port: int
+    ) -> Optional[int]:
+        """
+        Find the PID of SSH tunnel process for specific port forwarding.
+        
+        Args:
+            local_port: Local port being forwarded
+            node: Remote node
+            remote_port: Remote port
+            
+        Returns:
+            PID if found, None otherwise
+        """
+        patterns = [
+            f"ssh.*-L.*{local_port}:{node}:{remote_port}",
+            f"ssh.*{local_port}:{node}:{remote_port}",
+            f"ssh.*-L.*{local_port}:",
+        ]
+        
+        for pattern in patterns:
+            pid = await self._get_pid_for_pattern(pattern)
+            if pid:
+                cluster_logger.debug(
+                    f"Found SSH tunnel PID {pid} with pattern: {pattern}"
+                )
+                return pid
+                
+        cluster_logger.warning(
+            f"Could not find SSH tunnel PID for {local_port}:{node}:{remote_port}"
+        )
+        return None
+
+    async def _find_socat_forwarder_pid(self, external_port: int) -> Optional[int]:
+        """
+        Find the PID of socat forwarder process.
+        
+        Args:
+            external_port: External port being forwarded
+            
+        Returns:
+            PID if found, None otherwise
+        """
+        patterns = [
+            f"socat.*TCP-LISTEN:{external_port}",
+            f"socat.*{external_port}.*127.0.0.1",
+            f"socat.*{external_port}",
+        ]
+        
+        for pattern in patterns:
+            pid = await self._get_pid_for_pattern(pattern)
+            if pid:
+                cluster_logger.debug(
+                    f"Found socat PID {pid} with pattern: {pattern}"
+                )
+                return pid
+                
+        cluster_logger.warning(
+            f"Could not find socat forwarder PID for port {external_port}"
+        )
+        return None
