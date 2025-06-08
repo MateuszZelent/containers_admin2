@@ -114,8 +114,7 @@ def read_user_by_id(
     user = UserService.get(db, user_id=user_id)
     if not user:
         raise HTTPException(
-            status_code=404, 
-            detail="The user with this ID does not exist in the system"
+            status_code=404, detail="The user with this ID does not exist in the system"
         )
     return user
 
@@ -158,8 +157,6 @@ def delete_user(
             detail="The user with this ID does not exist in the system",
         )
     if user.id == current_user.id:
-        raise HTTPException(
-            status_code=400, detail="Users cannot delete themselves"
-        )
+        raise HTTPException(status_code=400, detail="Users cannot delete themselves")
     user = UserService.remove(db, user_id=user_id)
     return {"message": "User deleted successfully"}

@@ -41,8 +41,8 @@ class UserService:
             first_name=user_in.first_name,
             last_name=user_in.last_name,
             hashed_password=get_password_hash(user_in.password),
-            is_active=getattr(user_in, 'is_active', True),
-            is_superuser=getattr(user_in, 'is_superuser', False),
+            is_active=getattr(user_in, "is_active", True),
+            is_superuser=getattr(user_in, "is_superuser", False),
         )
         db.add(db_user)
         db.commit()

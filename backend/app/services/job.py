@@ -170,9 +170,7 @@ class JobService:
                     # Handle SLURM cancel errors - it may not exist anymore
                     # This allows deleting from the database even if SLURM fails
                     err = str(e).replace("[", "«").replace("]", "»")
-                    cluster_logger.warning(
-                        f"Could not cancel job in SLURM: {err}"
-                    )
+                    cluster_logger.warning(f"Could not cancel job in SLURM: {err}")
 
             # Clean up Caddy configuration
             try:
@@ -180,9 +178,7 @@ class JobService:
             except Exception as e:
                 # Handle Caddy cleanup errors
                 err = str(e).replace("[", "«").replace("]", "»")
-                cluster_logger.warning(
-                    f"Error during Caddy cleanup: {err}"
-                )
+                cluster_logger.warning(f"Error during Caddy cleanup: {err}")
 
             # Close any active SSH tunnels
             tunnel_id = getattr(job, "id", None)
@@ -192,9 +188,7 @@ class JobService:
                 except Exception as e:
                     # Handle tunnel closing errors
                     err = str(e).replace("[", "«").replace("]", "»")
-                    cluster_logger.warning(
-                        f"Error closing tunnels: {err}"
-                    )
+                    cluster_logger.warning(f"Error closing tunnels: {err}")
 
             # Delete from database
             self.db.delete(job)
@@ -257,9 +251,7 @@ class JobService:
                                 setattr(db_job, "node", str(node))
 
                                 # Create SSH tunnel
-                                tunnel = await tunnel_service.create_tunnel(
-                                    db_job
-                                )
+                                tunnel = await tunnel_service.create_tunnel(db_job)
                                 if tunnel:
                                     msg = f"Created tunnel: {job_id}"
                                     cluster_logger.info(msg)
@@ -322,14 +314,17 @@ class JobService:
             await asyncio.sleep(check_interval)
 
     def has_container_with_name(self, user: User, container_name: str) -> bool:
-        """Check if user already has a container with the given name."""
+        """Check if user already has an ACTIVE container with the given name."""
         # The job_name pattern is: container_{username}_{container_name}
         expected_job_name = f"container_{user.username}_{container_name}"
 
+        # Only check for ACTIVE jobs (PENDING, RUNNING, CONFIGURING)
+        # Completed/Failed/Cancelled jobs should not block new containers
         existing_job = (
             self.db.query(Job)
             .filter(Job.owner_id == user.id)
             .filter(Job.job_name == expected_job_name)
+            .filter(Job.status.in_(["PENDING", "RUNNING", "CONFIGURING"]))
             .first()
         )
 

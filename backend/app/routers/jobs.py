@@ -3,11 +3,11 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 import os
 from caddy_api_client import CaddyAPIClient
-from app.core.logging import cluster_logger
+from app.core.logging import logger as jobs_logger
 from app.core.auth import (
-    get_current_active_user, 
-    get_current_user, 
-    get_current_superuser
+    get_current_active_user,
+    get_current_user,
+    get_current_superuser,
 )
 from app.db.session import get_db
 from app.schemas.job import (
@@ -24,7 +24,7 @@ from app.services.ssh_tunnel import SSHTunnelService
 from app.db.models import User, Job, SSHTunnel
 from app.core.config import settings
 
-CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2019")
+CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://localhost:2019")
 router = APIRouter()
 
 
@@ -37,20 +37,19 @@ async def check_cluster_status(
     Check if the SLURM cluster is reachable and running.
     """
     from app.services.slurm_monitor import monitor_service
-    
+
     # Get latest cluster status from database
     latest_status = await monitor_service.get_latest_cluster_status(db)
-    
+
     if latest_status:
         # Assume SLURM is running if connected
         return {
             "connected": latest_status.is_connected,
-            "slurm_running": latest_status.is_connected
+            "slurm_running": latest_status.is_connected,
         }
     else:
-        # Fallback to direct check if no status in database yet
-        slurm_service = SlurmSSHService()
-        return await slurm_service.check_status()
+        # No fallback - return unavailable status when no monitoring data
+        return {"connected": False, "slurm_running": False}
 
 
 @router.get("/", response_model=List[JobInDB])
@@ -65,7 +64,7 @@ async def get_jobs(
     Also handles cases where SLURM has active jobs that don't exist in database.
     """
     from app.services.slurm_monitor import monitor_service
-    
+
     # Get jobs from database
     job_service = JobService(db)
     db_jobs = job_service.get_jobs(current_user)
@@ -78,31 +77,35 @@ async def get_jobs(
 
     if job_snapshots:
         for snapshot in job_snapshots:
-            job_id = snapshot.job_id
+            try:
+                job_id = snapshot.job_id
 
-            if job_id in db_jobs_map:
-                # Update existing job if status changed
-                db_job = db_jobs_map[job_id]
-                if db_job.status != snapshot.state:
-                    db_job.status = snapshot.state
-                    db_job.node = snapshot.node
-                db.add(db_job)
-            else:
-                # Create new job record for unknown SLURM job
-                new_job = Job(
-                    job_id=job_id,
-                    job_name=snapshot.name,  # Using name attribute instead of job_name
-                    status=snapshot.state,
-                    node=snapshot.node,
-                    owner_id=current_user.id,
-                    partition=snapshot.partition or "proxima",  # Default value
-                    num_cpus=1,  # Default value
-                    memory_gb=1,  # Default value
-                    template_name="unknown",  # Since we don't know original
-                    script="",  # Empty script since we don't have the original
-                )
-                db.add(new_job)
-                db_jobs.append(new_job)
+                if job_id in db_jobs_map:
+                    # Update existing job if status changed
+                    db_job = db_jobs_map[job_id]
+                    if db_job.status != snapshot.state:
+                        db_job.status = snapshot.state
+                        db_job.node = snapshot.node
+                    db.add(db_job)
+                else:
+                    # Create new job record for unknown SLURM job
+                    new_job = Job(
+                        job_id=job_id,
+                        job_name=snapshot.name,
+                        status=snapshot.state,
+                        node=snapshot.node,
+                        owner_id=current_user.id,
+                        partition=snapshot.partition or "proxima",
+                        num_cpus=1,
+                        memory_gb=1,
+                        template_name="unknown",
+                        script="",
+                    )
+                    db.add(new_job)
+                    db_jobs.append(new_job)
+            except Exception as e:
+                jobs_logger.warning(f"Error processing snapshot: {e}")
+                continue
 
         # Commit all changes
         db.commit()
@@ -121,26 +124,24 @@ async def get_all_jobs_admin(
     Retrieve all jobs from all users. Admin only.
     """
     from app.services.slurm_monitor import monitor_service
-    
+
     # Get all jobs from database
     job_service = JobService(db)
     all_jobs = db.query(Job).offset(skip).limit(limit).all()
-    
+
     # Convert to JobInDB format and get current status
     result_jobs = []
     for job in all_jobs:
         # Get current SLURM status from monitoring service
-        job_snapshots = await monitor_service.get_job_snapshot(
-            db, job.job_id
-        )
-        
+        job_snapshots = await monitor_service.get_job_snapshot(db, job.job_id)
+
         job_data = JobInDB.from_orm(job)
         if job_snapshots:
             job_data.status = job_snapshots.state  # Using 'state' not 'status'
             job_data.node = job_snapshots.node  # Using 'node' not 'node_list'
-        
+
         result_jobs.append(job_data)
-    
+
     return result_jobs
 
 
@@ -151,32 +152,31 @@ async def get_active_jobs(
 ) -> List[Dict[str, Any]]:
     """
     Get active jobs from monitoring service snapshots for current user.
+    This endpoint ONLY uses cached data from the monitoring service - no direct SLURM calls.
     """
     try:
         from app.services.slurm_monitor import monitor_service
-        
-        cluster_logger.debug(
-            f"Fetching active jobs for user: {current_user.username}"
+
+        jobs_logger.debug(
+            f"Fetching active jobs for user: {current_user.username} (from cache)"
         )
 
-        # Get job snapshots from monitoring service
+        # Get job snapshots from monitoring service (cached data only)
         job_snapshots = await monitor_service.get_user_job_snapshots(
             db, current_user.username
         )
 
         # Get all jobs from database for the current user
-        db_jobs = JobService.get_multi_by_owner(
-            db=db, owner_id=current_user.id
-        )
+        db_jobs = JobService.get_multi_by_owner(db=db, owner_id=current_user.id)
         db_jobs_map = {job.job_id: job for job in db_jobs}
 
         # Enhance active jobs with database information
         enhanced_jobs = []
         for snapshot in job_snapshots:
-            # Only include RUNNING jobs in results
-            if snapshot.state == "RUNNING":
+            # Include PENDING and RUNNING jobs in results
+            if snapshot.state in ["PENDING", "RUNNING", "CONFIGURING"]:
                 db_job = db_jobs_map.get(snapshot.job_id)
-                
+
                 job_data = {
                     "job_id": snapshot.job_id,
                     "name": snapshot.name,
@@ -192,25 +192,31 @@ async def get_active_jobs(
                     "submit_time": snapshot.submit_time,  # This is already a string
                     "reason": snapshot.reason,
                     "monitoring_active": True,
+                    "last_updated": snapshot.last_updated.isoformat()
+                    if snapshot.last_updated
+                    else None,
                 }
-                
+
                 # Add database info if available
                 if db_job:
-                    job_data.update({
-                        "template": db_job.template_name,
-                        "created_at": db_job.created_at.isoformat(),
-                        "updated_at": (
-                            db_job.updated_at.isoformat()
-                            if db_job.updated_at else None
-                        ),
-                    })
-                
+                    job_data.update(
+                        {
+                            "template": db_job.template_name,
+                            "created_at": db_job.created_at.isoformat(),
+                            "updated_at": (
+                                db_job.updated_at.isoformat()
+                                if db_job.updated_at
+                                else None
+                            ),
+                        }
+                    )
+
                 enhanced_jobs.append(job_data)
 
         return enhanced_jobs
     except Exception as e:
         # Improve error handling with logging
-        cluster_logger.error(f"Error fetching active jobs: {str(e)}")
+        jobs_logger.error(f"Error fetching active jobs: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch active jobs: {str(e)}",
@@ -320,7 +326,8 @@ async def get_job_status(
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """
-    Get status of a specific job.
+    Get status of a specific job from cached monitoring data.
+    No direct SLURM calls - uses monitoring service cache.
     """
     job = JobService.get(db=db, job_id=job_id)
     if not job:
@@ -328,19 +335,30 @@ async def get_job_status(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
-    slurm_service = SlurmSSHService()
-    active_jobs = await slurm_service.get_active_jobs()
-    job_info = next((j for j in active_jobs if j["job_id"] == job.job_id), None)
+    from app.services.slurm_monitor import monitor_service
 
-    if job_info:
+    # Try to get current status from monitoring cache
+    job_snapshot = await monitor_service.get_job_snapshot(db, job.job_id)
+
+    if job_snapshot and job_snapshot.is_current:
         return {
-            "status": job_info["state"],
-            "node": job_info["node"] if job_info["node"] != "(None)" else None,
+            "status": job_snapshot.state,
+            "node": job_snapshot.node if job_snapshot.node != "(None)" else None,
             "in_queue": True,
+            "last_updated": job_snapshot.last_updated.isoformat()
+            if job_snapshot.last_updated
+            else None,
+            "time_used": job_snapshot.time_used,
+            "time_left": job_snapshot.time_left,
         }
 
-    # Job is not in the queue, return stored status
-    return {"status": job.status, "node": job.node, "in_queue": False}
+    # Job is not in the active queue, return stored database status
+    return {
+        "status": job.status,
+        "node": job.node,
+        "in_queue": False,
+        "last_updated": job.updated_at.isoformat() if job.updated_at else None,
+    }
 
 
 @router.get("/{job_id}/node")
@@ -363,18 +381,21 @@ async def get_job_node(
     if job.node:
         return {"node": job.node}
 
-    # If not, query SLURM for node information
-    slurm_service = SlurmSSHService()
-    node = await slurm_service.get_job_node(job.job_id)
+    # Check monitoring service cache for current job snapshot
+    from app.services.slurm_monitor import monitor_service
 
-    if node and node != "(None)":
-        # Update the job in the database
-        job.node = node
+    job_snapshot = await monitor_service.get_job_snapshot(db, job.job_id)
+
+    if job_snapshot and job_snapshot.node and job_snapshot.node != "(None)":
+        # Update the job in the database with cached node info
+        job.node = job_snapshot.node
         db.add(job)
         db.commit()
         db.refresh(job)
+        return {"node": job_snapshot.node}
 
-    return {"node": node if node and node != "(None)" else None}
+    # No node information available in cache or database
+    return {"node": None}
 
 
 @router.get("/{job_id}/tunnels", response_model=List[SSHTunnelInfo])
@@ -526,17 +547,32 @@ async def get_code_server_url(
 
     # Configure Caddy to route the domain to the local tunnel port
     caddy_client = CaddyAPIClient(CADDY_API_URL)
-    success = caddy_client.add_domain_with_auto_tls(
-        domain=domain, target="localhost", target_port=tunnel.local_port
-    )
 
-    if not success:
+    try:
+        success = caddy_client.add_domain_with_auto_tls(
+            domain=domain, target="localhost", target_port=tunnel.local_port
+        )
+
+        if not success:
+            raise Exception("Caddy configuration returned false")
+
+    except Exception as e:
+        jobs_logger.error(f"Failed to configure Caddy domain {domain}: {e}")
+
         # If Caddy configuration fails, clean up the tunnel
         await tunnel_service.close_tunnel(tunnel.id)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to configure domain routing",
-        )
+
+        # Return more specific error message about Caddy unavailability
+        if "Connection refused" in str(e) or "HTTPConnectionPool" in str(e):
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="Caddy proxy service is currently unavailable. Cannot generate public URL.",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to configure domain routing: {str(e)}",
+            )
 
     # Return the full URL to the frontend
     return {
@@ -620,8 +656,7 @@ async def check_tunnel_status(
 
 @router.get("/admin/all-users")
 def get_all_users_admin(
-    current_user: User = Depends(get_current_superuser),
-    db: Session = Depends(get_db)
+    current_user: User = Depends(get_current_superuser), db: Session = Depends(get_db)
 ):
     """Get all users for admin panel (superuser only)."""
     users = db.query(User).order_by(User.created_at.desc()).all()
@@ -633,23 +668,28 @@ def update_user_admin(
     user_id: int,
     user_update: dict,
     current_user: User = Depends(get_current_superuser),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Update user (admin only)."""
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Update allowed fields
     allowed_fields = [
-        "max_containers", "max_gpus", "is_active", "is_superuser",
-        "first_name", "last_name", "email"
+        "max_containers",
+        "max_gpus",
+        "is_active",
+        "is_superuser",
+        "first_name",
+        "last_name",
+        "email",
     ]
-    
+
     for field, value in user_update.items():
         if field in allowed_fields and hasattr(user, field):
             setattr(user, field, value)
-    
+
     db.commit()
     db.refresh(user)
     return user
@@ -659,31 +699,28 @@ def update_user_admin(
 def delete_user_admin(
     user_id: int,
     current_user: User = Depends(get_current_superuser),
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     """Delete user (admin only)."""
     if user_id == current_user.id:
-        raise HTTPException(
-            status_code=400, 
-            detail="Cannot delete your own account"
-        )
-    
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+
     user = db.query(User).filter(User.id == user_id).first()
     if not user:
         raise HTTPException(status_code=404, detail="User not found")
-    
+
     # Check if user has active jobs
-    active_jobs = db.query(Job).filter(
-        Job.owner_id == user_id,
-        Job.status.in_(["RUNNING", "PENDING"])
-    ).count()
-    
+    active_jobs = (
+        db.query(Job)
+        .filter(Job.owner_id == user_id, Job.status.in_(["RUNNING", "PENDING"]))
+        .count()
+    )
+
     if active_jobs > 0:
         raise HTTPException(
-            status_code=400,
-            detail=f"Cannot delete user with {active_jobs} active jobs"
+            status_code=400, detail=f"Cannot delete user with {active_jobs} active jobs"
         )
-    
+
     db.delete(user)
     db.commit()
     return {"message": "User deleted successfully"}
@@ -700,18 +737,18 @@ async def check_tunnel_health(
     tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found")
-    
+
     # Check if user owns the job associated with this tunnel
     job = db.query(Job).filter(Job.id == tunnel.job_id).first()
     if not job:
         raise HTTPException(status_code=404, detail="Associated job not found")
-    
+
     if job.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
     tunnel_service = SSHTunnelService(db)
     health_info = await tunnel_service.health_check(tunnel_id)
-    
+
     return {
         "tunnel_id": health_info.tunnel_id,
         "status": health_info.status.value,
@@ -719,17 +756,33 @@ async def check_tunnel_health(
         "last_check": health_info.last_check,
         "ssh_process": {
             "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
-            "is_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
-            "memory_usage_mb": health_info.ssh_process.memory_usage if health_info.ssh_process else None,
-            "cpu_usage": health_info.ssh_process.cpu_usage if health_info.ssh_process else None,
-        } if health_info.ssh_process else None,
+            "is_running": health_info.ssh_process.is_running
+            if health_info.ssh_process
+            else False,
+            "memory_usage_mb": health_info.ssh_process.memory_usage
+            if health_info.ssh_process
+            else None,
+            "cpu_usage": health_info.ssh_process.cpu_usage
+            if health_info.ssh_process
+            else None,
+        }
+        if health_info.ssh_process
+        else None,
         "socat_process": {
             "pid": health_info.socat_process.pid if health_info.socat_process else None,
-            "is_running": health_info.socat_process.is_running if health_info.socat_process else False,
-            "memory_usage_mb": health_info.socat_process.memory_usage if health_info.socat_process else None,
-            "cpu_usage": health_info.socat_process.cpu_usage if health_info.socat_process else None,
-        } if health_info.socat_process else None,
-        "error_message": health_info.error_message
+            "is_running": health_info.socat_process.is_running
+            if health_info.socat_process
+            else False,
+            "memory_usage_mb": health_info.socat_process.memory_usage
+            if health_info.socat_process
+            else None,
+            "cpu_usage": health_info.socat_process.cpu_usage
+            if health_info.socat_process
+            else None,
+        }
+        if health_info.socat_process
+        else None,
+        "error_message": health_info.error_message,
     }
 
 
@@ -744,7 +797,7 @@ async def check_all_tunnels_health(
 
     tunnel_service = SSHTunnelService(db)
     health_results = await tunnel_service.health_check_all_active_tunnels()
-    
+
     return {
         "total_tunnels": len(health_results),
         "results": [
@@ -753,12 +806,16 @@ async def check_all_tunnels_health(
                 "status": health_info.status.value,
                 "port_connectivity": health_info.port_connectivity,
                 "last_check": health_info.last_check,
-                "ssh_process_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
-                "socat_process_running": health_info.socat_process.is_running if health_info.socat_process else False,
-                "error_message": health_info.error_message
+                "ssh_process_running": health_info.ssh_process.is_running
+                if health_info.ssh_process
+                else False,
+                "socat_process_running": health_info.socat_process.is_running
+                if health_info.socat_process
+                else False,
+                "error_message": health_info.error_message,
             }
             for tunnel_id, health_info in health_results.items()
-        ]
+        ],
     }
 
 
@@ -779,16 +836,17 @@ async def check_job_tunnel_health(
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     # Check if tunnel belongs to this job
-    tunnel = db.query(SSHTunnel).filter(
-        SSHTunnel.id == tunnel_id,
-        SSHTunnel.job_id == job_id
-    ).first()
+    tunnel = (
+        db.query(SSHTunnel)
+        .filter(SSHTunnel.id == tunnel_id, SSHTunnel.job_id == job_id)
+        .first()
+    )
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found for this job")
 
     tunnel_service = SSHTunnelService(db)
     health_info = await tunnel_service.health_check(tunnel_id)
-    
+
     return {
         "tunnel_id": health_info.tunnel_id,
         "status": health_info.status.value,
@@ -796,15 +854,31 @@ async def check_job_tunnel_health(
         "last_check": health_info.last_check,
         "ssh_process": {
             "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
-            "is_running": health_info.ssh_process.is_running if health_info.ssh_process else False,
-            "memory_usage_mb": health_info.ssh_process.memory_usage if health_info.ssh_process else None,
-            "cpu_usage": health_info.ssh_process.cpu_usage if health_info.ssh_process else None,
-        } if health_info.ssh_process else None,
+            "is_running": health_info.ssh_process.is_running
+            if health_info.ssh_process
+            else False,
+            "memory_usage_mb": health_info.ssh_process.memory_usage
+            if health_info.ssh_process
+            else None,
+            "cpu_usage": health_info.ssh_process.cpu_usage
+            if health_info.ssh_process
+            else None,
+        }
+        if health_info.ssh_process
+        else None,
         "socat_process": {
             "pid": health_info.socat_process.pid if health_info.socat_process else None,
-            "is_running": health_info.socat_process.is_running if health_info.socat_process else False,
-            "memory_usage_mb": health_info.socat_process.memory_usage if health_info.socat_process else None,
-            "cpu_usage": health_info.socat_process.cpu_usage if health_info.socat_process else None,
-        } if health_info.socat_process else None,
-        "error_message": health_info.error_message
+            "is_running": health_info.socat_process.is_running
+            if health_info.socat_process
+            else False,
+            "memory_usage_mb": health_info.socat_process.memory_usage
+            if health_info.socat_process
+            else None,
+            "cpu_usage": health_info.socat_process.cpu_usage
+            if health_info.socat_process
+            else None,
+        }
+        if health_info.socat_process
+        else None,
+        "error_message": health_info.error_message,
     }

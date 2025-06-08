@@ -154,17 +154,16 @@ class TaskQueueService:
             existing_task = (
                 self.db.query(TaskQueueJob)
                 .filter(
-                    TaskQueueJob.name == data.name,
-                    TaskQueueJob.owner_id == owner_id
+                    TaskQueueJob.name == data.name, TaskQueueJob.owner_id == owner_id
                 )
                 .first()
             )
-            
+
             if existing_task:
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
                     detail=f"Zadanie o nazwie '{data.name}' już istnieje. "
-                           f"Wybierz inną nazwę.",
+                    f"Wybierz inną nazwę.",
                 )
 
             # Generate unique task ID
@@ -557,25 +556,36 @@ class TaskQueueService:
 
             # Keep monitoring until job reaches a terminal state
             while True:
-                jobs = await self.slurm_service.get_active_jobs()
+                # Use monitoring service instead of direct SLURM calls
+                from app.services.slurm_monitor import monitor_service
 
-                # Find this job in the active jobs
-                job_info = next((j for j in jobs if j["job_id"] == slurm_job_id), None)
+                # Get job snapshot from monitoring service (cached data)
+                job_snapshot = await monitor_service.get_job_snapshot(
+                    self.db, slurm_job_id
+                )
 
-                if job_info:
-                    # Job is still active in SLURM
-                    slurm_state = job_info["state"]
+                if job_snapshot and job_snapshot.is_current:
+                    # Job is still active in SLURM (from cache)
+                    slurm_state = job_snapshot.state
 
                     # Map SLURM state to our task state
                     new_status = self.SLURM_STATE_MAPPING.get(
                         slurm_state, TaskStatus.UNKNOWN
                     )
 
-                    # Calculate progress if possible (implementation dependent)
-                    progress = self._estimate_progress(task, job_info)
+                    # Calculate progress if possible
+                    progress = self._estimate_progress(
+                        task,
+                        {
+                            "state": job_snapshot.state,
+                            "node": job_snapshot.node,
+                            "time_used": job_snapshot.time_used,
+                            "time_left": job_snapshot.time_left,
+                        },
+                    )
 
                     # Update node info if available
-                    node = job_info.get("node")
+                    node = job_snapshot.node
 
                     # Update task status
                     if task.status != new_status or (

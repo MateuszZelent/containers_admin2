@@ -251,7 +251,7 @@ export default function TaskQueuePage() {
         fetchTasks();
         fetchQueueStatus();
       }
-    }, 10000); // Every 10 seconds
+    }, 30000); // Every 30 seconds (reduced from 10s to minimize server load)
 
     return () => clearInterval(interval);
   }, [tasks, fetchTasks, fetchQueueStatus]);

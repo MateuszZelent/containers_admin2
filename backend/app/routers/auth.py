@@ -7,9 +7,9 @@ from sqlalchemy.orm import Session
 
 from app.core import security
 from app.core.auth import (
-    authenticate_user, 
-    create_access_token, 
-    get_current_active_user_with_cli_support
+    authenticate_user,
+    create_access_token,
+    get_current_active_user_with_cli_support,
 )
 from app.core.config import settings
 from app.db.session import get_db

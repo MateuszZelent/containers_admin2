@@ -57,29 +57,44 @@ logging.basicConfig(
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
     """Get a logger instance with rich formatting."""
-    return logging.getLogger(name or "slurm_container_manager")
+    logger_name = name or "slurm_container_manager"
+    logger = logging.getLogger(logger_name)
+
+    # Configure logger if not already configured
+    if not logger.handlers:
+        logger.setLevel(logging.DEBUG if settings.DEBUG else logging.INFO)
+        logger.addHandler(rich_handler)
+        logger.propagate = False
+
+    return logger
 
 
 # Create specific loggers for different components
-cluster_logger = get_logger("cluster")
-slurm_logger = get_logger("slurm")
-ssh_logger = get_logger("ssh")
+cluster_logger = logging.getLogger("cluster")
+slurm_logger = logging.getLogger("slurm")
+ssh_logger = logging.getLogger("ssh")
+
+# Configure each logger
+for log in [cluster_logger, slurm_logger, ssh_logger]:
+    if log is not None:  # Safety check
+        log.setLevel(logging.DEBUG if settings.DEBUG else logging.INFO)
+        log.addHandler(rich_handler)
+        log.propagate = False
 
 # Add the database logger
 db_logger = logging.getLogger("db")
-db_logger.setLevel(logging.INFO)
-
-# Configure the logger with the same handlers as other loggers
-# This assumes the existing code already sets up handlers for other loggers
-for handler in logging.getLogger().handlers:
-    db_logger.addHandler(handler)
+if db_logger is not None:
+    db_logger.setLevel(logging.INFO)
+    db_logger.addHandler(rich_handler)
+    db_logger.propagate = False
 
 
 def log_command(logger: logging.Logger, command: str, sensitive: bool = False) -> None:
     """Log a command execution with proper formatting."""
     if sensitive:
-        command = "<sensitive command>"
-    logger.debug(f"[bold]Executing command:[/bold] {command}")
+        logger.debug(f"[bold]Executing command:[/bold] <sensitive command>")
+    else:
+        logger.debug(f"[bold]Executing command:[/bold] {command}")
 
 
 def log_ssh_connection(host: str, username: str, using_key: bool = True) -> None:
@@ -88,7 +103,8 @@ def log_ssh_connection(host: str, username: str, using_key: bool = True) -> None
         f"[bold]Initiating SSH connection[/bold]\n"
         f"  [cyan]Host:[/cyan] {host}\n"
         f"  [cyan]Username:[/cyan] {username}\n"
-        f"  [cyan]Auth method:[/cyan] {'key-based' if using_key else 'password'}"
+        f"  [cyan]Auth method:[/cyan] "
+        f"{'key-based' if using_key else 'password'}"
     )
 
 
@@ -110,7 +126,7 @@ def log_cluster_operation(operation: str, details: dict) -> None:
 
 
 # Add a specific log function for database operations
-def log_db_operation(operation: str, details: Dict[str, Any] = None) -> None:
+def log_db_operation(operation: str, details: Optional[Dict[str, Any]] = None) -> None:
     """Log a database operation with optional details."""
     log_message = f"DB: {operation}"
     if details:

@@ -84,8 +84,10 @@ async def startup_event():
     logger.info("Starting SLURM monitoring service")
     try:
         from app.services.slurm_monitor import monitor_service
-        await monitor_service.start_monitoring(interval_seconds=60)
-        logger.info("SLURM monitoring service started successfully")
+
+        # Increase interval to reduce SLURM load - check every 2 minutes
+        await monitor_service.start_monitoring(interval_seconds=120)
+        logger.info("SLURM monitoring service started (120s interval)")
     except Exception as e:
         logger.error(f"Failed to start SLURM monitoring service: {str(e)}")
 
@@ -110,46 +112,46 @@ async def health_check(db: Session = Depends(get_db)):
 
 
 # Create a first user if no users exist (useful for first run)
-@app.on_event("startup")
-async def create_first_user():
-    from app.services.user import UserService
-    from app.schemas.user import UserCreate
+# @app.on_event("startup")
+# async def create_first_user():
+#     from app.services.user import UserService
+#     from app.schemas.user import UserCreate
 
-    logger.info("Checking for initial admin user...")
-    db = next(get_db())
-    user = UserService.get_by_username(db=db, username=settings.ADMIN_USERNAME)
-    if not user:
-        logger.info("Creating initial admin user...")
-        user_in = UserCreate(
-            username=settings.ADMIN_USERNAME,
-            email=settings.ADMIN_EMAIL,
-            password=settings.ADMIN_PASSWORD,
-            first_name=settings.ADMIN_FIRST_NAME,
-            last_name=settings.ADMIN_LAST_NAME,
-            is_superuser=True,
-        )
-        UserService.create(db=db, user_in=user_in)
-        logger.info("[green]Admin user created successfully[/green]")
-    else:
-        logger.info("Admin user already exists")
+#     logger.info("Checking for initial admin user...")
+#     db = next(get_db())
+#     user = UserService.get_by_username(db=db, username=settings.ADMIN_USERNAME)
+#     if not user:
+#         logger.info("Creating initial admin user...")
+#         user_in = UserCreate(
+#             username=settings.ADMIN_USERNAME,
+#             email=settings.ADMIN_EMAIL,
+#             password=settings.ADMIN_PASSWORD,
+#             first_name=settings.ADMIN_FIRST_NAME,
+#             last_name=settings.ADMIN_LAST_NAME,
+#             is_superuser=True,
+#         )
+#         UserService.create(db=db, user_in=user_in)
+#         logger.info("[green]Admin user created successfully[/green]")
+#     else:
+#         logger.info("Admin user already exists")
 
 
-@app.on_event("startup")
-async def restore_ssh_tunnels():
-    """Restore SSH tunnels from database after server restart."""
-    logger.info("Restoring SSH tunnels after server startup")
-    try:
-        # Get a database session
-        db = next(get_db())
-        # Create SSH tunnel service
-        from app.services.ssh_tunnel import SSHTunnelService
+# @app.on_event("startup")
+# async def restore_ssh_tunnels():
+#     """Restore SSH tunnels from database after server restart."""
+#     logger.info("Restoring SSH tunnels after server startup")
+#     try:
+#         # Get a database session
+#         db = next(get_db())
+#         # Create SSH tunnel service
+#         from app.services.ssh_tunnel import SSHTunnelService
 
-        tunnel_service = SSHTunnelService(db)
-        # Restore active tunnels
-        result = await tunnel_service.restore_active_tunnels()
-        logger.info(f"SSH tunnel restoration complete: {result}")
-    except Exception as e:
-        logger.error(f"Error restoring SSH tunnels: {str(e)}")
+#         tunnel_service = SSHTunnelService(db)
+#         # Restore active tunnels
+#         result = await tunnel_service.restore_active_tunnels()
+#         logger.info(f"SSH tunnel restoration complete: {result}")
+#     except Exception as e:
+#         logger.error(f"Error restoring SSH tunnels: {str(e)}")
 
 
 @app.on_event("shutdown")

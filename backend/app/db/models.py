@@ -37,15 +37,13 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     code_server_password = Column(String(255), nullable=True)
-    
+
     # Resource limits
     max_containers = Column(Integer, default=6)  # Max containers user can run
     max_gpus = Column(Integer, default=24)  # Max GPUs user can use total
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
-    updated_at = Column(
-        DateTime(timezone=True), onupdate=func.now(), nullable=True
-    )
+    updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
     jobs = relationship("Job", back_populates="owner")
     cli_tokens = relationship("CLIToken", back_populates="owner")
 
@@ -95,15 +93,15 @@ class SSHTunnel(Base):
     remote_host = Column(String)  # Węzeł na którym działa kontener
     node = Column(String)  # Węzeł na którym działa kontener
     status = Column(String)  # ACTIVE, INACTIVE, FAILED
-    
+
     # PID tracking fields
     ssh_pid = Column(Integer, nullable=True)  # PID procesu SSH
     socat_pid = Column(Integer, nullable=True)  # PID procesu socat
-    
+
     # Health monitoring fields
     last_health_check = Column(DateTime(timezone=True), nullable=True)
     health_status = Column(String, nullable=True)  # HEALTHY, UNHEALTHY, UNKNOWN
-    
+
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
     job = relationship("Job", back_populates="tunnels")
@@ -262,7 +260,7 @@ class CLIToken(Base):
 class SlurmJobSnapshot(Base):
     """Model for storing periodic snapshots of SLURM cluster job information.
 
-    This table stores all job data fetched from SLURM cluster to reduce 
+    This table stores all job data fetched from SLURM cluster to reduce
     SSH calls. Updated periodically by a background task.
     """
 
@@ -294,9 +292,7 @@ class SlurmJobSnapshot(Base):
 
     # System tracking
     last_updated = Column(
-        DateTime(timezone=True), 
-        server_default=func.now(), 
-        onupdate=func.now()
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
     )
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
@@ -304,18 +300,23 @@ class SlurmJobSnapshot(Base):
     is_current = Column(Boolean, default=True)
 
     def __repr__(self):
-        return (f"<SlurmJobSnapshot(job_id='{self.job_id}', "
-                f"state='{self.state}', user='{self.user}')>")
+        return (
+            f"<SlurmJobSnapshot(job_id='{self.job_id}', "
+            f"state='{self.state}', user='{self.user}')>"
+        )
 
 
 class ClusterStatus(Base):
     """Model for storing cluster connectivity and status information."""
+
     __tablename__ = "cluster_status"
 
     id = Column(Integer, primary_key=True, index=True)
     is_connected = Column(Boolean, default=False)
     last_successful_connection = Column(DateTime(timezone=True), nullable=True)
-    last_check = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
+    last_check = Column(
+        DateTime(timezone=True), server_default=func.now(), onupdate=func.now()
+    )
     error_message = Column(Text, nullable=True)  # Last error if connection failed
 
     # Performance metrics
@@ -328,16 +329,17 @@ class ClusterStatus(Base):
 
 class ClusterStats(Base):
     """Model for storing PCSS cluster statistics."""
+
     __tablename__ = "cluster_stats"
-    
+
     id = Column(Integer, primary_key=True, index=True)
-    
+
     # Węzły (nodes)
     free_nodes = Column(Integer, nullable=False, default=0)
     busy_nodes = Column(Integer, nullable=False, default=0)
     unavailable_nodes = Column(Integer, nullable=False, default=0)
     total_nodes = Column(Integer, nullable=False, default=0)
-    
+
     # GPU
     free_gpus = Column(Integer, nullable=False, default=0)
     active_gpus = Column(Integer, nullable=False, default=0)  # aktywne GPU
@@ -350,9 +352,7 @@ class ClusterStats(Base):
     used_gpus = Column(Integer, nullable=True)  # Number of used GPUs
 
     timestamp = Column(
-        DateTime(timezone=True),
-        server_default=func.now(),
-        nullable=False
+        DateTime(timezone=True), server_default=func.now(), nullable=False
     )
     source = Column(String, nullable=True)  # Source (e.g., 'check.sh')
 

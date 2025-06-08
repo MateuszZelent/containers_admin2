@@ -422,7 +422,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     if (autoRefreshEnabled) {
       intervalId = setInterval(() => {
         refreshData(false); // Silent refresh (no toast)
-      }, 10000);
+      }, 30000); // Every 30 seconds (reduced from 10s to minimize server load)
     }
 
     return () => {

@@ -47,9 +47,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 
 
 def get_current_user_with_cli_support(
-    request: Request,
-    db: Session = Depends(get_db), 
-    token: str = Depends(oauth2_scheme)
+    request: Request, db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
     """
     Enhanced authentication that supports both JWT tokens and CLI tokens.
@@ -60,10 +58,7 @@ def get_current_user_with_cli_support(
         admin_user = UserService.get_by_username(db, username="admin")
         if admin_user:
             return admin_user
-        raise HTTPException(
-            status_code=404, 
-            detail="Default admin user not found"
-        )
+        raise HTTPException(status_code=404, detail="Default admin user not found")
 
     # Try JWT token first (web frontend)
     try:
@@ -81,16 +76,14 @@ def get_current_user_with_cli_support(
     # Try CLI token authentication
     cli_token_service = CLITokenService(db)
     cli_token = cli_token_service.verify_token(token)
-    
+
     if cli_token and cli_token.owner:
         # Update token usage information
         client_ip = request.client.host if request.client else "unknown"
         user_agent = request.headers.get("user-agent", "unknown")
-        
-        cli_token_service.update_token_usage(
-            cli_token, client_ip, user_agent
-        )
-        
+
+        cli_token_service.update_token_usage(cli_token, client_ip, user_agent)
+
         return cli_token.owner
 
     # If neither JWT nor CLI token worked
@@ -101,8 +94,7 @@ def get_current_user_with_cli_support(
 
 
 def get_current_user(
-    db: Session = Depends(get_db), 
-    token: str = Depends(oauth2_scheme)
+    db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
     # Jeśli autoryzacja jest wyłączona, zwracamy domyślnego użytkownika (admin)
     if settings.DISABLE_AUTH:
@@ -154,7 +146,7 @@ def get_current_superuser(
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges"
+            detail="The user doesn't have enough privileges",
         )
     return current_user
 
@@ -167,6 +159,6 @@ def get_current_superuser_with_cli_support(
     if not current_user.is_superuser:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="The user doesn't have enough privileges"
+            detail="The user doesn't have enough privileges",
         )
     return current_user

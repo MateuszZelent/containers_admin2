@@ -14,8 +14,7 @@ class ClusterStatsService:
 
     @staticmethod
     def create_or_update(
-        db: Session,
-        stats_data: ClusterStatsCreate
+        db: Session, stats_data: ClusterStatsCreate
     ) -> ClusterStatsModel:
         """Create or update cluster statistics (only one record maintained)."""
         # Check if record exists
@@ -32,7 +31,7 @@ class ClusterStatsService:
             existing.standby_gpus = stats_data.standby_gpus
             existing.busy_gpus = stats_data.busy_gpus
             existing.total_gpus = stats_data.total_gpus
-            existing.source = getattr(stats_data, 'source', 'check.sh')
+            existing.source = getattr(stats_data, "source", "check.sh")
 
             # Keep legacy fields for backward compatibility
             existing.used_nodes = stats_data.busy_nodes
@@ -54,10 +53,10 @@ class ClusterStatsService:
                 standby_gpus=stats_data.standby_gpus,
                 busy_gpus=stats_data.busy_gpus,
                 total_gpus=stats_data.total_gpus,
-                source=getattr(stats_data, 'source', 'check.sh'),
+                source=getattr(stats_data, "source", "check.sh"),
                 # Legacy fields for backward compatibility
                 used_nodes=stats_data.busy_nodes,
-                used_gpus=stats_data.busy_gpus
+                used_gpus=stats_data.busy_gpus,
             )
             db.add(stats)
             db.commit()

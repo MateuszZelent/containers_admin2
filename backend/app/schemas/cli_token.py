@@ -32,17 +32,20 @@ class CLITokenInDB(CLITokenBase):
 
 class CLITokenResponse(CLITokenInDB):
     """Response model without sensitive data"""
+
     pass
 
 
 class CLITokenCreateResponse(BaseModel):
     """Response when creating new token - includes actual token"""
+
     token: str
     token_info: CLITokenInDB
 
 
 class CLITokenUsageInfo(BaseModel):
     """Information about token usage"""
+
     last_used_at: Optional[datetime] = None
     last_used_ip: Optional[str] = None
     last_used_user_agent: Optional[str] = None

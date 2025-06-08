@@ -59,12 +59,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+    container_name: containers_admin_frontend
     ports:
       - "3000:3000"
     environment:
       - NODE_ENV=production
-      # Możesz dodać inne zmienne środowiskowe, np.:
-      # - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_API_URL=http://backend:8000
+      - NEXT_PUBLIC_BASE_URL=https://amucontainers.orion.zfns.eu.org
+    networks:
+      - app_network
+    restart: unless-stopped
+    depends_on:
+      - backend
 
 volumes:
   postgres_data2:
@@ -75,4 +81,5 @@ networks:
     name: containers_admin_network
     
   app_network:
+    name: containers_admin_app_network
     driver: bridge

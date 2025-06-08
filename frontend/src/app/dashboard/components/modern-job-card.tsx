@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Job } from "@/lib/types";
 import { LiveTimer } from "./live-timer";
+import { ContainerCreationOverlay } from "./container-creation-overlay";
 import {
   Tooltip,
   TooltipContent,
@@ -159,8 +160,20 @@ export const ModernJobCard = React.memo(({
         damping: 25, 
         duration: 0.3 
       }}
+      className="relative"
     >
-      <Card className={`group hover:shadow-lg transition-all duration-300 ${gradientClass} hover:scale-[1.01]`}>
+      <Card className={`group hover:shadow-lg transition-all duration-300 ${gradientClass} hover:scale-[1.01] relative`}>
+      
+      {/* Container Creation Overlay for PENDING and CONFIGURING states */}
+      <AnimatePresence>
+        {(job.status === "PENDING" || job.status === "CONFIGURING") && (
+          <ContainerCreationOverlay 
+            status={job.status}
+            jobName={job.job_name}
+          />
+        )}
+      </AnimatePresence>
+
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center space-x-2">

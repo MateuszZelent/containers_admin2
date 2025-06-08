@@ -7,6 +7,20 @@ const nextConfig = {
     // This will completely disable TypeScript checks during build
     ignoreBuildErrors: true,
   },
+  
+  // Add asset prefix and public runtime config for production
+  assetPrefix: process.env.NODE_ENV === 'production' ? '' : '',
+  
+  // Rewrite API calls to backend
+  async rewrites() {
+    return [
+      {
+        source: '/api/:path*',
+        destination: 'http://backend:8000/api/:path*',
+      },
+    ];
+  },
+
   async headers() {
     return [
       {
@@ -15,7 +29,24 @@ const nextConfig = {
           { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
         ],
       },
+      {
+        source: '/_next/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
+      {
+        source: '/static/:path*',
+        headers: [
+          { key: 'Cache-Control', value: 'public, max-age=31536000, immutable' },
+        ],
+      },
     ];
+  },
+
+  // Enable experimental features for better proxy support
+  experimental: {
+    serverExternalPackages: [],
   },
 };
 

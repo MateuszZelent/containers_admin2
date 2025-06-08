@@ -19,6 +19,7 @@ import aiohttp
 
 class TunnelStatus(Enum):
     """Enum for tunnel status values."""
+
     ACTIVE = "ACTIVE"
     INACTIVE = "INACTIVE"
     FAILED = "FAILED"
@@ -28,6 +29,7 @@ class TunnelStatus(Enum):
 
 class HealthStatus(Enum):
     """Enum for health check status values."""
+
     HEALTHY = "HEALTHY"
     UNHEALTHY = "UNHEALTHY"
     UNKNOWN = "UNKNOWN"
@@ -36,6 +38,7 @@ class HealthStatus(Enum):
 @dataclass
 class ProcessInfo:
     """Data class for process information."""
+
     pid: int
     command: str
     is_running: bool
@@ -46,6 +49,7 @@ class ProcessInfo:
 @dataclass
 class TunnelHealthInfo:
     """Data class for tunnel health information."""
+
     tunnel_id: int
     status: HealthStatus
     ssh_process: Optional[ProcessInfo]
@@ -850,15 +854,40 @@ class SSHTunnelService:
             bool: True if tunnel is working, False otherwise
         """
         import aiohttp
+        import socket
 
+        # First, try a simple TCP connection test (more reliable)
+        try:
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(timeout)
+                result = sock.connect_ex(("localhost", local_port))
+                if result == 0:
+                    # TCP connection successful, tunnel is working
+                    cluster_logger.debug(
+                        f"TCP connection test passed for port {local_port}"
+                    )
+                    return True
+        except Exception as e:
+            cluster_logger.debug(
+                f"TCP connection test failed for port {local_port}: {str(e)}"
+            )
+
+        # If TCP test fails, try HTTP as fallback (for web services)
         url = f"http://localhost:{local_port}"
-
         try:
             async with aiohttp.ClientSession() as session:
-                async with session.get(url, timeout=timeout) as response:
-                    # Any response (even error) means the tunnel is working
+                # Use HEAD request instead of GET to be less intrusive
+                async with session.head(
+                    url, timeout=timeout, allow_redirects=False
+                ) as response:
+                    # Any response (including redirects) means tunnel is working
+                    cluster_logger.debug(
+                        f"HTTP test passed for port {local_port} "
+                        f"(status: {response.status})"
+                    )
                     return True
-        except (aiohttp.ClientError, asyncio.TimeoutError):
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            cluster_logger.debug(f"HTTP test failed for port {local_port}: {str(e)}")
             return False
 
     async def _cleanup_dead_tunnel(self, tunnel_id: int):
@@ -1161,15 +1190,15 @@ class SSHTunnelService:
     async def health_check(self, tunnel_id: int) -> TunnelHealthInfo:
         """
         Perform comprehensive health check on a specific tunnel.
-        
+
         Args:
             tunnel_id: ID of the tunnel to check
-            
+
         Returns:
             TunnelHealthInfo with detailed health status
         """
         cluster_logger.info(f"Performing health check for tunnel {tunnel_id}")
-        
+
         tunnel = self.db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
         if not tunnel:
             return TunnelHealthInfo(
@@ -1179,81 +1208,81 @@ class SSHTunnelService:
                 socat_process=None,
                 port_connectivity=False,
                 last_check=datetime.utcnow(),
-                error_message="Tunnel not found in database"
+                error_message="Tunnel not found in database",
             )
-        
+
         # Check SSH process health
         ssh_process = None
         if tunnel.ssh_pid:
             ssh_process = await self._check_process_health(tunnel.ssh_pid)
-        
+
         # Check socat process health
         socat_process = None
         if tunnel.socat_pid:
             socat_process = await self._check_process_health(tunnel.socat_pid)
-        
+
         # Test port connectivity
         port_connectivity = False
         if tunnel.external_port:
             port_connectivity = await self.test_tunnel(
                 tunnel.external_port, tunnel.node
             )
-        
+
         # Determine overall health status
         health_status = self._determine_health_status(
             ssh_process, socat_process, port_connectivity
         )
-        
+
         # Update database with health check results
         tunnel.last_health_check = datetime.utcnow()
         tunnel.health_status = health_status.value
         self.db.commit()
-        
+
         health_info = TunnelHealthInfo(
             tunnel_id=tunnel_id,
             status=health_status,
             ssh_process=ssh_process,
             socat_process=socat_process,
             port_connectivity=port_connectivity,
-            last_check=tunnel.last_health_check
+            last_check=tunnel.last_health_check,
         )
-        
+
         cluster_logger.info(
             f"Health check completed for tunnel {tunnel_id}: {health_status.value}"
         )
-        
+
         return health_info
 
     async def _check_process_health(self, pid: int) -> Optional[ProcessInfo]:
         """
         Check the health of a specific process.
-        
+
         Args:
             pid: Process ID to check
-            
+
         Returns:
             ProcessInfo if process exists, None otherwise
         """
         try:
             process = psutil.Process(pid)
-            
+
             # Check if process is still running
             if not process.is_running():
                 return None
-            
+
             # Get process information
-            cmdline = ' '.join(process.cmdline())
+            cmdline = " ".join(process.cmdline())
             memory_info = process.memory_info()
             cpu_percent = process.cpu_percent()
-            
+
             return ProcessInfo(
                 pid=pid,
                 command=cmdline,
                 is_running=True,
                 memory_usage=memory_info.rss / 1024 / 1024,  # MB
-                cpu_usage=cpu_percent
+                cpu_usage=cpu_percent,
             )
-            
+
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             return None
         except Exception as e:
@@ -1261,19 +1290,19 @@ class SSHTunnelService:
             return None
 
     def _determine_health_status(
-        self, 
-        ssh_process: Optional[ProcessInfo], 
-        socat_process: Optional[ProcessInfo], 
-        port_connectivity: bool
+        self,
+        ssh_process: Optional[ProcessInfo],
+        socat_process: Optional[ProcessInfo],
+        port_connectivity: bool,
     ) -> HealthStatus:
         """
         Determine overall health status based on process and connectivity checks.
-        
+
         Args:
             ssh_process: SSH process information
             socat_process: Socat process information
             port_connectivity: Whether port is accessible
-            
+
         Returns:
             Overall health status
         """
@@ -1287,22 +1316,22 @@ class SSHTunnelService:
     async def _terminate_process_safely(self, pid: int) -> bool:
         """
         Safely terminate a process with escalating signals.
-        
+
         Args:
             pid: Process ID to terminate
-            
+
         Returns:
             True if successful, False otherwise
         """
         try:
             process = psutil.Process(pid)
-            
+
             if not process.is_running():
                 return True
-            
+
             # Try SIGTERM first (graceful)
             process.terminate()
-            
+
             # Wait up to 5 seconds for graceful termination
             try:
                 process.wait(timeout=5)
@@ -1310,14 +1339,14 @@ class SSHTunnelService:
                 return True
             except psutil.TimeoutExpired:
                 pass
-            
+
             # If still running, use SIGKILL
             if process.is_running():
                 process.kill()
                 process.wait(timeout=2)
                 cluster_logger.debug(f"Process {pid} killed forcefully")
                 return True
-                
+
         except (psutil.NoSuchProcess, psutil.AccessDenied):
             # Process already gone or no permission
             return True
@@ -1328,30 +1357,32 @@ class SSHTunnelService:
     async def health_check_all_active_tunnels(self) -> Dict[int, TunnelHealthInfo]:
         """
         Perform health check on all active tunnels.
-        
+
         Returns:
             Dictionary mapping tunnel IDs to their health information
         """
         cluster_logger.info("Starting health check for all active tunnels")
-        
-        active_tunnels = self.db.query(SSHTunnel).filter(
-            SSHTunnel.status == TunnelStatus.ACTIVE.value
-        ).all()
-        
+
+        active_tunnels = (
+            self.db.query(SSHTunnel)
+            .filter(SSHTunnel.status == TunnelStatus.ACTIVE.value)
+            .all()
+        )
+
         health_results = {}
-        
+
         for tunnel in active_tunnels:
             try:
                 health_info = await self.health_check(tunnel.id)
                 health_results[tunnel.id] = health_info
-                
+
                 # Auto-repair unhealthy tunnels if possible
                 if health_info.status == HealthStatus.UNHEALTHY:
                     cluster_logger.warning(
                         f"Tunnel {tunnel.id} is unhealthy, attempting repair"
                     )
                     await self._attempt_tunnel_repair(tunnel)
-                    
+
             except Exception as e:
                 cluster_logger.error(
                     f"Error during health check for tunnel {tunnel.id}: {str(e)}"
@@ -1363,47 +1394,45 @@ class SSHTunnelService:
                     socat_process=None,
                     port_connectivity=False,
                     last_check=datetime.utcnow(),
-                    error_message=str(e)
+                    error_message=str(e),
                 )
-        
-        cluster_logger.info(
-            f"Health check completed for {len(health_results)} tunnels"
-        )
-        
+
+        cluster_logger.info(f"Health check completed for {len(health_results)} tunnels")
+
         return health_results
 
     async def _attempt_tunnel_repair(self, tunnel: SSHTunnel) -> bool:
         """
         Attempt to repair an unhealthy tunnel.
-        
+
         Args:
             tunnel: Tunnel object to repair
-            
+
         Returns:
             True if repair successful, False otherwise
         """
         cluster_logger.info(f"Attempting to repair tunnel {tunnel.id}")
-        
+
         try:
             # Close existing tunnel
             await self.close_tunnel(tunnel.id)
-            
+
             # Get associated job
             job = self.db.query(Job).filter(Job.id == tunnel.job_id).first()
             if not job:
                 cluster_logger.error(f"Job {tunnel.job_id} not found for tunnel repair")
                 return False
-            
+
             # Create new tunnel
             new_tunnel = await self.create_tunnel(job)
-            
+
             if new_tunnel:
                 cluster_logger.info(f"Successfully repaired tunnel {tunnel.id}")
                 return True
             else:
                 cluster_logger.error(f"Failed to repair tunnel {tunnel.id}")
                 return False
-                
+
         except Exception as e:
             cluster_logger.error(f"Error during tunnel repair: {str(e)}")
             return False
