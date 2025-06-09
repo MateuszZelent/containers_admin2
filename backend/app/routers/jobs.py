@@ -237,6 +237,7 @@ async def create_job(
         slurm_service=slurm_service,
         job_id=job.job_id,
         user=current_user,
+        initial_check_interval=2,
     )
 
     return JobSubmissionResponse(

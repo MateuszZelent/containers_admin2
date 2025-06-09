@@ -4,6 +4,7 @@ import random
 import asyncio
 import re
 from datetime import datetime
+import asyncssh
 
 from sqlalchemy.orm import Session
 from fastapi import HTTPException
@@ -212,6 +213,12 @@ class JobService:
         """Asynchronously monitor the status of a SLURM job."""
         cluster_logger.debug(f"Starting job monitoring for job {job_id}")
 
+        # Ensure we start with a clean database session
+        try:
+            db.rollback()  # Clear any pending transactions
+        except Exception:
+            pass  # Ignore any error from rollback
+            
         # Get job using instance method through a temporary instance
         job_service = JobService(db)
         db_job = job_service.get_job_by_slurm_id(job_id)
@@ -222,15 +229,44 @@ class JobService:
 
         check_interval = initial_check_interval
         tunnel_service = SSHTunnelService(db)
+        
+        # Add counters for retry limits
+        connection_attempts = 0
+        max_connection_attempts = 3  # Maximum number of connection attempts
+        ssh_failure_count = 0
+        max_ssh_failures = 5  # Maximum consecutive SSH failures
 
         while True:
             try:
-                cluster_logger.debug(f"Checking status for job {job_id}")
+                # Check if we've exceeded our retry limits
+                if connection_attempts >= max_connection_attempts:
+                    cluster_logger.warning(
+                        f"Exceeded max connection attempts ({max_connection_attempts}) "
+                        f"for job {job_id}, stopping monitoring"
+                    )
+                    break
+                    
+                if ssh_failure_count >= max_ssh_failures:
+                    cluster_logger.warning(
+                        f"Exceeded max SSH failures ({max_ssh_failures}) "
+                        f"for job {job_id}, stopping monitoring"
+                    )
+                    break
+                
+                connection_attempts += 1
+                cluster_logger.debug(
+                    f"Checking status for job {job_id} (attempt {connection_attempts})"
+                )
+                
                 jobs = await slurm_service.get_active_jobs()
 
                 job_info = next((j for j in jobs if j["job_id"] == job_id), None)
 
                 if job_info:
+                    # Reset counters on success
+                    connection_attempts = 0
+                    ssh_failure_count = 0
+                    
                     state = job_info["state"]
                     log_slurm_job(str(job_id), str(state), job_info)
 
@@ -279,36 +315,70 @@ class JobService:
                     if str(db_job.status) not in completed_states:
                         msg = f"Job {job_id}: completed"
                         cluster_logger.info(msg)
-                        setattr(db_job, "status", "COMPLETED")
-                        db.commit()
-
-                        # Close tunnels and cleanup Caddy
+                        
+                        # Check if job still exists in DB before updating
                         try:
-                            await tunnel_service.close_job_tunnels(int(db_job.id))
-                        except Exception as e:
-                            err = str(e).replace("[", "«").replace("]", "»")
-                            cluster_logger.warning(
-                                f"Error closing tunnels for job {job_id}: {err}"
+                            # Refresh the job from database to ensure it's still there
+                            job_check = db.query(Job).filter(Job.job_id == job_id).first()
+                            if job_check:
+                                setattr(db_job, "status", "COMPLETED")
+                                db.commit()
+                                
+                                # Close tunnels and cleanup Caddy
+                                try:
+                                    await tunnel_service.close_job_tunnels(int(db_job.id))
+                                except Exception as e:
+                                    err = str(e).replace("[", "«").replace("]", "»")
+                                    cluster_logger.warning(
+                                        f"Error closing tunnels for job {job_id}: {err}"
+                                    )
+                                job_service._cleanup_caddy_for_job(db_job)
+                            else:
+                                cluster_logger.warning(
+                                    f"Job {job_id} no longer exists in database, stopping monitoring"
+                                )
+                                db.rollback()  # Rollback any pending changes
+                        except Exception as db_err:
+                            cluster_logger.error(
+                                f"Database error checking job {job_id}: {str(db_err)}"
                             )
-                        job_service._cleanup_caddy_for_job(db_job)
+                            db.rollback()  # Always rollback on error
+                            
                     break
 
+            except asyncssh.Error as ssh_err:
+                ssh_failure_count += 1
+                msg = f"SSH error job {job_id}: {str(ssh_err)}"
+                cluster_logger.error(msg)
+                # Wait a bit longer after SSH error
+                await asyncio.sleep(1)
             except Exception as e:
                 msg = f"Error job {job_id}: {str(e)}"
                 cluster_logger.error(msg)
 
-            completed_states = ["COMPLETED", "FAILED", "CANCELLED"]
-            if str(db_job.status) in completed_states:
-                cluster_logger.info(f"Job {job_id} done: {str(db_job.status)}")
-                # Close tunnels and cleanup Caddy
-                try:
-                    await tunnel_service.close_job_tunnels(int(db_job.id))
-                except Exception as e:
-                    err = str(e).replace("[", "«").replace("]", "»")
-                    cluster_logger.warning(
-                        f"Error closing tunnels for job {job_id}: {err}"
-                    )
-                job_service._cleanup_caddy_for_job(db_job)
+            # Safely check completed states with error handling
+            try:
+                completed_states = ["COMPLETED", "FAILED", "CANCELLED"]
+                current_status = str(db_job.status)
+                if current_status in completed_states:
+                    cluster_logger.info(f"Job {job_id} done: {current_status}")
+                    # Close tunnels and cleanup Caddy
+                    try:
+                        await tunnel_service.close_job_tunnels(int(db_job.id))
+                    except Exception as e:
+                        err = str(e).replace("[", "«").replace("]", "»")
+                        cluster_logger.warning(
+                            f"Error closing tunnels: {err}"
+                        )
+                    job_service._cleanup_caddy_for_job(db_job)
+                    break
+            except Exception as status_err:
+                # Handle database errors when checking job status
+                cluster_logger.error(
+                    f"Error checking job status: {str(status_err)}"
+                )
+                db.rollback()  # Rollback any pending changes
+                # If we get an error checking status, assume job is gone
                 break
 
             await asyncio.sleep(check_interval)

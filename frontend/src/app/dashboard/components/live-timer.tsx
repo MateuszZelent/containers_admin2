@@ -129,6 +129,6 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
   };
   
   return (
-    <span className={`font-mono ${getTimeColor()}`}>{timeRemaining}</span>
+    <span className={`font-mono font-bold tabular-nums leading-none ${getTimeColor()}`}>{timeRemaining}</span>
   );
 }

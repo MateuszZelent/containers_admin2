@@ -491,7 +491,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
                       </div>
                       {results.elapsed_time !== null && (
                         <div className="flex justify-between">
-                          <span className="text-muted-foreground">Czas wykonania:</span>
+                          <span className="text-muted-foreground">Czas wykonania aa:</span>
                           <span>{formatDuration(results.elapsed_time)}</span>
                         </div>
                       )}
