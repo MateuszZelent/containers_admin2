@@ -1,8 +1,12 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  
+  allowedDevOrigins: ['https://amucontainers.orion.zfns.eu.org'],
+
   eslint: {
     ignoreDuringBuilds: true,
   },
+  
   typescript: {
     // This will completely disable TypeScript checks during build
     ignoreBuildErrors: true,
@@ -42,11 +46,6 @@ const nextConfig = {
         ],
       },
     ];
-  },
-
-  // Enable experimental features for better proxy support
-  experimental: {
-    serverExternalPackages: [],
   },
 };
 

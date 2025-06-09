@@ -1,4 +1,4 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -30,6 +30,7 @@ import {
 import { Job } from "@/lib/types";
 import { LiveTimer } from "./live-timer";
 import { ContainerCreationOverlay } from "./container-creation-overlay";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import {
   Tooltip,
   TooltipContent,
@@ -140,12 +141,23 @@ export const ModernJobCard = React.memo(({
   onDetails,
   formatDate
 }: ModernJobCardProps) => {
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  
   const statusIcon = getStatusIcon(job.status);
   const statusVariant = getStatusBadgeVariant(job.status);
   const gradientClass = getStatusGradient(job.status);
   
   // Generate a unique key for the job combining ID and status for proper animation tracking
   const jobStatusKey = `${job.id}-${job.status}`;
+  
+  const handleDeleteClick = () => {
+    setDeleteConfirmOpen(true);
+  };
+  
+  const handleConfirmDelete = () => {
+    onDelete();
+    setDeleteConfirmOpen(false);
+  };
   
   return (
     <motion.div
@@ -165,11 +177,13 @@ export const ModernJobCard = React.memo(({
       <Card className={`group hover:shadow-lg transition-all duration-300 ${gradientClass} hover:scale-[1.01] relative`}>
       
       {/* Container Creation Overlay for PENDING and CONFIGURING states */}
-      <AnimatePresence>
+      <AnimatePresence mode="wait">
         {(job.status === "PENDING" || job.status === "CONFIGURING") && (
           <ContainerCreationOverlay 
+            key={job.status} // This ensures animation restarts when status changes
             status={job.status}
             jobName={job.job_name}
+            onDelete={handleDeleteClick}
           />
         )}
       </AnimatePresence>
@@ -355,7 +369,7 @@ export const ModernJobCard = React.memo(({
           <Button 
             variant="ghost" 
             size="sm"
-            onClick={onDelete}
+            onClick={handleDeleteClick}
             disabled={isProcessing}
             className="text-red-600 hover:text-red-700 hover:bg-red-50/50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20"
           >
@@ -375,6 +389,18 @@ export const ModernJobCard = React.memo(({
           </div>
         )}
       </CardContent>
+      
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Usuń kontener"
+        description={`Czy na pewno chcesz usunąć kontener "${job.job_name}"?\n\nInformacje o kontenerze:\n• ID: ${job.id}\n• Status: ${job.status}\n• Szablon: ${job.template_name}\n• CPU: ${job.num_cpus}, RAM: ${job.memory_gb}GB, GPU: ${job.num_gpus}\n• Utworzono: ${formatDate(job.created_at)}\n\nTa operacja jest nieodwracalna.`}
+        confirmText="Usuń kontener"
+        cancelText="Anuluj"
+        onConfirm={handleConfirmDelete}
+        isLoading={isProcessing}
+      />
     </Card>
     </motion.div>
   );

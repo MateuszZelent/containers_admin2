@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { jobsApi, adminApi, userApi, clusterApi } from "@/lib/api-client";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { 
   Plus, 
   RefreshCcw, 
@@ -129,6 +130,10 @@ export default function DashboardPage() {
   
   // Operation states
   const [processingJobs, setProcessingJobs] = useState<Record<number, boolean>>({});
+  
+  // Confirmation dialog states
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   
   // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
@@ -430,24 +435,33 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
     };
   }, [autoRefreshEnabled, refreshData]);
 
-  // Delete a job with loading state
-  const handleDelete = useCallback(async (jobId: number) => {
+  // Show delete confirmation
+  const handleDelete = useCallback((job: Job) => {
+    setJobToDelete(job);
+    setDeleteConfirmOpen(true);
+  }, []);
+
+  // Actually delete a job after confirmation
+  const confirmDelete = useCallback(async () => {
+    if (!jobToDelete) return;
+    
     // Set processing state for this job
-    setProcessingJobs(prev => ({ ...prev, [jobId]: true }));
+    setProcessingJobs(prev => ({ ...prev, [jobToDelete.id]: true }));
     
     try {
-      await jobsApi.deleteJob(jobId);
-      setJobs(prev => prev.filter(job => job.id !== jobId));
+      await jobsApi.deleteJob(jobToDelete.id);
+      setJobs(prev => prev.filter(job => job.id !== jobToDelete.id));
       toast.success("Kontener został usunięty");
     } catch (error: unknown) {
       const errorMessage = getErrorMessage(error, "Nie udało się usunąć kontenera");
       toast.error(errorMessage);
-      console.error(`Error deleting job ${jobId}:`, error);
+      console.error(`Error deleting job ${jobToDelete.id}:`, error);
     } finally {
       // Clear processing state
-      setProcessingJobs(prev => ({ ...prev, [jobId]: false }));
+      setProcessingJobs(prev => ({ ...prev, [jobToDelete.id]: false }));
+      setJobToDelete(null);
     }
-  }, []);
+  }, [jobToDelete]);
 
   // Open Code Server with loading state
   const openCodeServer = useCallback(async (job: Job) => {
@@ -803,7 +817,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                     activeJobData={activeJobsMap.get(job.job_id)}
                     tunnels={jobTunnels[job.id] || []}
                     isProcessing={processingJobs[job.id] || false}
-                    onDelete={() => handleDelete(job.id)}
+                    onDelete={() => handleDelete(job)}
                     onOpenCodeServer={() => openCodeServer(job)}
                     canUseCodeServer={canUseCodeServer(job)}
                     formatDate={formatDate}
@@ -841,7 +855,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                         activeJobData={activeJobsMap.get(job.job_id)}
                         tunnels={jobTunnels[job.id] || []}
                         isProcessing={processingJobs[job.id] || false}
-                        onDelete={() => handleDelete(job.id)}
+                        onDelete={() => handleDelete(job)}
                         onOpenCodeServer={() => openCodeServer(job)}
                         canUseCodeServer={canUseCodeServer(job)}
                         formatDate={formatDate}
@@ -879,7 +893,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                         activeJobData={activeJobsMap.get(job.job_id)}
                         tunnels={jobTunnels[job.id] || []}
                         isProcessing={processingJobs[job.id] || false}
-                        onDelete={() => handleDelete(job.id)}
+                        onDelete={() => handleDelete(job)}
                         onOpenCodeServer={() => openCodeServer(job)}
                         canUseCodeServer={canUseCodeServer(job)}
                         formatDate={formatDate}
@@ -1086,6 +1100,18 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
         open={isEditDialogOpen}
         onOpenChange={setIsEditDialogOpen}
         onUserUpdated={handleUserCreatedOrUpdated}
+      />
+      
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteConfirmOpen}
+        onOpenChange={setDeleteConfirmOpen}
+        title="Usuń kontener"
+        description={jobToDelete ? `Czy na pewno chcesz usunąć kontener "${jobToDelete.job_name}"?\n\nInformacje o kontenerze:\n• ID: ${jobToDelete.id}\n• Status: ${jobToDelete.status}\n• Szablon: ${jobToDelete.template_name}\n• CPU: ${jobToDelete.num_cpus}, RAM: ${jobToDelete.memory_gb}GB, GPU: ${jobToDelete.num_gpus}\n• Utworzono: ${formatDate(jobToDelete.created_at)}\n\nTa operacja jest nieodwracalna.` : ""}
+        confirmText="Usuń kontener"
+        cancelText="Anuluj"
+        onConfirm={confirmDelete}
+        isLoading={jobToDelete ? (processingJobs[jobToDelete.id] || false) : false}
       />
       
     </div>

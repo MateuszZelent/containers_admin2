@@ -7,6 +7,7 @@ import { RefreshCcw, ArrowLeft, Link2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { jobsApi } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 
@@ -92,6 +93,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [codeServerURL, setCodeServerURL] = useState<string | null>(null);
+  
+  // Confirmation dialog states
+  const [tunnelToClose, setTunnelToClose] = useState<SSHTunnel | null>(null);
+  const [closeConfirmOpen, setCloseConfirmOpen] = useState(false);
 
   const fetchData = useCallback(async () => {
     setIsLoading(true);
@@ -160,10 +165,21 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     }
   };
 
-  // Zamknij tunel SSH
-  const closeTunnel = async (tunnelId: number) => {
+  // Zamknij tunel SSH - show confirmation
+  const handleCloseTunnel = (tunnelId: number) => {
+    const tunnel = tunnels.find(t => t.id === tunnelId);
+    if (tunnel) {
+      setTunnelToClose(tunnel);
+      setCloseConfirmOpen(true);
+    }
+  };
+
+  // Actually close the tunnel after confirmation
+  const confirmCloseTunnel = async () => {
+    if (!tunnelToClose) return;
+    
     try {
-      await jobsApi.closeJobTunnel(jobId, tunnelId);
+      await jobsApi.closeJobTunnel(jobId, tunnelToClose.id);
       toast.success("Tunel SSH został zamknięty", {
         duration: 5000,
         closeButton: true
@@ -177,6 +193,9 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
         }
       );
       console.error(error);
+    } finally {
+      setTunnelToClose(null);
+      setCloseConfirmOpen(false);
     }
   };
 
@@ -547,7 +566,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                             <Button 
                               variant="outline" 
                               size="sm" 
-                              onClick={() => closeTunnel(tunnel.id)}
+                              onClick={() => handleCloseTunnel(tunnel.id)}
                               className="px-2 py-1 text-xs"
                               title="Zamknij tunel"
                             >
@@ -780,6 +799,17 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
           </CardFooter>
         </Card>
       )}
+      
+      {/* Tunnel Close Confirmation Dialog */}
+      <ConfirmationDialog
+        open={closeConfirmOpen}
+        onOpenChange={setCloseConfirmOpen}
+        title="Zamknij tunel SSH"
+        description={tunnelToClose ? `Czy na pewno chcesz zamknąć tunel SSH?\n\nInformacje o tunelu:\n• ID: ${tunnelToClose.id}\n• Port lokalny: ${tunnelToClose.local_port}\n• Port zewnętrzny: ${tunnelToClose.external_port}\n• Port wewnętrzny: ${tunnelToClose.internal_port}\n• Host zdalny: ${tunnelToClose.remote_host}:${tunnelToClose.remote_port}\n• Węzeł: ${tunnelToClose.node}\n• Status: ${tunnelToClose.status}\n\nTa operacja zamknie połączenie i usunie tunel.` : ""}
+        confirmText="Zamknij tunel"
+        cancelText="Anuluj"
+        onConfirm={confirmCloseTunnel}
+      />
     </div>
   );
 }

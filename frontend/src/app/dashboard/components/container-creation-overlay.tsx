@@ -1,11 +1,13 @@
 import React from "react";
 import { motion } from "framer-motion";
-import { Loader2, Clock, Cog } from "lucide-react";
+import { Loader2, Clock, Cog, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface ContainerCreationOverlayProps {
   status: string;
   jobName: string;
+  onDelete?: () => void;
 }
 
 const getStatusInfo = (status: string) => {
@@ -13,7 +15,7 @@ const getStatusInfo = (status: string) => {
     case "PENDING":
       return {
         stage: "1/2",
-        title: "Tworzenie kontenera",
+        title: "Zadanie zostało utworzone",
         subtitle: "Oczekiwanie na alokację zasobów...",
         description: "Kontener oczekuje na dostępne zasoby w klastrze",
         icon: <Clock className="h-8 w-8 text-amber-500" />,
@@ -21,20 +23,20 @@ const getStatusInfo = (status: string) => {
         borderColor: "border-amber-200 dark:border-amber-800",
         textColor: "text-amber-800 dark:text-amber-200",
         progressColor: "bg-amber-400",
-        estimatedTime: "do 3 minut"
+        estimatedTime: "Czas zależy od ilości zadań w kolejce i dostępnych zasobów."
       };
     case "CONFIGURING":
       return {
         stage: "2/2",
-        title: "Konfiguracja kontenera",
-        subtitle: "Przygotowanie środowiska...",
+        title: "Zadanie zostało zakolejkowane",
+        subtitle: "Trwa konfiguracja węzła obliczeniowego...",
         description: "Kontener jest konfigurowany i będzie gotowy za chwilę",
         icon: <Cog className="h-8 w-8 text-blue-500 animate-spin" />,
         bgColor: "bg-blue-50/90 dark:bg-blue-950/90",
         borderColor: "border-blue-200 dark:border-blue-800",
         textColor: "text-blue-800 dark:text-blue-200",
         progressColor: "bg-blue-400",
-        estimatedTime: "do 2 minut"
+        estimatedTime: "do 8 minut"
       };
     default:
       return null;
@@ -43,7 +45,8 @@ const getStatusInfo = (status: string) => {
 
 export const ContainerCreationOverlay: React.FC<ContainerCreationOverlayProps> = ({
   status,
-  jobName
+  jobName,
+  onDelete
 }) => {
   const statusInfo = getStatusInfo(status);
 
@@ -61,6 +64,26 @@ export const ContainerCreationOverlay: React.FC<ContainerCreationOverlayProps> =
       
       {/* Overlay content */}
       <div className={`absolute inset-0 ${statusInfo.bgColor} ${statusInfo.borderColor} border-2 rounded-lg flex flex-col items-center justify-center p-6 space-y-4`}>
+        
+        {/* Delete button in top-right corner */}
+        {onDelete && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.8 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ delay: 0.4 }}
+            className="absolute top-3 right-3"
+          >
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onDelete}
+              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50/50 dark:text-red-400 dark:hover:text-red-300 dark:hover:bg-red-900/20 rounded-full"
+              title="Usuń zadanie"
+            >
+              <X className="h-4 w-4" />
+            </Button>
+          </motion.div>
+        )}
         
         {/* Status badge */}
         <motion.div
@@ -134,17 +157,18 @@ export const ContainerCreationOverlay: React.FC<ContainerCreationOverlayProps> =
           transition={{ delay: 0.5, duration: 0.8 }}
           className="w-full"
         >
-          <div className="h-2 bg-white/30 dark:bg-black/30 rounded-full overflow-hidden">
+          <div className="h-2 bg-white/30 dark:bg-black/30 rounded-full overflow-hidden relative">
             <motion.div
+              initial={{ x: "-100%" }}
               animate={{ 
-                x: ["-100%", "100%"]
+                x: ["0%", "100%", "0%"]
               }}
               transition={{ 
-                duration: 1.5,
+                duration: 3,
                 repeat: Infinity,
-                ease: "linear"
+                ease: "easeInOut"
               }}
-              className={`h-full w-1/3 ${statusInfo.progressColor} rounded-full`}
+              className={`absolute top-0 left-0 h-full w-1/3 ${statusInfo.progressColor} rounded-full`}
             />
           </div>
         </motion.div>
