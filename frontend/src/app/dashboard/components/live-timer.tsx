@@ -24,6 +24,9 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
         return;
       }
       
+      // Debug log
+      console.log("LiveTimer parsing initialTime:", initialTime);
+      
       // Format the time to display immediately (without waiting for the interval)
       let formattedTime = initialTime;
       
@@ -53,6 +56,15 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
           const minutes = timeParts[1];
           const secs = timeParts[2];
           
+          // Check for invalid/negative values
+          if (isNaN(hours) || isNaN(minutes) || isNaN(secs) || 
+              hours < 0 || minutes < 0 || secs < 0) {
+            console.warn("LiveTimer: Invalid time values detected:", { hours, minutes, secs });
+            setTimeRemaining("00:00:00");
+            setSeconds(0);
+            return;
+          }
+          
           totalSeconds = hours * 3600 + minutes * 60 + secs;
           
           // If hours exceed 24, convert to days format for better readability
@@ -70,11 +82,20 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
         }
       }
       
+      // Additional safety check
+      if (totalSeconds < 0) {
+        console.warn("LiveTimer: Negative totalSeconds detected:", totalSeconds);
+        setTimeRemaining("00:00:00");
+        setSeconds(0);
+        return;
+      }
+      
+      console.log("LiveTimer parsed:", { totalSeconds, formattedTime });
       setSeconds(totalSeconds);
       setTimeRemaining(formattedTime);
     } catch (error) {
       console.error("Error parsing time", initialTime, error);
-      setTimeRemaining(initialTime || "00:00:00"); // Fallback to display original string
+      setTimeRemaining("00:00:00"); // Safe fallback
       setSeconds(0);
     }
   }, [initialTime]);
@@ -101,6 +122,13 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
         const hours = Math.floor((newSeconds % (24 * 3600)) / 3600);
         const minutes = Math.floor((newSeconds % 3600) / 60);
         const secs = newSeconds % 60;
+        
+        // Ensure no negative values
+        if (days < 0 || hours < 0 || minutes < 0 || secs < 0) {
+          clearInterval(interval);
+          setTimeRemaining("00:00:00");
+          return 0;
+        }
         
         let formattedTime = '';
         if (days > 0) {
