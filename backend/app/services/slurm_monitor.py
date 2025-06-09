@@ -6,78 +6,15 @@ Optimized to minimize direct SLURM connections and reduce network traffic.
 
 import asyncio
 from datetime import datetime, timezone, timedelta
-from typing import List, Optional, Dict, Any
+from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 from app.core.logging import cluster_logger, slurm_logger
-from app.db.models import SlurmJobSnapshot, ClusterStatus, Job
+from app.db.models import ClusterStatus, Job
 from app.services.slurm import SlurmSSHService
-
-
-def upsert_job_snapshot(db: Session, job_data: Dict[str, Any]) -> SlurmJobSnapshot:
-    """
-    Safely upsert a job snapshot using SQLAlchemy ORM.
-    This replaces the raw SQL approach and is much safer.
-    """
-    try:
-        # Try to find existing snapshot
-        existing = (
-            db.query(SlurmJobSnapshot)
-            .filter(SlurmJobSnapshot.job_id == job_data["job_id"])
-            .first()
-        )
-
-        if existing:
-            # Update existing record
-            for key, value in job_data.items():
-                if key != "job_id":  # Don't update the primary key
-                    setattr(existing, key, value)
-            existing.is_current = True
-            existing.last_updated = datetime.now(timezone.utc)
-            db.add(existing)
-            return existing
-        else:
-            # Create new record
-            job_data["is_current"] = True
-            job_data["last_updated"] = datetime.now(timezone.utc)
-            new_snapshot = SlurmJobSnapshot(**job_data)
-            db.add(new_snapshot)
-            return new_snapshot
-
-    except Exception as e:
-        job_id = job_data.get("job_id", "UNKNOWN")
-        slurm_logger.error(f"Failed to upsert job snapshot for job {job_id}: {e}")
-        raise
-
-
-def bulk_upsert_job_snapshots(db: Session, jobs_data: List[Dict[str, Any]]) -> int:
-    """
-    Safely bulk upsert job snapshots using SQLAlchemy ORM.
-    Returns the number of successfully processed jobs.
-    """
-    processed_count = 0
-
-    for job_data in jobs_data:
-        try:
-            upsert_job_snapshot(db, job_data)
-            processed_count += 1
-        except Exception as e:
-            job_id = job_data.get("job_id", "UNKNOWN")
-            slurm_logger.error(f"Failed to process job {job_id}: {e}")
-            continue
-
-    try:
-        db.commit()
-        slurm_logger.debug(f"Successfully committed {processed_count} jobs")
-    except Exception as e:
-        slurm_logger.error(f"Failed to commit job snapshots: {e}")
-        db.rollback()
-        raise
-
-    return processed_count
 
 
 class SlurmMonitorService:
@@ -128,7 +65,9 @@ class SlurmMonitorService:
             f"Starting SLURM monitoring with {interval_seconds}s interval"
         )
 
-        self._monitor_task = asyncio.create_task(self._monitor_loop(interval_seconds))
+        self._monitor_task = asyncio.create_task(
+            self._monitor_loop(interval_seconds)
+        )
 
     async def stop_monitoring(self):
         """Stop the background monitoring task."""
@@ -169,8 +108,8 @@ class SlurmMonitorService:
             # Update cluster status
             await self._update_cluster_status(db)
 
-            # Update job snapshots
-            await self._update_job_snapshots(db)
+            # Update job statuses
+            await self._update_job_statuses(db)
 
             # Update cluster statistics (nodes/GPU info)
             await self._update_cluster_statistics(db)
@@ -195,7 +134,9 @@ class SlurmMonitorService:
             cluster_status = ClusterStatus(
                 is_connected=status.get("connected", False),
                 last_successful_connection=(
-                    datetime.now(timezone.utc) if status.get("connected") else None
+                    datetime.now(timezone.utc) 
+                    if status.get("connected") 
+                    else None
                 ),
                 last_check=datetime.now(timezone.utc),
                 error_message=(
@@ -205,7 +146,7 @@ class SlurmMonitorService:
 
             db.add(cluster_status)
             cluster_logger.debug(
-                f"Updated cluster status: connected={cluster_status.is_connected}"
+                f"Updated status: connected={cluster_status.is_connected}"
             )
 
         except Exception as e:
@@ -219,154 +160,89 @@ class SlurmMonitorService:
             db.add(cluster_status)
             cluster_logger.error(f"Failed to check cluster status: {e}")
 
-    async def _update_job_snapshots(self, db: Session):
-        """Update job snapshots for all users - ULTRA-OPTIMIZED VERSION."""
+    async def _update_job_statuses(self, db: Session):
+        """
+        Zoptymalizowana funkcja aktualizacji zadań w SLURM.
+        
+        Funkcja pobiera stan kolejki SLURM i aktualizuje tylko 
+        aktywne zadania bez zbędnego zapisywania historii.
+        """
         try:
-            # OPTIMIZATION 1: Single SLURM call for ALL jobs
-            slurm_logger.debug("Fetching ALL active jobs from SLURM in single call")
+            # Pobieramy wszystkie aktywne zadania z SLURM w jednym wywołaniu
+            slurm_logger.debug("Pobieranie aktywnych zadań z SLURM")
             all_active_jobs = await self.slurm_service.get_active_jobs()
 
             if not all_active_jobs:
-                slurm_logger.debug("No active jobs found in SLURM")
-                # Mark all current jobs as completed if SLURM returns empty
-                # Use ORM instead of raw SQL
-                snapshots_to_complete = (
-                    db.query(SlurmJobSnapshot)
-                    .filter(
-                        SlurmJobSnapshot.state.in_(
-                            ["PENDING", "RUNNING", "CONFIGURING"]
-                        )
-                    )
+                slurm_logger.debug("Brak aktywnych zadań w SLURM")
+                
+                # Oznaczamy aktywne zadania jako zakończone
+                jobs_to_complete = (
+                    db.query(Job)
+                    .filter(Job.status.in_(
+                        ["PENDING", "RUNNING", "CONFIGURING"]
+                    ))
                     .all()
                 )
 
-                for snapshot in snapshots_to_complete:
-                    snapshot.state = "COMPLETED"
-                    snapshot.is_current = True
-                    snapshot.last_updated = datetime.now(timezone.utc)
-                    db.add(snapshot)
-
-                if snapshots_to_complete:
+                for job in jobs_to_complete:
+                    job.status = "COMPLETED"
+                    job.updated_at = datetime.now(timezone.utc)
+                    db.add(job)
+                
+                if jobs_to_complete:
                     slurm_logger.debug(
-                        f"Marked {len(snapshots_to_complete)} jobs as completed"
+                        f"Oznaczono {len(jobs_to_complete)} zadań jako "
+                        f"zakończone"
                     )
                 return
 
-            slurm_logger.debug(f"Found {len(all_active_jobs)} total active jobs")
+            slurm_logger.debug(
+                f"Znaleziono {len(all_active_jobs)} aktywnych zadań"
+            )
 
-            # OPTIMIZATION 2: Prepare all data for bulk insert in memory
+            # Przygotowanie danych do aktualizacji
             active_job_ids = []
-            bulk_insert_data = []
 
             for job_data in all_active_jobs:
                 job_id = job_data.get("job_id")
-                user = job_data.get("user")
-
-                if not job_id or not user:
+                if not job_id:
                     continue
-
+                    
                 active_job_ids.append(job_id)
-
-                # Clean node data
+                
+                # Pobieramy dane o węźle
                 node_list = job_data.get("node")
                 if node_list == "(None)" or not node_list:
                     node_list = None
-
-                bulk_insert_data.append(
-                    {
-                        "job_id": job_id,
-                        "user": user,
-                        "name": job_data.get("name", ""),
-                        "partition": job_data.get("partition", ""),
-                        "state": job_data.get("state", "UNKNOWN"),
-                        "node": node_list,
-                        "node_count": self._safe_int(job_data.get("node_count", "0")),
-                        "time_used": job_data.get("time_used", ""),
-                        "time_left": job_data.get("time_left", ""),
-                        "memory_requested": job_data.get("memory_requested", ""),
-                        "start_time": job_data.get("start_time", ""),
-                        "submit_time": job_data.get("submit_time", ""),
-                        "reason": job_data.get("reason", ""),
-                    }
-                )
-
-            # OPTIMIZATION 3: Mark all existing snapshots as outdated using ORM
-            snapshots_to_update = (
-                db.query(SlurmJobSnapshot)
-                .filter(
-                    SlurmJobSnapshot.state.in_(["PENDING", "RUNNING", "CONFIGURING"])
-                )
-                .all()
-            )
-
-            for snapshot in snapshots_to_update:
-                snapshot.is_current = False
-                db.add(snapshot)
-
-            # OPTIMIZATION 4: Bulk insert/update all snapshots in one operation
-            if bulk_insert_data:
-                slurm_logger.debug(
-                    f"Bulk updating {len(bulk_insert_data)} job snapshots"
-                )
-
-                # Filter out jobs with empty job_id to avoid violations
-                valid_jobs = [
-                    job
-                    for job in bulk_insert_data
-                    if job.get("job_id") and job["job_id"].strip()
-                ]
-
-                if not valid_jobs:
-                    slurm_logger.warning(
-                        "No valid jobs to update (all job_ids are empty)"
-                    )
-                    return
-
-                # Additional validation - check for duplicates in current batch
-                job_ids_in_batch = [job["job_id"] for job in valid_jobs]
-                unique_job_ids = set(job_ids_in_batch)
-
-                if len(job_ids_in_batch) != len(unique_job_ids):
-                    slurm_logger.warning(
-                        f"Found duplicate job_ids in current batch: "
-                        f"{len(job_ids_in_batch)} total vs "
-                        f"{len(unique_job_ids)} unique"
-                    )
-                    # Remove duplicates, keeping the last occurrence
-                    seen = set()
-                    unique_jobs = []
-                    for job in reversed(valid_jobs):
-                        if job["job_id"] not in seen:
-                            seen.add(job["job_id"])
-                            unique_jobs.append(job)
-                    valid_jobs = list(reversed(unique_jobs))
-                    slurm_logger.info(f"After deduplication: {len(valid_jobs)} jobs")
-
-                slurm_logger.debug(
-                    f"About to insert/update {len(valid_jobs)} jobs with IDs: "
-                    f"{[j['job_id'] for j in valid_jobs[:5]]}..."
-                )
-
-                # Use modern SQLAlchemy ORM instead of raw SQL for safety
-                try:
-                    processed_count = bulk_upsert_job_snapshots(db, valid_jobs)
-                    slurm_logger.debug(
-                        f"Successfully processed {processed_count} job snapshots"
-                    )
-                except Exception as e:
-                    slurm_logger.error(f"Failed to process job snapshots: {e}")
-                    # The ORM function already handles individual job errors
-                    return
-
-            # OPTIMIZATION 5: Bulk update completed jobs using ORM
+                
+                # Pobieramy aktualny stan zadania
+                state = job_data.get("state", "UNKNOWN")
+                
+                # Aktualizujemy zadanie w tabeli Job
+                job = db.query(Job).filter(Job.job_id == job_id).first()
+                if job:
+                    # Aktualizacja stanu zadania
+                    job.status = state
+                    
+                    # Jeśli zadanie przeszło ze stanu PENDING do innego i mamy
+                    # informację o węźle, aktualizujemy węzeł
+                    if job.node is None and node_list is not None:
+                        job.node = node_list
+                        slurm_logger.debug(
+                            f"Węzeł dla zadania {job_id}: {node_list}"
+                        )
+                    
+                    job.updated_at = datetime.now(timezone.utc)
+                    db.add(job)
+            
+            # Oznaczamy zakończone zadania
             if active_job_ids:
-                slurm_logger.debug("Marking non-active jobs as COMPLETED")
-
-                # Update Job table using ORM
                 jobs_to_complete = (
                     db.query(Job)
                     .filter(
-                        Job.status.in_(["PENDING", "RUNNING", "CONFIGURING"]),
+                        Job.status.in_(
+                            ["PENDING", "RUNNING", "CONFIGURING"]
+                        ),
                         ~Job.job_id.in_(active_job_ids),
                     )
                     .all()
@@ -377,42 +253,21 @@ class SlurmMonitorService:
                     job.updated_at = datetime.now(timezone.utc)
                     db.add(job)
 
-                # Also update old snapshots using ORM
-                snapshots_to_complete = (
-                    db.query(SlurmJobSnapshot)
-                    .filter(
-                        SlurmJobSnapshot.state.in_(
-                            ["PENDING", "RUNNING", "CONFIGURING"]
-                        ),
-                        SlurmJobSnapshot.is_current.is_(False),
-                        ~SlurmJobSnapshot.job_id.in_(active_job_ids),
-                    )
-                    .all()
-                )
-
-                for snapshot in snapshots_to_complete:
-                    snapshot.state = "COMPLETED"
-                    snapshot.is_current = True
-                    snapshot.last_updated = datetime.now(timezone.utc)
-                    db.add(snapshot)
-
-                if jobs_to_complete or snapshots_to_complete:
+                if jobs_to_complete:
                     slurm_logger.debug(
-                        f"Marked {len(jobs_to_complete)} jobs and "
-                        f"{len(snapshots_to_complete)} snapshots as completed"
+                        f"Oznaczono {len(jobs_to_complete)} zadań jako "
+                        f"zakończone"
                     )
-
-            # Count results by user for logging
-            users_count = len(set(item["user"] for item in bulk_insert_data))
-
+            
+            db.commit()
             slurm_logger.info(
-                f"Job snapshots update completed efficiently. "
-                f"Active jobs: {len(active_job_ids)}, "
-                f"Users with jobs: {users_count}"
+                f"Aktualizacja zadań zakończona. "
+                f"Aktywne zadania: {len(active_job_ids)}"
             )
 
         except Exception as e:
-            slurm_logger.error(f"Failed to update job snapshots: {e}")
+            slurm_logger.error(f"Błąd podczas aktualizacji zadań: {e}")
+            db.rollback()
             raise
 
     def _safe_int(self, value: str) -> Optional[int]:
@@ -424,78 +279,22 @@ class SlurmMonitorService:
         except (ValueError, TypeError):
             return None
 
-    def _parse_slurm_time(self, time_str: str) -> Optional[datetime]:
-        """Parse SLURM time string to datetime."""
-        if not time_str or time_str == "N/A" or time_str == "Unknown":
-            return None
-
-        try:
-            # SLURM time formats can vary, try common ones
-            formats = [
-                "%Y-%m-%dT%H:%M:%S",  # ISO format
-                "%Y-%m-%d %H:%M:%S",  # Space separated
-                "%m/%d-%H:%M:%S",  # Month/day format
-            ]
-
-            for fmt in formats:
-                try:
-                    dt = datetime.strptime(time_str, fmt)
-                    return dt.replace(tzinfo=timezone.utc)
-                except ValueError:
-                    continue
-
-            # If none of the formats worked, log and return None
-            slurm_logger.debug(f"Could not parse time string: {time_str}")
-            return None
-
-        except Exception as e:
-            slurm_logger.debug(f"Error parsing time '{time_str}': {e}")
-            return None
-
-    async def get_latest_cluster_status(self, db: Session) -> Optional[ClusterStatus]:
+    async def get_latest_cluster_status(
+        self, db: Session
+    ) -> Optional[ClusterStatus]:
         """Get the latest cluster status from database."""
-        return db.query(ClusterStatus).order_by(ClusterStatus.last_check.desc()).first()
-
-    async def get_user_job_snapshots(
-        self, db: Session, username: str
-    ) -> List[SlurmJobSnapshot]:
-        """Get the latest job snapshots for a user."""
-        # Always query fresh from DB to avoid SQLAlchemy session issues
-        snapshots = (
-            db.query(SlurmJobSnapshot)
-            .filter(
-                SlurmJobSnapshot.user == username,
-                SlurmJobSnapshot.is_current.is_(True),
-                SlurmJobSnapshot.state.in_(["PENDING", "RUNNING", "CONFIGURING"]),
-            )
-            .all()
-        )
-
-        slurm_logger.debug(
-            f"Retrieved {len(snapshots)} job snapshots for user {username}"
-        )
-
-        return snapshots
-
-    async def get_job_snapshot(
-        self, db: Session, job_id: str
-    ) -> Optional[SlurmJobSnapshot]:
-        """Get the latest snapshot for a specific job."""
-        # Always get fresh object from DB to avoid session issues
-        snapshot = (
-            db.query(SlurmJobSnapshot)
-            .filter(
-                SlurmJobSnapshot.job_id == job_id, SlurmJobSnapshot.is_current.is_(True)
-            )
+        return (
+            db.query(ClusterStatus)
+            .order_by(ClusterStatus.last_check.desc())
             .first()
         )
-
-        return snapshot
 
     async def _update_cluster_statistics(self, db: Session):
         """Update cluster statistics (nodes/GPU info) in database."""
         try:
-            from app.services.cluster_stats_monitor import ClusterStatsMonitorService
+            from app.services.cluster_stats_monitor import (
+                ClusterStatsMonitorService
+            )
 
             # Create cluster stats monitor service
             cluster_stats_monitor = ClusterStatsMonitorService(db)
@@ -511,6 +310,92 @@ class SlurmMonitorService:
         except Exception as e:
             cluster_logger.error(f"Error updating cluster statistics: {e}")
             # Don't fail the whole monitoring cycle if cluster stats fail
+
+    async def get_user_active_jobs(
+        self, db: Session, username: str
+    ):
+        """
+        Pobierz aktywne zadania dla danego użytkownika.
+        Zastępuje starą funkcję get_user_job_snapshots.
+        """
+        try:
+            # Pobieramy użytkownika na podstawie nazwy użytkownika
+            from app.db.models import User
+            
+            user = db.query(User).filter(User.username == username).first()
+            
+            if not user:
+                slurm_logger.warning(f"Nie znaleziono użytkownika: {username}")
+                return []
+                
+            # Pobieramy aktywne zadania użytkownika
+            jobs = (
+                db.query(Job)
+                .filter(
+                    Job.owner_id == user.id,
+                    Job.status.in_(["PENDING", "RUNNING", "CONFIGURING"])
+                )
+                .all()
+            )
+            
+            slurm_logger.debug(
+                f"Pobrano {len(jobs)} zadań dla użytkownika {username}"
+            )
+            
+            return jobs
+            
+        except Exception as e:
+            slurm_logger.error(
+                f"Błąd podczas pobierania zadań użytkownika {username}: {e}"
+            )
+            return []
+
+    async def get_job_snapshot(
+        self, db: Session, job_id: str
+    ) -> Optional[dict]:
+        """
+        Pobierz informacje o konkretnym zadaniu z bazy danych.
+        Zastępuje starą funkcję get_job_snapshot bazującą na snapshots.
+        """
+        try:
+            job = db.query(Job).filter(Job.job_id == job_id).first()
+            
+            if not job:
+                slurm_logger.debug(f"Nie znaleziono zadania o ID: {job_id}")
+                return None
+                
+            # Tworzymy obiekt podobny do SlurmJobSnapshot
+            # dla zachowania kompatybilności
+            job_data = {
+                "job_id": job.job_id,
+                "state": job.status,
+                "name": job.job_name,
+                "node": job.node,
+                "node_count": job.num_nodes,
+                "memory_requested": f"{job.memory_gb}G",
+                "time_left": "",    # Informacja niedostępna w tabeli Job
+                "time_used": "",    # Informacja niedostępna w tabeli Job
+                "partition": job.partition,
+                "is_current": True,
+                "last_updated": job.updated_at,
+                "reason": ""        # Informacja niedostępna w tabeli Job
+            }
+            
+            # Ustawiamy obiekt jako słownik z atrybutami
+            # dla zachowania kompatybilności
+            class DotDict(dict):
+                def __getattr__(self, attr):
+                    return self.get(attr, None)
+            
+            result = DotDict(job_data)
+            
+            return result
+            
+        except Exception as e:
+            slurm_logger.error(
+                f"Błąd podczas pobierania informacji o zadaniu {job_id}: {e}"
+            )
+            return None
 
 
 # Global monitor service instance

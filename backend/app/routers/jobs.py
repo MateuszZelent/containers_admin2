@@ -65,50 +65,18 @@ async def get_jobs(
     """
     from app.services.slurm_monitor import monitor_service
 
-    # Get jobs from database
+    # Get jobs from database - monitoring service already keeps them up to date
     job_service = JobService(db)
     db_jobs = job_service.get_jobs(current_user)
     db_jobs_map = {job.job_id: job for job in db_jobs}
 
-    # Get current SLURM status from monitoring service snapshots
-    job_snapshots = await monitor_service.get_user_job_snapshots(
+    # Get active jobs directly from database instead of snapshots
+    active_jobs = await monitor_service.get_user_active_jobs(
         db, current_user.username
     )
-
-    if job_snapshots:
-        for snapshot in job_snapshots:
-            try:
-                job_id = snapshot.job_id
-
-                if job_id in db_jobs_map:
-                    # Update existing job if status changed
-                    db_job = db_jobs_map[job_id]
-                    if db_job.status != snapshot.state:
-                        db_job.status = snapshot.state
-                        db_job.node = snapshot.node
-                    db.add(db_job)
-                else:
-                    # Create new job record for unknown SLURM job
-                    new_job = Job(
-                        job_id=job_id,
-                        job_name=snapshot.name,
-                        status=snapshot.state,
-                        node=snapshot.node,
-                        owner_id=current_user.id,
-                        partition=snapshot.partition or "proxima",
-                        num_cpus=1,
-                        memory_gb=1,
-                        template_name="unknown",
-                        script="",
-                    )
-                    db.add(new_job)
-                    db_jobs.append(new_job)
-            except Exception as e:
-                jobs_logger.warning(f"Error processing snapshot: {e}")
-                continue
-
-        # Commit all changes
-        db.commit()
+    
+    # We don't need to update anything here as the monitor service
+    # already keeps the job statuses up to date
 
     return db_jobs
 
@@ -151,67 +119,45 @@ async def get_active_jobs(
     current_user: User = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """
-    Get active jobs from monitoring service snapshots for current user.
-    This endpoint ONLY uses cached data from the monitoring service - no direct SLURM calls.
+    Get all active jobs for the current user directly from the database.
+    The monitor service keeps the job statuses up to date.
     """
     try:
         from app.services.slurm_monitor import monitor_service
 
         jobs_logger.debug(
-            f"Fetching active jobs for user: {current_user.username} (from cache)"
+            f"Fetching active jobs for user: {current_user.username}"
         )
 
-        # Get job snapshots from monitoring service (cached data only)
-        job_snapshots = await monitor_service.get_user_job_snapshots(
+        # Get active jobs directly from database
+        active_jobs = await monitor_service.get_user_active_jobs(
             db, current_user.username
         )
 
-        # Get all jobs from database for the current user
-        db_jobs = JobService.get_multi_by_owner(db=db, owner_id=current_user.id)
-        db_jobs_map = {job.job_id: job for job in db_jobs}
-
-        # Enhance active jobs with database information
+        # Convert to response format
         enhanced_jobs = []
-        for snapshot in job_snapshots:
-            # Include PENDING and RUNNING jobs in results
-            if snapshot.state in ["PENDING", "RUNNING", "CONFIGURING"]:
-                db_job = db_jobs_map.get(snapshot.job_id)
-
-                job_data = {
-                    "job_id": snapshot.job_id,
-                    "name": snapshot.name,
-                    "user": snapshot.user,
-                    "state": snapshot.state,
-                    "partition": snapshot.partition,
-                    "node": snapshot.node,
-                    "node_count": snapshot.node_count,
-                    "time_used": snapshot.time_used,
-                    "time_left": snapshot.time_left,
-                    "memory_requested": snapshot.memory_requested,
-                    "start_time": snapshot.start_time,  # This is already a string
-                    "submit_time": snapshot.submit_time,  # This is already a string
-                    "reason": snapshot.reason,
-                    "monitoring_active": True,
-                    "last_updated": snapshot.last_updated.isoformat()
-                    if snapshot.last_updated
-                    else None,
-                }
-
-                # Add database info if available
-                if db_job:
-                    job_data.update(
-                        {
-                            "template": db_job.template_name,
-                            "created_at": db_job.created_at.isoformat(),
-                            "updated_at": (
-                                db_job.updated_at.isoformat()
-                                if db_job.updated_at
-                                else None
-                            ),
-                        }
-                    )
-
-                enhanced_jobs.append(job_data)
+        for job in active_jobs:
+            job_data = {
+                "job_id": job.job_id,
+                "name": job.job_name,
+                "user": current_user.username,
+                "state": job.status,
+                "partition": job.partition,
+                "node": job.node,
+                "node_count": job.num_nodes,
+                "time_used": "",  # Not available in Job model
+                "time_left": "",  # Not available in Job model
+                "memory_requested": f"{job.memory_gb}G",
+                "start_time": "",  # Not available in Job model
+                "submit_time": job.created_at.isoformat(),
+                "reason": "",  # Not available in Job model
+                "monitoring_active": True,
+                "last_updated": job.updated_at.isoformat() if job.updated_at else None,
+                "template": job.template_name,
+                "created_at": job.created_at.isoformat(),
+                "updated_at": job.updated_at.isoformat() if job.updated_at else None,
+            }
+            enhanced_jobs.append(job_data)
 
         return enhanced_jobs
     except Exception as e:
