@@ -223,7 +223,9 @@ class SlurmMonitorService:
                 if job:
                     # Aktualizacja stanu zadania
                     job.status = state
-                    
+                    # Aktualizacja czasu pozostałego i użytego
+                    job.time_left = job_data.get("time_left", "")
+                    job.time_used = job_data.get("time_used", "")
                     # Jeśli zadanie przeszło ze stanu PENDING do innego i mamy
                     # informację o węźle, aktualizujemy węzeł
                     if job.node is None and node_list is not None:
@@ -231,7 +233,6 @@ class SlurmMonitorService:
                         slurm_logger.debug(
                             f"Węzeł dla zadania {job_id}: {node_list}"
                         )
-                    
                     job.updated_at = datetime.now(timezone.utc)
                     db.add(job)
             

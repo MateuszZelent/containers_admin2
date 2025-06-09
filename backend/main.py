@@ -136,7 +136,7 @@ async def health_check(db: Session = Depends(get_db)):
 #         logger.info("Admin user already exists")
 
 
-# @app.on_event("startup")
+@app.on_event("startup")
 async def restore_ssh_tunnels():
     """Restore SSH tunnels from database after server restart."""
     logger.info("Restoring SSH tunnels after server startup")

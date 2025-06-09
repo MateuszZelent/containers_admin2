@@ -27,6 +27,14 @@ export function LiveTimer({ initialTime }: LiveTimerProps) {
       // Debug log
       console.log("LiveTimer parsing initialTime:", initialTime);
       
+      // Check for negative time patterns (e.g., "-1:2:43")
+      if (initialTime.startsWith('-') && !initialTime.includes('-', 1)) {
+        console.warn("LiveTimer: Negative time detected, setting to 00:00:00");
+        setTimeRemaining("00:00:00");
+        setSeconds(0);
+        return;
+      }
+      
       // Format the time to display immediately (without waiting for the interval)
       let formattedTime = initialTime;
       

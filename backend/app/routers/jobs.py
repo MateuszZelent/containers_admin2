@@ -19,7 +19,6 @@ from app.schemas.job import (
 )
 from app.schemas.job import Job as JobSchema
 from app.services.job import JobService
-from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
 from app.db.models import User, Job, SSHTunnel
 from app.core.config import settings
@@ -119,8 +118,8 @@ async def get_active_jobs(
     current_user: User = Depends(get_current_active_user),
 ) -> List[Dict[str, Any]]:
     """
-    Get all active jobs for the current user directly from the database.
-    The monitor service keeps the job statuses up to date.
+    Get real-time status of user's active jobs from SLURM.
+    This endpoint provides time_left and other real-time SLURM data.
     """
     try:
         from app.services.slurm_monitor import monitor_service
@@ -129,13 +128,16 @@ async def get_active_jobs(
             f"Fetching active jobs for user: {current_user.username}"
         )
 
-        # Get active jobs directly from database
+        # Get active jobs from database
         active_jobs = await monitor_service.get_user_active_jobs(
             db, current_user.username
         )
 
-        # Convert to response format
-        enhanced_jobs = []
+        if not active_jobs:
+            return []
+
+        # Zwracaj tylko dane z bazy, bez pobierania z SLURM
+        jobs_data = []
         for job in active_jobs:
             job_data = {
                 "job_id": job.job_id,
@@ -145,21 +147,27 @@ async def get_active_jobs(
                 "partition": job.partition,
                 "node": job.node,
                 "node_count": job.num_nodes,
-                "time_used": "",  # Not available in Job model
-                "time_left": "",  # Not available in Job model
+                "time_used": job.time_used or "",
+                "time_left": job.time_left or "",
                 "memory_requested": f"{job.memory_gb}G",
-                "start_time": "",  # Not available in Job model
+                "start_time": None,  # Możesz dodać jeśli chcesz
                 "submit_time": job.created_at.isoformat(),
-                "reason": "",  # Not available in Job model
+                "reason": "",  # Możesz dodać jeśli chcesz
                 "monitoring_active": True,
                 "last_updated": job.updated_at.isoformat() if job.updated_at else None,
                 "template": job.template_name,
                 "created_at": job.created_at.isoformat(),
                 "updated_at": job.updated_at.isoformat() if job.updated_at else None,
             }
-            enhanced_jobs.append(job_data)
-
-        return enhanced_jobs
+            jobs_data.append(job_data)
+        return jobs_data
+    except Exception as e:
+        # Improve error handling with logging
+        jobs_logger.error(f"Error fetching active jobs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch active jobs: {str(e)}",
+        )
     except Exception as e:
         # Improve error handling with logging
         jobs_logger.error(f"Error fetching active jobs: {str(e)}")
@@ -184,6 +192,103 @@ async def get_templates(
     return templates
 
 
+async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None:
+    """
+    Check if user can create new job based on their limits.
+    Raises HTTPException if limits are exceeded.
+    """
+    # Get all user's active jobs
+    active_jobs = (
+        db.query(Job)
+        .filter(
+            Job.owner_id == user.id,
+            Job.status.in_(["RUNNING", "PENDING", "CONFIGURING"])
+        )
+        .all()
+    )
+    
+    # Check max containers limit
+    if user.max_containers is not None:
+        active_jobs_count = len(active_jobs)
+        
+        if active_jobs_count >= user.max_containers:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"❌ Przekroczono limit kontenerów!\n"
+                       f"🔸 Maksymalna liczba: {user.max_containers}\n"
+                       f"🔸 Aktualnie aktywnych: {active_jobs_count}\n"
+                       f"💡 Usuń nieużywane kontenery, aby zwolnić miejsce."
+            )
+    
+    # Check max GPUs limit
+    if user.max_gpus is not None and job_in.num_gpus > 0:
+        total_gpus_used = sum([job.num_gpus or 0 for job in active_jobs])
+        
+        if total_gpus_used + job_in.num_gpus > user.max_gpus:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"❌ Przekroczono limit kart graficznych!\n"
+                       f"🔸 Maksymalna liczba GPU: {user.max_gpus}\n"
+                       f"🔸 Aktualnie używanych: {total_gpus_used}\n"
+                       f"🔸 Żądanych dla nowego joba: {job_in.num_gpus}\n"
+                       f"🔸 Po utworzeniu wykorzystanie: "
+                       f"{total_gpus_used + job_in.num_gpus}\n"
+                       f"💡 Usuń kontenery używające GPU lub zmniejsz liczbę GPU."
+            )
+    
+    # Check max CPU cores limit (if exists)
+    if hasattr(user, 'max_cpu_cores') and user.max_cpu_cores is not None:
+        total_cpus_used = sum([job.num_cpus or 0 for job in active_jobs])
+        
+        if total_cpus_used + job_in.num_cpus > user.max_cpu_cores:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"❌ Przekroczono limit rdzeni CPU!\n"
+                       f"🔸 Maksymalna liczba rdzeni: {user.max_cpu_cores}\n"
+                       f"🔸 Aktualnie używanych: {total_cpus_used}\n"
+                       f"🔸 Żądanych dla nowego joba: {job_in.num_cpus}\n"
+                       f"🔸 Po utworzeniu wykorzystanie: "
+                       f"{total_cpus_used + job_in.num_cpus}\n"
+                       f"💡 Usuń kontenery lub zmniejsz liczbę rdzeni CPU."
+            )
+    
+    # Check max memory limit (if exists)
+    if hasattr(user, 'max_memory_gb') and user.max_memory_gb is not None:
+        total_memory_used = sum([job.memory_gb or 0 for job in active_jobs])
+        
+        if total_memory_used + job_in.memory_gb > user.max_memory_gb:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"❌ Przekroczono limit pamięci RAM!\n"
+                       f"🔸 Maksymalna pamięć: {user.max_memory_gb} GB\n"
+                       f"🔸 Aktualnie używana: {total_memory_used} GB\n"
+                       f"🔸 Żądana dla nowego joba: {job_in.memory_gb} GB\n"
+                       f"🔸 Po utworzeniu wykorzystanie: "
+                       f"{total_memory_used + job_in.memory_gb} GB\n"
+                       f"💡 Usuń kontenery lub zmniejsz ilość pamięci RAM."
+            )
+    
+    # Check max nodes limit (if exists)
+    if hasattr(user, 'max_nodes') and user.max_nodes is not None:
+        active_nodes = set()
+        for job in active_jobs:
+            if job.node:
+                active_nodes.add(job.node)
+        
+        # Assume new job will use 1 node if not specified
+        requested_nodes = getattr(job_in, 'num_nodes', 1)
+        
+        if len(active_nodes) + requested_nodes > user.max_nodes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"❌ Przekroczono limit węzłów obliczeniowych!\n"
+                       f"🔸 Maksymalna liczba węzłów: {user.max_nodes}\n"
+                       f"🔸 Aktualnie używanych węzłów: {len(active_nodes)}\n"
+                       f"🔸 Żądanych dla nowego joba: {requested_nodes}\n"
+                       f"💡 Usuń kontenery z innych węzłów."
+            )
+
+
 @router.post("/", response_model=Union[JobSubmissionResponse, JobPreview])
 async def create_job(
     *,
@@ -196,6 +301,11 @@ async def create_job(
     Create new job by submitting a template-based job to SLURM.
     If preview=True, returns the filled template without submitting the job.
     """
+    # Check user limits before creating job
+    if not job_in.preview:
+        await _check_user_limits(db, current_user, job_in)
+    
+    from app.services.slurm import SlurmSSHService
     slurm_service = SlurmSSHService()
     job_service = JobService(db)
     job_name = f"container_{current_user.username}_{job_in.job_name}"

@@ -88,6 +88,17 @@ export default function SubmitJobPage() {
         errorMessage.includes("Container with name") && errorMessage.includes("already exists") ||
         errorMessage.includes("kontener o nazwie") && errorMessage.includes("już istnieje");
       
+      // Check for resource limit errors
+      const isResourceLimitError = 
+        errorMessage.includes("Przekroczono limit") ||
+        errorMessage.includes("limit") && (
+          errorMessage.includes("kontenerów") ||
+          errorMessage.includes("kart graficznych") ||
+          errorMessage.includes("rdzeni CPU") ||
+          errorMessage.includes("pamięci RAM") ||
+          errorMessage.includes("węzłów")
+        );
+      
       if (isDuplicateNameError) {
         // Set form field error for better UX
         form.setError("job_name", {
@@ -100,6 +111,37 @@ export default function SubmitJobPage() {
           duration: 5000,
           closeButton: true
         });
+      } else if (isResourceLimitError) {
+        // Handle resource limit errors with better formatting
+        const formattedMessage = errorMessage.replace(/\n/g, ' • ');
+        
+        toast.error(formattedMessage, {
+          duration: 8000, // Longer duration for resource limit errors
+          closeButton: true,
+          style: {
+            maxWidth: '500px',
+            fontSize: '14px',
+            lineHeight: '1.4'
+          }
+        });
+        
+        // Highlight relevant form fields based on error type
+        if (errorMessage.includes("kart graficznych")) {
+          form.setError("num_gpus", {
+            type: "manual",
+            message: "Przekroczono limit GPU dla Twojego konta"
+          });
+        } else if (errorMessage.includes("rdzeni CPU")) {
+          form.setError("num_cpus", {
+            type: "manual",
+            message: "Przekroczono limit CPU dla Twojego konta"
+          });
+        } else if (errorMessage.includes("pamięci RAM")) {
+          form.setError("memory_gb", {
+            type: "manual",
+            message: "Przekroczono limit pamięci RAM dla Twojego konta"
+          });
+        }
       } else {
         // Show original error message for other errors
         toast.error(errorMessage, {

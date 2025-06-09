@@ -73,6 +73,10 @@ class Job(Base):
     time_limit = Column(String, default="24:00:00")
     script = Column(Text, default="")  # Store the generated script for reference
 
+    # Real-time SLURM fields (updated by monitor)
+    time_left = Column(String, default="", nullable=True)
+    time_used = Column(String, default="", nullable=True)
+
     # Timestamps and relations
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
