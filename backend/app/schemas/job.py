@@ -93,7 +93,7 @@ class JobInDBBase(JobBase):
     port: Optional[int] = None
     created_at: datetime
     updated_at: Optional[datetime] = None
-    owner_id: int
+    owner_id: Optional[int] = Field(default=1, description="Owner user ID, defaults to admin if null")
     tunnels: List[SSHTunnelInfo] = []
     script: str = Field(default="")
     password: Optional[str] = None

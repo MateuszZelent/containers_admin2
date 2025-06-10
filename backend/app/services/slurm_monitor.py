@@ -207,34 +207,56 @@ class SlurmMonitorService:
                 job_id = job_data.get("job_id")
                 if not job_id:
                     continue
-                    
-                active_job_ids.append(job_id)
                 
-                # Pobieramy dane o węźle
+                active_job_ids.append(job_id)
+                name = node_list = job_data.get("name")
                 node_list = job_data.get("node")
                 if node_list == "(None)" or not node_list:
                     node_list = None
-                
-                # Pobieramy aktualny stan zadania
                 state = job_data.get("state", "UNKNOWN")
-                
-                # Aktualizujemy zadanie w tabeli Job
                 job = db.query(Job).filter(Job.job_id == job_id).first()
                 if job:
                     # Aktualizacja stanu zadania
                     job.status = state
-                    # Aktualizacja czasu pozostałego i użytego
                     job.time_left = job_data.get("time_left", "")
                     job.time_used = job_data.get("time_used", "")
-                    # Jeśli zadanie przeszło ze stanu PENDING do innego i mamy
-                    # informację o węźle, aktualizujemy węzeł
                     if job.node is None and node_list is not None:
                         job.node = node_list
-                        slurm_logger.debug(
-                            f"Węzeł dla zadania {job_id}: {node_list}"
-                        )
+                        slurm_logger.debug(f"Węzeł dla zadania {job_id}: {node_list}")
                     job.updated_at = datetime.now(timezone.utc)
                     db.add(job)
+                else:
+                    # Przypisz owner_id na podstawie nazwy zadania (np. container_nikodem_ -> nikodem)
+                    job_name = job_data.get("name", f"slurm_job_{job_id}")
+                    owner_id = 1  # domyślnie admin
+                    import re
+                    # Szukaj wzorca container_<user>_
+                    m = re.match(r"container_([a-zA-Z0-9]+)_", job_name)
+                    if m:
+                        username = m.group(1).lower()
+                        # Mapuj na usera z bazy
+                        from app.db.models import User
+                        user = db.query(User).filter(User.username == username).first()
+                        if user:
+                            owner_id = user.id
+                    new_job = Job(
+                        job_id=job_id,
+                        job_name=job_name,
+                        status=state,
+                        node=node_list,
+                        partition=job_data.get("partition", "proxima"),
+                        num_nodes=self._safe_int(job_data.get("node_count")),
+                        num_cpus=self._safe_int(job_data.get("num_cpus")),
+                        memory_gb=self._safe_int(job_data.get("memory_requested", "").replace("G", "")),
+                        time_limit=job_data.get("time_limit", "24:00:00"),
+                        time_left=job_data.get("time_left", ""),
+                        time_used=job_data.get("time_used", ""),
+                        created_at=datetime.now(timezone.utc),
+                        updated_at=datetime.now(timezone.utc),
+                        owner_id=owner_id,
+                    )
+                    db.add(new_job)
+                    slurm_logger.info(f"Dodano nowe zadanie z SLURM do bazy: {job_id}, owner_id={owner_id}")
             
             # Oznaczamy zakończone zadania
             if active_job_ids:

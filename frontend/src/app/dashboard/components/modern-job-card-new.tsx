@@ -304,7 +304,7 @@ export const ModernJobCard = React.memo(({
         damping: 30, 
         duration: 0.4 
       }}
-      className="relative group"
+      className="relative group min-w-[320px]"
     >
       <Card className={`${gradientClass} overflow-hidden relative`}>
         {/* Enhanced gradient overlay for professional depth */}
@@ -326,105 +326,106 @@ export const ModernJobCard = React.memo(({
         </AnimatePresence>
 
         <CardHeader className="pb-4 relative z-10">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-4">
+          <div className="flex flex-col space-y-3">
+            <div className="flex items-center space-x-3 w-full min-w-0">
               {statusIcon}
-              <CardTitle className="text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300">
+              <CardTitle className="text-base font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300 truncate flex-1">
                 {job.job_name}
               </CardTitle>
+              <Badge 
+                variant={statusVariant} 
+                className="flex items-center gap-2 px-3 py-1.5 font-semibold bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 shadow-lg text-slate-700 dark:text-slate-200 text-xs flex-shrink-0"
+              >
+                {job.status}
+              </Badge>
             </div>
-            <Badge 
-              variant={statusVariant} 
-              className="flex items-center gap-2 px-4 py-2 font-semibold bg-white/90 dark:bg-slate-800/90 backdrop-blur-xl border border-white/40 dark:border-slate-700/50 shadow-lg text-slate-700 dark:text-slate-200"
-            >
-              {job.status}
-            </Badge>
           </div>
           
-          {/* Enhanced info bar with premium styling */}
-          <div className="flex items-center justify-between text-sm mt-4 gap-4">
-            <div className="flex items-center space-x-3 bg-white/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-full backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-sm">
-              <Server className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-              <span className="font-bold text-slate-700 dark:text-slate-200">ID: {job.id}</span>
+          {/* Enhanced info bar - single row with proper spacing */}
+          <div className="flex items-center justify-between gap-3 mt-3">
+            <div className="flex items-center space-x-2 bg-white/80 dark:bg-slate-800/80 px-3 py-2 rounded-full backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-sm">
+              <Server className="h-3 w-3 text-slate-600 dark:text-slate-300 flex-shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">ID: {job.id}</span>
             </div>
-            <div className="flex items-center space-x-3 bg-white/80 dark:bg-slate-800/80 px-4 py-2.5 rounded-full backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-sm">
-              <Monitor className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-              <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[120px]">{job.template_name}</span>
+            <div className="flex items-center space-x-2 bg-white/80 dark:bg-slate-800/80 px-3 py-2 rounded-full backdrop-blur-xl border border-white/50 dark:border-slate-700/50 shadow-sm">
+              <Monitor className="h-3 w-3 text-slate-600 dark:text-slate-300 flex-shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-200 text-xs truncate max-w-[100px]">{job.template_name}</span>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6 relative z-10">
-          {/* Enhanced Resource Section with professional glassmorphism */}
-          <div className="bg-white/[0.4] dark:bg-slate-900/[0.3] backdrop-blur-xl rounded-2xl p-6 border border-white/[0.25] dark:border-slate-700/[0.25] shadow-sm">
-            <div className="flex items-center justify-between mb-5">
-              <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-3">
-                <div className="p-2.5 bg-blue-500/[0.1] dark:bg-blue-400/[0.12] rounded-xl border border-blue-200/[0.4] dark:border-blue-400/[0.25]">
-                  <Cpu className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+        {/* Enhanced Resource Section with responsive design */}
+          <div className="bg-white/[0.4] dark:bg-slate-900/[0.3] backdrop-blur-xl rounded-2xl p-4 border border-white/[0.25] dark:border-slate-700/[0.25] shadow-sm">
+            <div className="flex items-center justify-between mb-4 gap-3">
+              <h4 className="font-bold text-slate-800 dark:text-slate-100 flex items-center gap-2 text-sm">
+                <div className="p-2 bg-blue-500/[0.1] dark:bg-blue-400/[0.12] rounded-xl border border-blue-200/[0.4] dark:border-blue-400/[0.25]">
+                  <Cpu className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                 </div>
-                Zasoby obliczeniowe
+                Zasoby
               </h4>
               
               {job.created_at && (
-                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-white/[0.7] dark:bg-slate-800/[0.7] px-4 py-2 rounded-full border border-white/[0.4] dark:border-slate-700/[0.5]">
+                <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 bg-white/[0.7] dark:bg-slate-800/[0.7] px-3 py-1.5 rounded-full border border-white/[0.4] dark:border-slate-700/[0.5] flex-shrink-0">
                   {getRelativeTimeString(job.created_at)}
                 </span>
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-4">
-              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-4 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
-                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
+            {/* Compact grid - max 2 columns on narrow cards */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-3 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
+                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
                   CPU
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-blue-500/[0.1] dark:bg-blue-400/[0.12] rounded-lg">
-                    <Cpu className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-blue-500/[0.1] dark:bg-blue-400/[0.12] rounded-lg">
+                    <Cpu className="h-3 w-3 text-blue-600 dark:text-blue-400" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    {job.num_cpus} {job.num_cpus === 1 ? 'rdzeń' : 'rdzeni'}
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    {job.num_cpus}
                   </span>
                 </div>
               </div>
               
-              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-4 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
-                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
+              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-3 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
+                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
                   RAM
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-amber-500/[0.1] dark:bg-amber-400/[0.12] rounded-lg">
-                    <HardDrive className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-amber-500/[0.1] dark:bg-amber-400/[0.12] rounded-lg">
+                    <HardDrive className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
-                    {job.memory_gb} GB
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
+                    {job.memory_gb}GB
                   </span>
                 </div>
               </div>
               
-              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-4 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
-                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
+              <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-3 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
+                <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
                   GPU
                 </div>
-                <div className="flex items-center gap-3">
-                  <div className="p-2 bg-purple-500/[0.1] dark:bg-purple-400/[0.12] rounded-lg">
-                    <Zap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                <div className="flex items-center gap-2">
+                  <div className="p-1.5 bg-purple-500/[0.1] dark:bg-purple-400/[0.12] rounded-lg">
+                    <Zap className="h-3 w-3 text-purple-600 dark:text-purple-400" />
                   </div>
-                  <span className="text-sm font-bold text-slate-800 dark:text-slate-100">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-100">
                     {job.num_gpus || 0}
                   </span>
                 </div>
               </div>
               
               {job.node && (
-                <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-4 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
-                  <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
+                <div className="bg-white/[0.8] dark:bg-slate-900/[0.4] backdrop-blur-sm p-3 rounded-xl border border-white/[0.4] dark:border-slate-700/[0.3] shadow-inner">
+                  <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
                     Węzeł
                   </div>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-slate-500/[0.1] dark:bg-slate-400/[0.12] rounded-lg">
-                      <Server className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                  <div className="flex items-center gap-2">
+                    <div className="p-1.5 bg-slate-500/[0.1] dark:bg-slate-400/[0.12] rounded-lg">
+                      <Server className="h-3 w-3 text-slate-600 dark:text-slate-400" />
                     </div>
-                    <span className="text-sm font-bold text-slate-800 dark:text-slate-100 font-mono truncate">
+                    <span className="text-xs font-bold text-slate-800 dark:text-slate-100 font-mono truncate">
                       {job.node}
                     </span>
                   </div>
@@ -475,31 +476,33 @@ export const ModernJobCard = React.memo(({
                   </div>
                 </div>
                 
-                {/* Enhanced time display */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-4 rounded-xl border border-white/40 dark:border-slate-700/40">
-                    <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
+                {/* Compact time display for narrow cards */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-white/40 dark:border-slate-700/40">
+                    <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
                       Pozostało
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Activity className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-                      {activeJobData?.time_left ? (
-                        <LiveTimer initialTime={activeJobData.time_left} />
-                      ) : (
-                        <span className="text-sm font-mono font-bold text-slate-700 dark:text-slate-200 tabular-nums">
-                          {job.time_limit || "24:00:00"}
-                        </span>
-                      )}
+                    <div className="flex items-center gap-2">
+                      <Activity className="h-3 w-3 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+                      <div className="text-xs font-mono font-bold text-slate-700 dark:text-slate-200 tabular-nums">
+                        {activeJobData?.time_left ? (
+                          <LiveTimer initialTime={activeJobData.time_left} />
+                        ) : (
+                          <span>{job.time_limit || "24:00:00"}</span>
+                        )}
+                      </div>
                     </div>
                   </div>
                   
-                  <div className="bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-4 rounded-xl border border-white/40 dark:border-slate-700/40">
-                    <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-3 font-bold">
-                      Wykorzystano
+                  <div className="bg-white/80 dark:bg-slate-900/40 backdrop-blur-sm p-3 rounded-xl border border-white/40 dark:border-slate-700/40">
+                    <div className="text-xs uppercase tracking-wider text-slate-500 dark:text-slate-400 mb-2 font-bold">
+                      Użyto
                     </div>
-                    <div className="flex items-center gap-3">
-                      <Clock className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                      <AutoTimer createdAt={job.created_at} />
+                    <div className="flex items-center gap-2">
+                      <Clock className="h-3 w-3 text-slate-600 dark:text-slate-400 flex-shrink-0" />
+                      <div className="text-xs">
+                        <AutoTimer createdAt={job.created_at} />
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -567,9 +570,9 @@ export const ModernJobCard = React.memo(({
             </div>
           )}
 
-          {/* Enhanced Action buttons */}
-          <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/30 dark:border-slate-700/40">
-            <div className="flex items-center gap-3">
+          {/* Compact Action buttons */}
+          <div className="flex items-center justify-between pt-3 mt-3 border-t border-white/30 dark:border-slate-700/40 gap-2">
+            <div className="flex items-center gap-2 flex-1">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -578,20 +581,20 @@ export const ModernJobCard = React.memo(({
                       size="sm"
                       onClick={onOpenCodeServer}
                       disabled={!canUseCodeServer || isProcessing}
-                      className={`flex items-center gap-3 shadow-sm transition-all duration-300 font-semibold ${
+                      className={`flex items-center gap-2 shadow-sm transition-all duration-300 font-semibold text-xs flex-1 ${
                         canUseCodeServer 
                           ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white' 
                           : 'bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-white/40 dark:border-slate-700/40'
                       }`}
                     >
-                      <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/20' : 'bg-blue-500/10 dark:bg-blue-400/12'} p-1.5`}>
+                      <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/20' : 'bg-blue-500/10 dark:bg-blue-400/12'} p-1`}>
                         {isProcessing ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
+                          <Loader2 className="h-3 w-3 animate-spin" />
                         ) : (
-                          <Code2 className="h-4 w-4" />
+                          <Code2 className="h-3 w-3" />
                         )}
                       </div>
-                      {canUseCodeServer ? "Otwórz IDE" : "Code Server"}
+                      <span className="hidden min-[360px]:inline">{canUseCodeServer ? "IDE" : "Code"}</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
@@ -610,13 +613,13 @@ export const ModernJobCard = React.memo(({
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="flex items-center gap-3 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-white/40 dark:border-slate-700/40 font-semibold"
+                      className="flex items-center gap-2 bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-white/40 dark:border-slate-700/40 font-semibold text-xs flex-1"
                       onClick={onDetails}
                     >
-                      <div className="bg-slate-500/10 dark:bg-slate-400/12 p-1.5 rounded-lg">
-                        <ExternalLink className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                      <div className="bg-slate-500/10 dark:bg-slate-400/12 p-1 rounded-lg">
+                        <ExternalLink className="h-3 w-3 text-slate-600 dark:text-slate-400" />
                       </div>
-                      <span className="text-slate-700 dark:text-slate-200">Szczegóły</span>
+                      <span className="text-slate-700 dark:text-slate-200 hidden min-[360px]:inline">Info</span>
                     </Button>
                   </TooltipTrigger>
                   <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
@@ -634,17 +637,12 @@ export const ModernJobCard = React.memo(({
                     size="sm"
                     onClick={handleDeleteClick}
                     disabled={isProcessing}
-                    className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-rose-200/60 dark:border-rose-700/40 text-rose-600 dark:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-900/30 hover:border-rose-300/80 dark:hover:border-rose-600/60 font-semibold"
+                    className="bg-white/70 dark:bg-slate-800/70 backdrop-blur-sm border-rose-200/60 dark:border-rose-700/40 text-rose-600 dark:text-rose-400 hover:bg-rose-50/80 dark:hover:bg-rose-900/30 hover:border-rose-300/80 dark:hover:border-rose-600/60 font-semibold text-xs p-2"
                   >
                     {isProcessing ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <Loader2 className="h-3 w-3 animate-spin" />
                     ) : (
-                      <div className="flex items-center gap-3">
-                        <div className="bg-rose-500/10 dark:bg-rose-400/12 p-1.5 rounded-lg">
-                          <Trash2 className="h-4 w-4" />
-                        </div>
-                        <span>Usuń</span>
-                      </div>
+                      <Trash2 className="h-3 w-3" />
                     )}
                   </Button>
                 </TooltipTrigger>

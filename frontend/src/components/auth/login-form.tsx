@@ -17,12 +17,14 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
 import { authApi } from "@/lib/api-client";
 import { toast } from "sonner";
 
 const formSchema = z.object({
   username: z.string().min(1, "Nazwa użytkownika jest wymagana"),
   password: z.string().min(1, "Hasło jest wymagane"),
+  rememberMe: z.boolean().default(false),
 });
 
 export function LoginForm() {
@@ -34,6 +36,7 @@ export function LoginForm() {
     defaultValues: {
       username: "",
       password: "",
+      rememberMe: false,
     },
   });
 
@@ -41,6 +44,18 @@ export function LoginForm() {
     setIsLoading(true);
     try {
       await authApi.login(values.username, values.password);
+      
+      // Jeśli użytkownik wybrał "Zapamiętaj mnie", ustaw dłuższą sesję
+      if (values.rememberMe) {
+        // Ustaw token z dłuższym czasem wygaśnięcia (30 dni)
+        const expirationDate = new Date();
+        expirationDate.setDate(expirationDate.getDate() + 30);
+        localStorage.setItem('auth_token_expires', expirationDate.toISOString());
+      } else {
+        // Standardowa sesja (usuń po zamknięciu przeglądarki)
+        sessionStorage.setItem('auth_session', 'true');
+      }
+      
       toast.success("Zalogowano pomyślnie");
       router.push("/dashboard");
     } catch (error: any) {
@@ -83,6 +98,26 @@ export function LoginForm() {
                 />
               </FormControl>
               <FormMessage />
+            </FormItem>
+          )}
+        />
+        <FormField
+          control={form.control}
+          name="rememberMe"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+              <FormControl>
+                <Checkbox
+                  checked={field.value}
+                  onCheckedChange={field.onChange}
+                  disabled={isLoading}
+                />
+              </FormControl>
+              <div className="space-y-1 leading-none">
+                <FormLabel className="text-sm font-normal">
+                  Zapamiętaj mnie
+                </FormLabel>
+              </div>
             </FormItem>
           )}
         />

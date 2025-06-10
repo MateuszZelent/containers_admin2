@@ -9,7 +9,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { 
-  Play, 
   Clock, 
   AlertCircle,  
   CheckCircle2, 
@@ -25,7 +24,6 @@ import {
   Cpu,
   HardDrive,
   Monitor,
-  Network,
   Loader2
 } from "lucide-react";
 import { Job } from "@/lib/types";
@@ -322,7 +320,7 @@ export const ModernJobCard = React.memo(({
         damping: 30, 
         duration: 0.4 
       }}
-      className="relative group"
+      className="relative group w-full min-w-[450px] max-w-[420px] flex-1"
     >
       <Card className={`${gradientClass} overflow-hidden relative`}>
         {/* Enhanced gradient overlay for professional depth */}
@@ -346,30 +344,30 @@ export const ModernJobCard = React.memo(({
         </AnimatePresence>
 
         <CardHeader className="pb-4 relative z-10">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center space-x-3">
+          <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 lg:gap-0">
+            <div className="flex items-center space-x-3 min-w-0 flex-1">
               {statusIcon}
-              <CardTitle className="text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300">
+              <CardTitle className="text-base lg:text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300 truncate">
                 {job.job_name}
               </CardTitle>
             </div>
             <Badge 
               variant={statusVariant} 
-              className="flex items-center gap-2 px-3 py-1.5 font-semibold text-xs bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-md text-slate-700 dark:text-slate-200"
+              className="flex items-center gap-2 px-3 py-1.5 font-semibold text-xs bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-md text-slate-700 dark:text-slate-200 self-start lg:self-auto"
             >
               {job.status}
             </Badge>
           </div>
           
-          {/* Enhanced info bar with premium styling */}
-          <div className="flex items-center justify-between text-sm mt-3 gap-3">
-            <div className="flex items-center space-x-2 bg-white/85 dark:bg-slate-800/85 px-3 py-2 rounded-full backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-sm">
-              <Server className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
+          {/* Enhanced info bar with responsive layout */}
+          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between text-sm mt-3 gap-2 sm:gap-3">
+            <div className="flex items-center space-x-2 bg-white/85 dark:bg-slate-800/85 px-3 py-2 rounded-full backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-sm w-full sm:w-auto">
+              <Server className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0" />
               <span className="font-bold text-slate-700 dark:text-slate-200 text-xs">ID: {job.id}</span>
             </div>
-            <div className="flex items-center space-x-2 bg-white/85 dark:bg-slate-800/85 px-3 py-2 rounded-full backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-sm">
-              <Monitor className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300" />
-              <span className="font-bold text-slate-700 dark:text-slate-200 truncate max-w-[100px] text-xs">{job.template_name}</span>
+            <div className="flex items-center space-x-2 bg-white/85 dark:bg-slate-800/85 px-3 py-2 rounded-full backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-sm w-full sm:w-auto">
+              <Monitor className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0" />
+              <span className="font-bold text-slate-700 dark:text-slate-200 truncate text-xs">{job.template_name}</span>
             </div>
           </div>
         </CardHeader>
@@ -392,7 +390,7 @@ export const ModernJobCard = React.memo(({
               )}
             </div>
             
-            <div className="grid grid-cols-2 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <div className="bg-white/[0.85] dark:bg-slate-900/[0.45] backdrop-blur-sm p-3 rounded-lg border border-white/[0.5] dark:border-slate-700/[0.35] shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -503,10 +501,6 @@ export const ModernJobCard = React.memo(({
                         <AutoTimer createdAt={job.created_at} />
                       )}
                     </div>
-                    <span className="text-slate-400 dark:text-slate-500">-</span>
-                    <span className="tabular-nums">{Math.round(progress)}%</span>
-                    <span className="text-slate-400 dark:text-slate-500">z</span>
-                    <span className="font-mono tabular-nums">{job.time_limit || "24:00:00"}</span>
                   </div>
                 </div>
                 <div className="h-2 w-full bg-slate-200/80 dark:bg-slate-700/80 rounded-full overflow-hidden backdrop-blur-sm shadow-inner">
@@ -523,9 +517,9 @@ export const ModernJobCard = React.memo(({
             )}
           </div>
 
-          {/* Enhanced Action buttons */}
-          <div className="flex items-center justify-between pt-3 mt-2 border-t border-white/40 dark:border-slate-700/50">
-            <div className="flex items-center gap-2">
+          {/* Enhanced Action buttons with improved horizontal layout */}
+          <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/30 dark:border-slate-700/40">
+            <div className="flex items-center gap-3">
               <TooltipProvider>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -534,23 +528,23 @@ export const ModernJobCard = React.memo(({
                       size="sm"
                       onClick={onOpenCodeServer}
                       disabled={!canUseCodeServer || isProcessing}
-                      className={`flex items-center gap-2 transition-all duration-300 font-semibold text-xs ${
+                      className={`flex items-center gap-2 transition-all duration-300 font-semibold text-sm px-4 py-2 ${
                         canUseCodeServer 
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg border-0' 
-                          : 'bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-white/60 dark:border-slate-700/60 shadow-sm hover:shadow-md'
+                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl border-0 hover:scale-105' 
+                          : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg hover:scale-105'
                       }`}
                     >
-                      <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/25' : 'bg-blue-500/12 dark:bg-blue-400/15'} p-1`}>
+                      <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/25' : 'bg-blue-500/12 dark:bg-blue-400/15'} p-1.5`}>
                         {isProcessing ? (
-                          <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
-                          <Code2 className="h-3.5 w-3.5" />
+                          <Code2 className="h-4 w-4" />
                         )}
                       </div>
                       {canUseCodeServer ? "Otwórz IDE" : "Code Server"}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-white/60 dark:border-slate-700/60">
+                  <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
                     {!canUseCodeServer ? (
                       <p>Kontener musi być w stanie RUNNING, aby uruchomić Code Server</p>
                     ) : (
@@ -566,16 +560,16 @@ export const ModernJobCard = React.memo(({
                     <Button 
                       variant="outline" 
                       size="sm" 
-                      className="flex items-center gap-2 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-white/60 dark:border-slate-700/60 font-semibold text-xs shadow-sm hover:shadow-md transition-all duration-300"
+                      className="flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg font-semibold text-sm px-4 py-2 hover:scale-105 transition-all duration-300"
                       onClick={onDetails}
                     >
-                      <div className="bg-slate-500/12 dark:bg-slate-400/15 p-1 rounded-lg">
-                        <ExternalLink className="h-3.5 w-3.5 text-slate-600 dark:text-slate-400" />
+                      <div className="bg-slate-500/12 dark:bg-slate-400/15 p-1.5 rounded-lg">
+                        <ExternalLink className="h-4 w-4 text-slate-600 dark:text-slate-400" />
                       </div>
                       <span className="text-slate-700 dark:text-slate-200">Szczegóły</span>
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-white/60 dark:border-slate-700/60">
+                  <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
                     <p>Zobacz szczegółowe informacje o kontenerze</p>
                   </TooltipContent>
                 </Tooltip>
@@ -588,23 +582,23 @@ export const ModernJobCard = React.memo(({
                   <Button 
                     variant="outline" 
                     size="sm"
-                    onClick={handleDeleteClick}
+                    onClick={onDelete}
                     disabled={isProcessing}
-                    className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm border border-rose-200/70 dark:border-rose-700/50 text-rose-600 dark:text-rose-400 hover:bg-rose-50/90 dark:hover:bg-rose-900/40 hover:border-rose-300/90 dark:hover:border-rose-600/70 font-semibold text-xs shadow-sm hover:shadow-md transition-all duration-300"
+                    className="bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-rose-200/90 dark:border-rose-700/70 text-rose-600 dark:text-rose-400 hover:bg-rose-50/95 dark:hover:bg-rose-900/50 hover:border-rose-300/95 dark:hover:border-rose-600/90 shadow-md hover:shadow-lg font-semibold text-sm px-4 py-2 hover:scale-105 transition-all duration-300"
                   >
                     {isProcessing ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <div className="flex items-center gap-2">
-                        <div className="bg-rose-500/12 dark:bg-rose-400/15 p-1 rounded-lg">
-                          <Trash2 className="h-3.5 w-3.5" />
+                        <div className="bg-rose-500/12 dark:bg-rose-400/15 p-1.5 rounded-lg">
+                          <Trash2 className="h-4 w-4" />
                         </div>
                         <span>Usuń</span>
                       </div>
                     )}
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm border border-white/60 dark:border-slate-700/60">
+                <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
                   <p>Usuń kontener</p>
                 </TooltipContent>
               </Tooltip>

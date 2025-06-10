@@ -306,37 +306,37 @@ export default function DashboardPage() {
   };
 
   // Fetch tunnel information with improved error handling
-const fetchTunnelInfo = useCallback(async (jobId: number) => {
-  try {
-    const response = await jobsApi.getJobTunnels(jobId);
-    setJobTunnels(prev => ({
-      ...prev,
-      [jobId]: response.data
-    }));
-  } catch (error: unknown) {
-    console.error(`Error fetching tunnel info for job ${jobId}:`, error); // Zachowaj ogólne logowanie
+  const fetchTunnelInfo = useCallback(async (jobId: number) => {
+    try {
+      const response = await jobsApi.getJobTunnels(jobId);
+      setJobTunnels(prev => ({
+        ...prev,
+        [jobId]: response.data
+      }));
+    } catch (error: unknown) {
+      console.error(`Error fetching tunnel info for job ${jobId}:`, error); // Zachowaj ogólne logowanie
 
-    if (axios.isAxiosError(error)) {
-      if (error.response) {
-        // Serwer odpowiedział błędem
-        if (error.response.status === 500) {
-          toast.error(`Wystąpił wewnętrzny błąd serwera przy pobieraniu tuneli dla zadania ${jobId}. Prosimy spróbować później.`);
-          // Możesz też zapisać gdzieś, że dla tego joba nie udało się pobrać tuneli
-          // np. setJobTunnelsError(jobId, true);
+      if (axios.isAxiosError(error)) {
+        if (error.response) {
+          // Serwer odpowiedział błędem
+          if (error.response.status === 500) {
+            toast.error(`Wystąpił wewnętrzny błąd serwera przy pobieraniu tuneli dla zadania ${jobId}. Prosimy spróbować później.`);
+            // Możesz też zapisać gdzieś, że dla tego joba nie udało się pobrać tuneli
+            // np. setJobTunnelsError(jobId, true);
+          } else {
+            // Inne błędy serwera (np. 400, 404)
+            const message = error.response.data?.detail || `Błąd serwera (${error.response.status}) przy pobieraniu tuneli.`;
+            toast.error(message);
+          }
+        } else if (error.request) {
+          toast.error(`Brak odpowiedzi od serwera przy próbie pobrania tuneli dla zadania ${jobId}.`);
         } else {
-          // Inne błędy serwera (np. 400, 404)
-          const message = error.response.data?.detail || `Błąd serwera (${error.response.status}) przy pobieraniu tuneli.`;
-          toast.error(message);
+          toast.error(`Błąd konfiguracji żądania tuneli dla zadania ${jobId}.`);
         }
-      } else if (error.request) {
-        toast.error(`Brak odpowiedzi od serwera przy próbie pobrania tuneli dla zadania ${jobId}.`);
       } else {
-        toast.error(`Błąd konfiguracji żądania tuneli dla zadania ${jobId}.`);
+        toast.error(`Wystąpił nieoczekiwany błąd przy pobieraniu tuneli dla zadania ${jobId}.`);
       }
-    } else {
-      toast.error(`Wystąpił nieoczekiwany błąd przy pobieraniu tuneli dla zadania ${jobId}.`);
-    }
-  }  }, []);
+    }  }, []);
 
   // Fetch all tunnel information for running jobs
   const fetchAllTunnels = useCallback(() => {
@@ -758,8 +758,8 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
           </div>
           
           {/* Loading state with skeleton cards only when there are no jobs yet */}
-          {isJobsLoading && jobs.length === 0 ? (
-            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+          {isJobsLoading && jobs.length === 0 ? (              
+            <div className="grid gap-6 auto-rows-max grid-cols-1 min-[720px]:grid-cols-2 min-[1080px]:grid-cols-3 min-[1440px]:grid-cols-4 min-[1800px]:grid-cols-5">
               {Array(3).fill(0).map((_, i) => (
                 <Card key={i} className="relative overflow-hidden bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
                   <div className="animate-pulse bg-gradient-to-br from-slate-100/50 to-slate-200/50 dark:from-slate-700/50 dark:to-slate-600/50 absolute inset-0" />
@@ -806,10 +806,9 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                   </Link>
                 </div>
               </CardContent>
-            </Card>
-          ) : (
+            </Card>          ) : (
             <AnimatePresence mode="popLayout">
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+              <div className="flex flex-wrap justify-start gap-6">
                 {getActiveJobs().map((job) => (
                   <ModernJobCard 
                     key={job.id}
@@ -847,7 +846,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="flex flex-wrap justify-center gap-6">
                     {getActiveJobs().map((job) => (
                       <ModernJobCard 
                         key={job.id}
@@ -885,7 +884,7 @@ const fetchTunnelInfo = useCallback(async (jobId: number) => {
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+                  <div className="flex flex-wrap justify-center gap-6">
                     {getCompletedJobs().map((job) => (
                       <ModernJobCard 
                         key={job.id}

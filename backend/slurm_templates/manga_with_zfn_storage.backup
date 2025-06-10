@@ -99,30 +99,30 @@ chmod 700 "$XDG_RUNTIME_DIR"
 
 fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga
 
-# rclone mount \
-#     --daemon \
-#     -vv \
-#     --fast-list \
-#     --stats=1h \
-#     --checkers=100 \
-#     --uid=1000 \
-#     --dir-perms=0777 \
-#     --gid=1000 \
-#     --attr-timeout=1s \
-#     --dir-cache-time=5m \
-#     --poll-interval=1m0s \
-#     --cache-db-purge \
-#     --cache-dir=/tmp/rclone \
-#     --vfs-cache-poll-interval=1m \
-#     --vfs-cache-max-age=1h0m0s \
-#     --vfs-cache-max-size=0 \
-#     --vfs-cache-mode=writes \
-#     --allow-non-empty \
-#     --buffer-size=16M \
-#     --max-read-ahead=128k \
-#     --vfs-read-chunk-size=50K \
-#     --vfs-read-chunk-size-limit=128M \
-#     zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
+rclone mount \
+    --daemon \
+    -vv \
+    --fast-list \
+    --stats=1h \
+    --checkers=100 \
+    --uid=1000 \
+    --dir-perms=0777 \
+    --gid=1000 \
+    --attr-timeout=1s \
+    --dir-cache-time=5m \
+    --poll-interval=1m0s \
+    --cache-db-purge \
+    --cache-dir=/tmp/rclone \
+    --vfs-cache-poll-interval=1m \
+    --vfs-cache-max-age=1h0m0s \
+    --vfs-cache-max-size=0 \
+    --vfs-cache-mode=writes \
+    --allow-non-empty \
+    --buffer-size=16M \
+    --max-read-ahead=128k \
+    --vfs-read-chunk-size=50K \
+    --vfs-read-chunk-size-limit=128M \
+    zfn2:/mnt/zfn2/zfn2/mannga $SINIMAGE_DIR/zfn_storage/mannga &
 
 # echo "$(cat /mnt/local/kkingstoun/admin/.local/etc/code-server/config.yaml)"
 
@@ -147,7 +147,6 @@ singularity run \
   --env PASSWORD=$PASSWORD \
   --env CODE_SERVER_CONFIG=$CONFIG_FILE \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
-  --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
   --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
   --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
