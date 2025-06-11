@@ -1,0 +1,52 @@
+#!/bin/bash
+#SBATCH --job-name="{job_name}"
+#SBATCH --output={job_name}-%x.%J.%N.out
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task={num_cpus}
+#SBATCH --time={time_limit}
+#SBATCH --mem={memory_gb}G
+#SBATCH --gres=gpu:{num_gpus}
+#SBATCH --partition={partition}
+
+### 1. Konfiguracja środowiska
+echo "Rozpoczynam zadanie symulacji amumax: {job_name}"
+echo "Czas uruchomienia: $(date)"
+echo "Węzeł: $HOSTNAME"
+echo "Katalog roboczy: $PWD"
+
+# Ustaw katalog wyjściowy dla wyników
+OUTPUT_DIR="{output_dir}"
+mkdir -p $OUTPUT_DIR
+
+# Ścieżka do pliku symulacji
+SIM_FILE="{simulation_file}"
+
+# Sprawdź, czy plik symulacji istnieje
+if [ ! -f "$SIM_FILE" ]; then
+    echo "BŁĄD: Plik symulacji $SIM_FILE nie istnieje!"
+    exit 1
+fi
+
+### 2. Uruchomienie symulacji amumax
+echo "Uruchamiam symulację amumax..."
+
+# Uruchom symulację w kontenerze Singularity
+singularity exec --nv \
+    /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif \
+    amumax3 -o $OUTPUT_DIR $SIM_FILE
+
+EXIT_CODE=$?
+if [ $EXIT_CODE -ne 0 ]; then
+    echo "BŁĄD: Symulacja amumax zakończyła się z kodem błędu $EXIT_CODE"
+    exit $EXIT_CODE
+fi
+
+echo "Symulacja zakończona pomyślnie"
+echo "Czas zakończenia: $(date)"
+echo "Wyniki zapisane w katalogu: $OUTPUT_DIR"
+
+# Listowanie plików wynikowych
+echo "Lista plików wynikowych:"
+ls -la $OUTPUT_DIR
+
+exit 0
