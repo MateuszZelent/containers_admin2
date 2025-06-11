@@ -327,7 +327,37 @@ export const tasksApi = {
   cancelTask: (taskId: number) => apiClient.post(`/tasks/${taskId}/cancel`),
   
   // Process queue - new method
-  processQueue: () => apiClient.post('/tasks/process')
+  processQueue: () => apiClient.post('/tasks/process'),
+
+  // Amumax-specific endpoints
+  // Create Amumax task
+  createAmumaxTask: (taskData: {
+    mx3_file_path: string;
+    task_name: string;
+    partition?: string;
+    num_cpus?: number;
+    memory_gb?: number;
+    num_gpus?: number;
+    time_limit?: string;
+    priority?: number;
+    auto_submit?: boolean;
+  }) => apiClient.post('/tasks/amumax', taskData),
+
+  // Get Amumax tasks only
+  getAmumaxTasks: (skip?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (skip !== undefined) params.append('skip', skip.toString());
+    if (limit !== undefined) params.append('limit', limit.toString());
+    return apiClient.get(`/tasks/amumax?${params.toString()}`);
+  },
+
+  // Get Amumax-specific results
+  getAmumaxResults: (taskId: number) => 
+    apiClient.get(`/tasks/${taskId}/amumax-results`),
+
+  // Validate MX3 file
+  validateMx3File: (filePath: string) => 
+    apiClient.post('/tasks/amumax/validate', { file_path: filePath }),
 };
 
 

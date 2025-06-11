@@ -448,22 +448,7 @@ class SlurmSSHService:
         for key, value in params.items():
             placeholder = f"{{{key}}}"
             template_content = template_content.replace(placeholder, str(value))
-
-        # Replace common environment variables
-        # For placeholders like ${USER}, we'll use the loggin_name/username
-        template_content = template_content.replace(
-            "${USER}", params.get("loggin_name", "")
-        )
-        template_content = template_content.replace(
-            "${USERNAME}", params.get("loggin_name", "")
-        )
-
-        # Handle specific bash script cases
-        if 'if [ "$localusername" == {loggin_name}' in template_content:
-            old_if = 'if [ "$localusername" == {loggin_name}'
-            new_if = f'if [ "$localusername" == "{params.get("loggin_name", "")}"'
-            template_content = template_content.replace(old_if, new_if)
-
+            
         # Check for any remaining placeholders that match our format (excluding bash variables)
         remaining = re.findall(r"{[a-zA-Z_]+}", template_content)
         if remaining:

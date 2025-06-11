@@ -368,7 +368,7 @@ export const ModernJobCard = React.memo(({
             </div>
             <div className="flex items-center space-x-2 bg-white/85 dark:bg-slate-800/85 px-3 py-2 rounded-full backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-sm w-full sm:w-auto">
               <Monitor className="h-3.5 w-3.5 text-slate-600 dark:text-slate-300 flex-shrink-0" />
-              <span className="font-bold text-slate-700 dark:text-slate-200 truncate text-xs">{formatContainerName(job.name)}</span>
+              <span className="font-bold text-slate-700 dark:text-slate-200 truncate text-xs">{job.template_name}</span>
             </div>
           </div>
         </CardHeader>

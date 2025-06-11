@@ -259,7 +259,15 @@ export default function TaskQueuePage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Kolejka zadań symulacji</h1>
+        <div>
+          <h1 className="text-3xl font-bold">Kolejka zadań symulacji</h1>
+          <p className="text-muted-foreground mt-1">
+            Zarządzaj wszystkimi zadaniami symulacji. 
+            <Link href="/dashboard/amumax" className="ml-2 text-primary hover:underline">
+              Przejdź do zadań Amumax →
+            </Link>
+          </p>
+        </div>
         <div className="flex gap-2">
           <Button 
             onClick={refreshData} 

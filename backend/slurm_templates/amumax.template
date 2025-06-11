@@ -2,51 +2,46 @@
 #SBATCH --job-name="{job_name}"
 #SBATCH --output={job_name}-%x.%J.%N.out
 #SBATCH --ntasks=1
+#SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task={num_cpus}
 #SBATCH --time={time_limit}
 #SBATCH --mem={memory_gb}G
+#SBATCH --exclude=gpu21
 #SBATCH --gres=gpu:{num_gpus}
 #SBATCH --partition={partition}
+#SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/kkingstoun/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/kkingstoun/{loginname}"
 
-### 1. Konfiguracja środowiska
-echo "Rozpoczynam zadanie symulacji amumax: {job_name}"
-echo "Czas uruchomienia: $(date)"
-echo "Węzeł: $HOSTNAME"
-echo "Katalog roboczy: $PWD"
+# Amumax Micromagnetic Simulation Task
+echo "Starting Amumax simulation task: {job_name}"
+echo "Simulation file: {simulation_file}"
+echo "User: {loginname}"
+echo "CPUs: {num_cpus}, Memory: {memory_gb}G, GPUs: {num_gpus}"
+echo "Partition: {partition}, Time limit: {time_limit}"
+echo "Node: $SLURM_NODELIST"
+echo "Job ID: $SLURM_JOB_ID"
 
-# Ustaw katalog wyjściowy dla wyników
-OUTPUT_DIR="{output_dir}"
-mkdir -p $OUTPUT_DIR
+localusername="{loggin_name}"
+USERNAME="kkingstoun"
+SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
+export SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
 
-# Ścieżka do pliku symulacji
-SIM_FILE="{simulation_file}"
+# Create the directory before running the container
+mkdir -p "$SINIMAGE_DIR"
+chmod 755 "$SINIMAGE_DIR"
 
-# Sprawdź, czy plik symulacji istnieje
-if [ ! -f "$SIM_FILE" ]; then
-    echo "BŁĄD: Plik symulacji $SIM_FILE nie istnieje!"
-    exit 1
-fi
+echo "Created temporary directory: $SINIMAGE_DIR"
 
-### 2. Uruchomienie symulacji amumax
-echo "Uruchamiam symulację amumax..."
+# Validate that the simulation file exists (in container path)
+echo "Simulation file path (container): {simulation_file}"
 
-# Uruchom symulację w kontenerze Singularity
-singularity exec --nv \
-    /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif \
-    amumax3 -o $OUTPUT_DIR $SIM_FILE
-
-EXIT_CODE=$?
-if [ $EXIT_CODE -ne 0 ]; then
-    echo "BŁĄD: Symulacja amumax zakończyła się z kodem błędu $EXIT_CODE"
-    exit $EXIT_CODE
-fi
-
-echo "Symulacja zakończona pomyślnie"
-echo "Czas zakończenia: $(date)"
-echo "Wyniki zapisane w katalogu: $OUTPUT_DIR"
-
-# Listowanie plików wynikowych
-echo "Lista plików wynikowych:"
-ls -la $OUTPUT_DIR
-
-exit 0
+# Run Amumax simulation in Singularity container
+echo "Starting Amumax simulation..."
+singularity exec \
+  --nv \
+  --no-home \
+  --containall \
+  --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
+  /mnt/storage_2/project_data/pl0095-01/mateuszz/new_home/amu_container_env/docker_amumax/mumax_runtime.sif amumax {simulation_file}

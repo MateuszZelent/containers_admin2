@@ -147,24 +147,125 @@ class TaskQueueService:
 
         return filepath
 
-    def create_task(self, data: TaskQueueJobCreate, owner_id: int) -> TaskQueueJob:
+    def create_amumax_task(
+        self, mx3_file_path: str, task_name: str, owner_id: int, **kwargs
+    ) -> TaskQueueJob:
+        """
+        Create a new Amumax micromagnetic simulation task.
+        
+        Args:
+            mx3_file_path: Path to the .mx3 simulation file
+            task_name: Name for the task
+            owner_id: ID of the task owner
+            **kwargs: Additional parameters (num_cpus, memory_gb, etc.)
+        
+        Returns:
+            TaskQueueJob: The created task
+        """
+        try:
+            # Validate mx3 file
+            if not mx3_file_path.endswith('.mx3'):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Simulation file must be a .mx3 file"
+                )
+
+            # Check if file exists on host system (translate path if needed)
+            host_file_path = self._translate_path(mx3_file_path)
+            # if not os.path.exists(host_file_path):
+            #     raise HTTPException(
+            #         status_code=status.HTTP_400_BAD_REQUEST,
+            #         detail=f"Simulation file not found: {mx3_file_path}"
+            #     )
+
+            # Create task data with appropriate defaults for Amumax simulations
+            task_data = TaskQueueJobCreate(
+                name=task_name,
+                simulation_file=mx3_file_path,  # Store original container path
+                partition=kwargs.get('partition', 'proxima'),
+                num_cpus=kwargs.get('num_cpus', 5),
+                memory_gb=kwargs.get('memory_gb', 24),
+                num_gpus=kwargs.get('num_gpus', 1),
+                time_limit=kwargs.get('time_limit', '24:00:00'),
+                priority=kwargs.get('priority', 0),
+                parameters=kwargs.get('parameters', {})
+            )
+
+            # Create the task using the standard method
+            task = self.create_task(task_data, owner_id)
+            
+            # Log Amumax-specific creation
+            cluster_logger.info(
+                f"Created Amumax simulation task {task.task_id} "
+                f"for file {mx3_file_path}"
+            )
+            
+            return task
+
+        except HTTPException:
+            raise
+        except Exception as e:
+            cluster_logger.error(f"Error creating Amumax task: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error creating Amumax task: {str(e)}"
+            )
+
+    def validate_mx3_file(self, file_path: str) -> bool:
+        """
+        Validate if the mx3 file is properly formatted and accessible.
+        
+        Args:
+            file_path: Path to the mx3 file
+            
+        Returns:
+            bool: True if file is valid
+        """
+        try:
+            # Translate to host path for validation
+            host_path = self._translate_path(file_path)
+            
+            if not os.path.exists(host_path):
+                return False
+            
+            # Basic validation - check if file has mx3 extension and is readable
+            if not host_path.endswith('.mx3'):
+                return False
+            
+            # Try to read first few lines to ensure it's accessible
+            with open(host_path, 'r') as f:
+                content = f.read(1024)  # Read first 1KB
+                if not content.strip():
+                    return False
+            
+            return True
+            
+        except Exception as e:
+            cluster_logger.warning(
+                f"Error validating mx3 file {file_path}: {str(e)}"
+            )
+            return False
+
+    def create_task(
+        self, data: TaskQueueJobCreate, owner_id: int
+    ) -> TaskQueueJob:
         """Create a new task in the queue."""
         try:
             # Check for duplicate task names for this user
-            existing_task = (
-                self.db.query(TaskQueueJob)
-                .filter(
-                    TaskQueueJob.name == data.name, TaskQueueJob.owner_id == owner_id
-                )
-                .first()
-            )
+            # existing_task = (
+            #     self.db.query(TaskQueueJob)
+            #     .filter(
+            #         TaskQueueJob.name == data.name, TaskQueueJob.owner_id == owner_id
+            #     )
+            #     .first()
+            # )
 
-            if existing_task:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Zadanie o nazwie '{data.name}' już istnieje. "
-                    f"Wybierz inną nazwę.",
-                )
+            # if existing_task:
+            #     raise HTTPException(
+            #         status_code=status.HTTP_400_BAD_REQUEST,
+            #         detail=f"Zadanie o nazwie '{data.name}' już istnieje. "
+            #         f"Wybierz inną nazwę.",
+            #     )
 
             # Generate unique task ID
             task_id = f"task_{uuid.uuid4().hex[:8]}"
@@ -397,27 +498,66 @@ class TaskQueueService:
             return False
 
     async def _generate_submission_script(self, task: TaskQueueJob) -> str:
-        """Generate a SLURM submission script for a Mumax3 simulation."""
-        # Read the amumax template
-        template_path = os.path.join(settings.TEMPLATE_DIR, "amumax.template")
-        with open(template_path, "r") as f:
-            template_content = f.read()
+        """Generate a SLURM submission script for a Amumax simulation task."""
+        try:
+            # Get user info for loginname
+            user = self.db.query(User).filter(User.id == task.owner_id).first()
+            if not user:
+                raise ValueError(f"Owner ID {task.owner_id} not found")
 
-        # Prepare parameters for the template - use the original simulation file path
-        # since that's the path that will be valid inside the container
-        params = {
-            "job_name": f"sim_{task.task_id}",
-            "num_cpus": task.num_cpus,
-            "memory_gb": task.memory_gb,
-            "num_gpus": task.num_gpus,
-            "time_limit": task.time_limit,
-            "partition": task.partition,
-            "simulation_file": task.simulation_file,  # Use container path for SLURM script
-            "output_dir": task.output_dir,
-        }
+            # Validate the simulation file path
+            if not task.simulation_file:
+                raise ValueError("Simulation file path is required")
 
-        # Fill the template
-        return await self.slurm_service.fill_template("amumax.template", params)
+            # Ensure the simulation file has .mx3 extension
+            if not task.simulation_file.endswith('.mx3'):
+                raise ValueError("Simulation file must be a .mx3 file")
+
+            # Prepare parameters for the amumax template
+            # Template expects specific parameter names based on file content
+            params = {
+                "job_name": f"amumax_{task.task_id}_{user.username}",
+                "num_cpus": str(task.num_cpus),
+                "memory_gb": str(task.memory_gb),
+                "num_gpus": str(task.num_gpus),
+                "user": str(user.username),
+                "time_limit": task.time_limit,
+                "partition": task.partition,
+                # Required by template for container binds
+                "loginname": user.username,
+                # Compatibility with existing templates
+                "loggin_name": user.username,
+                # Path to .mx3 file inside container
+                "simulation_file": task.simulation_file,
+            }
+
+            # Log the parameters for debugging
+            cluster_logger.debug(
+                f"Generating SLURM script for task {task.task_id} "
+                f"with parameters: {params}"
+            )
+
+            # Use the amumax template specifically designed for
+            # micromagnetic simulations
+            template_name = "amumax.template"
+            script_content = await self.slurm_service.fill_template(
+                template_name, params
+            )
+
+            # Log successful script generation
+            cluster_logger.info(
+                f"Successfully generated SLURM script for Amumax "
+                f"simulation task {task.task_id}"
+            )
+
+            return script_content
+
+        except Exception as e:
+            cluster_logger.error(
+                f"Error generating submission script for task {task.task_id}: "
+                f"{str(e)}\n{traceback.format_exc()}"
+            )
+            raise
 
     async def start_queue_processor(self, background_tasks: BackgroundTasks):
         """Start the queue processor in the background."""
@@ -529,9 +669,11 @@ class TaskQueueService:
             self.db.add(task)
             self.db.commit()
 
-            cluster_logger.info(
-                f"Task {task.task_id} scheduled for retry (attempt {task.retry_count})"
+            retry_msg = (
+                f"Task {task.task_id} scheduled for retry "
+                f"(attempt {task.retry_count})"
             )
+            cluster_logger.info(retry_msg)
 
     def _start_job_monitor(self, task_id: int, slurm_job_id: str):
         """Start monitoring a specific job."""
@@ -564,9 +706,12 @@ class TaskQueueService:
                     self.db, slurm_job_id
                 )
 
-                if job_snapshot and job_snapshot.is_current:
+                if job_snapshot:
                     # Job is still active in SLURM (from cache)
-                    slurm_state = job_snapshot.state
+                    if hasattr(job_snapshot, 'state'):
+                        slurm_state = job_snapshot.state
+                    else:
+                        slurm_state = job_snapshot.get('state', 'UNKNOWN')
 
                     # Map SLURM state to our task state
                     new_status = self.SLURM_STATE_MAPPING.get(
@@ -829,6 +974,123 @@ class TaskQueueService:
 
         return result
 
+    async def get_amumax_results(self, task: TaskQueueJob) -> Dict[str, Any]:
+        """
+        Get results for a completed Amumax simulation task.
+        
+        # This method provides specialized handling for Amumax simulation
+        # results, including parsing output files, magnetic field data, and
+        # energy plots.
+        
+        Args:
+            task: The completed TaskQueueJob
+            
+        Returns:
+            Dict containing simulation results and file paths
+        """
+        if task.status != TaskStatus.COMPLETED:
+            return {
+                "task_id": task.task_id,
+                "status": task.status,
+                "message": "Amumax simulation has not completed yet",
+                "simulation_file": task.simulation_file
+            }
+
+        # Get basic results first
+        basic_results = await self.get_task_results(task)
+        
+        # Enhance with Amumax-specific data
+        amumax_results = {
+            **basic_results,
+            "simulation_type": "amumax",
+            "mx3_file": task.simulation_file,
+        }
+
+        # Look for typical Amumax output files if output directory exists
+        if task.output_dir and os.path.exists(self._translate_path(task.output_dir)):
+            output_dir = self._translate_path(task.output_dir)
+            
+            # Common Amumax output file patterns
+            output_patterns = {
+                "table_files": "*.txt",      # Table files with scalar values
+                "ovf_files": "*.ovf",        # OVF magnetization files  
+                "zarr_files": "*.zarr",      # Zarr format files
+                "log_files": "*.log",        # Log files
+                "energy_files": "*energy*",  # Energy-related files
+                "field_files": "*field*",    # Field-related files
+            }
+            
+            for file_type, pattern in output_patterns.items():
+                matching_files = list(Path(output_dir).glob(pattern))
+                if matching_files:
+                    amumax_results[file_type] = [
+                        str(f) for f in matching_files
+                    ]
+
+            # Try to parse table files for key simulation parameters
+            table_files = amumax_results.get("table_files", [])
+            if table_files:
+                # Parse the main table file (usually the first one)
+                try:
+                    main_table = table_files[0]
+                    amumax_results["main_table_data"] = self._parse_amumax_table(
+                        main_table
+                    )
+                except Exception as e:
+                    cluster_logger.warning(
+                        f"Could not parse Amumax table file: {str(e)}"
+                    )
+
+        return amumax_results
+
+    def _parse_amumax_table(self, table_file_path: str) -> Dict[str, Any]:
+        """
+        Parse an Amumax table file to extract key simulation data.
+        
+        Args:
+            table_file_path: Path to the .txt table file
+            
+        Returns:
+            Dict containing parsed data
+        """
+        try:
+            import pandas as pd
+            
+            # Read the table file (typically space-separated)
+            df = pd.read_csv(table_file_path, sep=r'\s+', comment='#')
+            
+            # Extract basic statistics
+            table_info = {
+                "total_steps": len(df),
+                "columns": list(df.columns),
+                "time_range": {
+                    "start": float(df.iloc[0, 0]) if len(df) > 0 else 0,
+                    "end": float(df.iloc[-1, 0]) if len(df) > 0 else 0
+                } if 't' in df.columns or df.columns[0].lower().startswith('t') else None,
+                "final_values": {}
+            }
+            
+            # Extract final values for each column
+            if len(df) > 0:
+                for col in df.columns:
+                    try:
+                        table_info["final_values"][col] = float(df[col].iloc[-1])
+                    except (ValueError, TypeError):
+                        table_info["final_values"][col] = str(df[col].iloc[-1])
+            
+            return table_info
+            
+        except ImportError:
+            cluster_logger.warning(
+                "pandas not available for parsing Amumax table files"
+            )
+            return {"error": "pandas not available for table parsing"}
+        except Exception as e:
+            cluster_logger.error(
+                f"Error parsing Amumax table file {table_file_path}: {str(e)}"
+            )
+            return {"error": f"Failed to parse table file: {str(e)}"}
+
     async def cancel_task(self, task_id: Union[str, int], owner_id: int) -> bool:
         """Cancel a running task."""
         task = self.get_task(task_id)
@@ -878,3 +1140,97 @@ class TaskQueueService:
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Error cancelling task: {str(e)}",
             )
+
+    async def submit_amumax_task(
+        self,
+        mx3_file_path: str,
+        task_name: str,
+        owner_id: int,
+        **kwargs
+    ) -> TaskQueueJob:
+        """
+        Submit an Amumax micromagnetic simulation task.
+        
+        This is the main entry point for submitting Amumax tasks.
+        It creates the task and optionally submits it to SLURM immediately.
+        
+        Args:
+            mx3_file_path: Path to the .mx3 simulation file
+            task_name: Name for the task
+            owner_id: ID of the task owner
+            **kwargs: Additional parameters (auto_submit, priority, etc.)
+            
+        Returns:
+            TaskQueueJob: The created and optionally submitted task
+        """
+        try:
+            # Create the Amumax task
+            task = self.create_amumax_task(
+                mx3_file_path=mx3_file_path,
+                task_name=task_name,
+                owner_id=owner_id,
+                **kwargs
+            )
+            
+            # Check if we should automatically submit to SLURM
+            auto_submit = kwargs.get('auto_submit', True)
+            if auto_submit:
+                # Submit to SLURM immediately
+                success = await self.submit_task_to_slurm(task)
+                if success:
+                    cluster_logger.info(
+                        f"Amumax task {task.task_id} created and submitted "
+                        f"to SLURM"
+                    )
+                else:
+                    cluster_logger.warning(
+                        f"Amumax task {task.task_id} created but failed to "
+                        f"submit to SLURM - will retry later"
+                    )
+            else:
+                cluster_logger.info(
+                    f"Amumax task {task.task_id} created and queued for later "
+                    f"submission"
+                )
+            
+            return task
+            
+        except Exception as e:
+            cluster_logger.error(f"Error submitting Amumax task: {str(e)}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error submitting Amumax task: {str(e)}"
+            )
+
+    def get_amumax_tasks(
+        self, owner_id: int, skip: int = 0, limit: int = 100
+    ) -> List[TaskQueueJob]:
+        """
+        Get Amumax simulation tasks for a user.
+        
+        This method filters tasks to only return those that are Amumax
+        simulations (based on .mx3 file extension).
+        
+        Args:
+            owner_id: ID of the task owner
+            skip: Number of tasks to skip
+            limit: Maximum number of tasks to return
+            
+        Returns:
+            List of TaskQueueJob objects for Amumax simulations
+        """
+        query = (
+            self.db.query(TaskQueueJob)
+            .filter(TaskQueueJob.owner_id == owner_id)
+            .filter(TaskQueueJob.simulation_file.like('%.mx3'))
+        )
+        
+        return (
+            query.order_by(
+                TaskQueueJob.priority.desc(),
+                TaskQueueJob.created_at.asc()
+            )
+            .offset(skip)
+            .limit(limit)
+            .all()
+        )
