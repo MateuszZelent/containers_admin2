@@ -52,7 +52,7 @@ import { toast } from "sonner";
 // Types for flow elements
 interface FlowNode {
   id: string;
-  type: 'mx3-template' | 'mx3-parser' | 'fft' | 'spectrum' | 'custom' | 'output';
+  type: 'mx3-file-loader' | 'mx3-parser' | 'linspace' | 'sims-gen' | 'download-scripts' | 'sim-runner' | 'output';
   position: { x: number; y: number };
   data: {
     label: string;
@@ -61,6 +61,8 @@ interface FlowNode {
     config?: any;
     uploadedFile?: File | null;
     parsedParameters?: string[];
+    selectedParameters?: string[];
+    inputCount?: number;
   };
 }
 
@@ -84,51 +86,53 @@ interface Flow {
 
 // Node templates
 const NODE_TEMPLATES = {
-  'mx3-template': {
-    type: 'mx3-template',
+  'mx3-file-loader': {
+    type: 'mx3-file-loader',
     data: {
-      label: 'MX3 Template',
+      label: 'MX3 File Loader',
       inputs: [],
-      outputs: ['template_data'],
-      config: { file_content: '', parsed_params: [] },
-      uploadedFile: null,
-      parsedParameters: []
+      outputs: ['file_content'],
+      config: { file_path: '' },
+      uploadedFile: null
     }
   },
   'mx3-parser': {
     type: 'mx3-parser',
     data: {
       label: 'MX3 Parser',
-      inputs: [],
-      outputs: ['save_data', 'autosave_data', 'parameters'],
-      config: { file_path: '', parse_options: {} }
+      inputs: ['file_content'],
+      outputs: [],
+      config: { selected_params: [] },
+      parsedParameters: [],
+      selectedParameters: []
     }
   },
-  'fft': {
-    type: 'fft',
+  'linspace': {
+    type: 'linspace',
     data: {
-      label: 'FFT Analysis',
-      inputs: ['time_series', 'sampling_rate'],
-      outputs: ['frequency_spectrum', 'magnitude', 'phase'],
-      config: { window: 'hamming', nperseg: 1024 }
+      label: 'LinSpace Generator',
+      inputs: ['parameter_name'],
+      outputs: ['parameter_values'],
+      config: { min: 0, max: 1, steps: 10, parameter_name: '' }
     }
   },
-  'spectrum': {
-    type: 'spectrum',
+  'sims-gen': {
+    type: 'sims-gen',
     data: {
-      label: 'Spectrum Analyzer',
-      inputs: ['magnetic_field', 'config'],
-      outputs: ['spectrum', 'report', 'visualization'],
-      config: { frequency_range: [0, 100], resolution: 0.1 }
+      label: 'Simulations Generator',
+      inputs: ['param1'],
+      outputs: ['simulation_scripts'],
+      config: { output_folder: '', base_template: '' },
+      inputCount: 1
     }
   },
-  'custom': {
-    type: 'custom',
+  'download-scripts': {
+    type: 'download-scripts',
     data: {
-      label: 'Custom Module',
-      inputs: ['input_data'],
-      outputs: ['output_data'],
-      config: { script: '', parameters: {} }
+      label: 'Download Scripts',
+      inputs: ['simulation_scripts'],
+      outputs: [],
+      config: { download_format: 'zip', include_metadata: true }
     }
   },
   'output': {
@@ -166,10 +170,15 @@ export default function FlowDesignerPage() {
   const [connectionStart, setConnectionStart] = useState<{nodeId: string, port: string, type: 'input' | 'output'} | null>(null);
   const [tempConnection, setTempConnection] = useState<{start: {x: number, y: number}, end: {x: number, y: number}} | null>(null);
   
-  // MX3 Template configuration modal states
+  // MX3 Parser configuration modal states
+  const [configNodeId, setConfigNodeId] = useState<string>('');
   const [isConfigModalOpen, setIsConfigModalOpen] = useState(false);
-  const [configNodeId, setConfigNodeId] = useState<string | null>(null);
   const [selectedOutputs, setSelectedOutputs] = useState<string[]>([]);
+  
+  // LinSpace configuration modal states
+  const [linspaceModalOpen, setLinspaceModalOpen] = useState(false);
+  const [linspaceConfig, setLinspaceConfig] = useState({ min: 0, max: 1, steps: 10 });
+  const [currentLinspaceNodeId, setCurrentLinspaceNodeId] = useState<string | null>(null);
   
   const canvasRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
@@ -381,6 +390,17 @@ export default function FlowDesignerPage() {
         modifiedAt: new Date().toISOString()
       } : null);
       
+      // Check if we need to update parser with file loader data
+      const sourceNode = activeFlow.nodes.find(n => n.id === connectionStart.nodeId);
+      const targetNode = activeFlow.nodes.find(n => n.id === targetNodeId);
+      
+      if (sourceNode?.type === 'mx3-file-loader' && targetNode?.type === 'mx3-parser') {
+        // Delay the parser update to avoid state conflicts
+        setTimeout(() => {
+          connectToParser(connectionStart.nodeId, targetNodeId);
+        }, 100);
+      }
+      
       toast.success("Połączenie utworzone");
     } else if (connectionStart.type === 'input' && targetType === 'output') {
       const newConnection: FlowConnection = {
@@ -397,6 +417,17 @@ export default function FlowDesignerPage() {
         modifiedAt: new Date().toISOString()
       } : null);
       
+      // Check if we need to update parser with file loader data
+      const sourceNode = activeFlow.nodes.find(n => n.id === targetNodeId);
+      const targetNode = activeFlow.nodes.find(n => n.id === connectionStart.nodeId);
+      
+      if (sourceNode?.type === 'mx3-file-loader' && targetNode?.type === 'mx3-parser') {
+        // Delay the parser update to avoid state conflicts
+        setTimeout(() => {
+          connectToParser(targetNodeId, connectionStart.nodeId);
+        }, 100);
+      }
+      
       toast.success("Połączenie utworzone");
     }
     
@@ -405,13 +436,34 @@ export default function FlowDesignerPage() {
     setTempConnection(null);
   };
 
-  // File upload and parsing functions for MX3 Template
+  // Function to handle SimsGen input count changes
+  const updateSimsGenInputs = (nodeId: string, newInputCount: number) => {
+    if (!activeFlow) return;
+
+    setActiveFlow(prev => prev ? {
+      ...prev,
+      nodes: prev.nodes.map(node => 
+        node.id === nodeId 
+          ? { 
+              ...node, 
+              data: {
+                ...node.data,
+                inputCount: newInputCount,
+                inputs: Array.from({length: newInputCount}, (_, i) => `param${i + 1}`)
+              }
+            }
+          : node
+      ),
+      modifiedAt: new Date().toISOString()
+    } : null);
+  };
+
+  // Updated file upload function for file loader
   const handleFileUpload = async (nodeId: string, file: File) => {
     if (!activeFlow) return;
 
     try {
       const fileContent = await file.text();
-      const parsedParameters = parseMX3Parameters(fileContent);
       
       setActiveFlow(prev => prev ? {
         ...prev,
@@ -422,9 +474,7 @@ export default function FlowDesignerPage() {
                 data: {
                   ...node.data,
                   uploadedFile: file,
-                  config: { ...node.data.config, file_content: fileContent, parsed_params: parsedParameters },
-                  parsedParameters,
-                  outputs: ['template_data', ...parsedParameters.map(p => `param_${p}`)]
+                  config: { ...node.data.config, file_content: fileContent }
                 }
               }
             : node
@@ -432,9 +482,9 @@ export default function FlowDesignerPage() {
         modifiedAt: new Date().toISOString()
       } : null);
 
-      toast.success(`Załadowano plik ${file.name} z ${parsedParameters.length} parametrami`);
+      toast.success(`Załadowano plik ${file.name}`);
     } catch (error) {
-      toast.error("Błąd podczas ładowania pliku MX3");
+      toast.error("Błąd podczas ładowania pliku");
       console.error(error);
     }
   };
@@ -476,59 +526,50 @@ export default function FlowDesignerPage() {
     return [...new Set(parameters)]; // Remove duplicates
   };
 
-  const connectToParser = (templateNodeId: string, parserNodeId: string) => {
+  const connectToParser = (fileLoaderId: string, parserId: string) => {
     if (!activeFlow) return;
 
-    const templateNode = activeFlow.nodes.find(n => n.id === templateNodeId);
-    const parserNode = activeFlow.nodes.find(n => n.id === parserNodeId);
+    const fileLoader = activeFlow.nodes.find(n => n.id === fileLoaderId);
+    const parserNode = activeFlow.nodes.find(n => n.id === parserId);
     
-    if (!templateNode || !parserNode || templateNode.type !== 'mx3-template' || parserNode.type !== 'mx3-parser') {
+    if (!fileLoader || !parserNode || fileLoader.type !== 'mx3-file-loader' || parserNode.type !== 'mx3-parser') {
       return;
     }
 
     // Update parser node with template data
-    if (templateNode.data.parsedParameters && templateNode.data.parsedParameters.length > 0) {
-      setActiveFlow(prev => prev ? {
-        ...prev,
-        nodes: prev.nodes.map(node => 
-          node.id === parserNodeId 
-            ? { 
-                ...node, 
-                data: {
-                  ...node.data,
-                  inputs: templateNode.data.parsedParameters || [],
-                  config: { 
-                    ...node.data.config, 
-                    template_file: templateNode.data.uploadedFile?.name || '',
-                    template_content: templateNode.data.config?.file_content || ''
+    if (fileLoader.data.config?.file_content) {
+      const parsedParameters = parseMX3Parameters(fileLoader.data.config.file_content);
+      
+      // Only update if parameters have actually changed
+      const currentParams = parserNode.data.parsedParameters || [];
+      const parametersChanged = JSON.stringify(currentParams.sort()) !== JSON.stringify(parsedParameters.sort());
+      
+      if (parametersChanged) {
+        setActiveFlow(prev => prev ? {
+          ...prev,
+          nodes: prev.nodes.map(node => 
+            node.id === parserId 
+              ? { 
+                  ...node, 
+                  data: {
+                    ...node.data,
+                    parsedParameters,
+                    selectedParameters: [],
+                    outputs: []
                   }
                 }
-              }
-            : node
-        ),
-        modifiedAt: new Date().toISOString()
-      } : null);
+              : node
+          ),
+          modifiedAt: new Date().toISOString()
+        } : null);
 
-      toast.success("Parser został zaktualizowany na podstawie template");
+        toast.success("Parser został zaktualizowany na podstawie file loader");
+      }
     }
   };
 
-  // Monitor connections to automatically update parsers when connected to templates
-  useEffect(() => {
-    if (!activeFlow) return;
-
-    // Check for new connections between mx3-template and mx3-parser
-    activeFlow.connections.forEach(connection => {
-      const sourceNode = activeFlow.nodes.find(n => n.id === connection.source);
-      const targetNode = activeFlow.nodes.find(n => n.id === connection.target);
-      
-      if (sourceNode?.type === 'mx3-template' && targetNode?.type === 'mx3-parser') {
-        if (sourceNode.data.parsedParameters && sourceNode.data.parsedParameters.length > 0) {
-          connectToParser(sourceNode.id, targetNode.id);
-        }
-      }
-    });
-  }, [activeFlow?.connections, activeFlow?.nodes]);
+  // Monitor connections to automatically update parsers when connected to file loaders
+  // This is now handled manually when connections are created
 
   useEffect(() => {
     if (isDragging || isConnecting) {
@@ -544,11 +585,11 @@ export default function FlowDesignerPage() {
 
   const getNodeIcon = (type: string) => {
     switch (type) {
-      case 'mx3-template': return <Upload className="h-4 w-4" />;
+      case 'mx3-file-loader': return <Upload className="h-4 w-4" />;
       case 'mx3-parser': return <FileText className="h-4 w-4" />;
-      case 'fft': return <Zap className="h-4 w-4" />;
-      case 'spectrum': return <Brain className="h-4 w-4" />;
-      case 'custom': return <Settings className="h-4 w-4" />;
+      case 'linspace': return <ArrowRight className="h-4 w-4" />;
+      case 'sims-gen': return <Cpu className="h-4 w-4" />;
+      case 'download-scripts': return <Download className="h-4 w-4" />;
       case 'output': return <Database className="h-4 w-4" />;
       default: return <Circle className="h-4 w-4" />;
     }
@@ -556,25 +597,25 @@ export default function FlowDesignerPage() {
 
   const getNodeColor = (type: string) => {
     switch (type) {
-      case 'mx3-template': return 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950';
+      case 'mx3-file-loader': return 'border-orange-300 bg-orange-50 dark:border-orange-700 dark:bg-orange-950';
       case 'mx3-parser': return 'border-blue-300 bg-blue-50 dark:border-blue-700 dark:bg-blue-950';
-      case 'fft': return 'border-yellow-300 bg-yellow-50 dark:border-yellow-700 dark:bg-yellow-950';
-      case 'spectrum': return 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950';
-      case 'custom': return 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950';
+      case 'linspace': return 'border-green-300 bg-green-50 dark:border-green-700 dark:bg-green-950';
+      case 'sims-gen': return 'border-purple-300 bg-purple-50 dark:border-purple-700 dark:bg-purple-950';
+      case 'download-scripts': return 'border-cyan-300 bg-cyan-50 dark:border-cyan-700 dark:bg-cyan-950';
       case 'output': return 'border-red-300 bg-red-50 dark:border-red-700 dark:bg-red-950';
       default: return 'border-gray-300 bg-gray-50 dark:border-gray-700 dark:bg-gray-950';
     }
   };
 
-  // MX3 Template configuration functions
+  // MX3 Parser configuration functions
   const openConfigModal = (nodeId: string) => {
     if (!activeFlow) return;
     
     const node = activeFlow.nodes.find(n => n.id === nodeId);
-    if (!node || node.type !== 'mx3-template') return;
+    if (!node || node.type !== 'mx3-parser') return;
     
     setConfigNodeId(nodeId);
-    setSelectedOutputs(node.data.outputs || ['template_data']);
+    setSelectedOutputs(node.data.selectedParameters || []);
     setIsConfigModalOpen(true);
   };
 
@@ -598,7 +639,7 @@ export default function FlowDesignerPage() {
     } : null);
 
     setIsConfigModalOpen(false);
-    setConfigNodeId(null);
+    setConfigNodeId('');
     setSelectedOutputs([]);
     toast.success("Konfiguracja wyjść została zapisana");
   };
@@ -611,6 +652,381 @@ export default function FlowDesignerPage() {
         ? prev.filter(o => o !== output)
         : [...prev, output]
     );
+  };
+
+  // LinSpace configuration functions
+  const openLinspaceModal = (nodeId: string) => {
+    if (!activeFlow) return;
+    
+    const node = activeFlow.nodes.find(n => n.id === nodeId);
+    if (!node || node.type !== 'linspace') return;
+    
+    setCurrentLinspaceNodeId(nodeId);
+    setLinspaceConfig({
+      min: node.data.config?.min || 0,
+      max: node.data.config?.max || 1,
+      steps: node.data.config?.steps || 10
+    });
+    setLinspaceModalOpen(true);
+  };
+
+  const saveLinspaceConfig = () => {
+    if (!activeFlow || !currentLinspaceNodeId) return;
+
+    setActiveFlow(prev => prev ? {
+      ...prev,
+      nodes: prev.nodes.map(node =>
+        node.id === currentLinspaceNodeId
+          ? {
+              ...node,
+              data: {
+                ...node.data,
+                config: {
+                  ...node.data.config,
+                  ...linspaceConfig
+                }
+              }
+            }
+          : node
+      ),
+      modifiedAt: new Date().toISOString()
+    } : null);
+
+    setLinspaceModalOpen(false);
+    setCurrentLinspaceNodeId(null);
+    toast.success("Konfiguracja LinSpace została zapisana");
+  };
+
+  // Professional pipeline execution and script generation
+  const executeFullPipeline = (downloadNodeId: string): { success: boolean; files: Array<{name: string, content: string}> } => {
+    if (!activeFlow) return { success: false, files: [] };
+
+    // 1. Find the download node and trace back the pipeline
+    const downloadNode = activeFlow.nodes.find(n => n.id === downloadNodeId);
+    if (!downloadNode || downloadNode.type !== 'download-scripts') {
+      toast.error("Błąd: Nieprawidłowy węzeł pobierania");
+      return { success: false, files: [] };
+    }
+
+    // 2. Find connected SimsGen node
+    const simsGenConnection = activeFlow.connections.find(
+      conn => conn.target === downloadNodeId && conn.targetInput === 'simulation_scripts'
+    );
+    
+    if (!simsGenConnection) {
+      toast.error("Błąd: Brak połączonego węzła SimsGen");
+      return { success: false, files: [] };
+    }
+
+    const simsGenNode = activeFlow.nodes.find(n => n.id === simsGenConnection.source);
+    if (!simsGenNode || simsGenNode.type !== 'sims-gen') {
+      toast.error("Błąd: Nieprawidłowy węzeł SimsGen");
+      return { success: false, files: [] };
+    }
+
+    // 3. Collect parameter values from connected LinSpace nodes
+    const parameterValues: Record<string, number[]> = {};
+    const parameterConnections = activeFlow.connections.filter(
+      conn => conn.target === simsGenNode.id
+    );
+
+    for (const conn of parameterConnections) {
+      const sourceNode = activeFlow.nodes.find(n => n.id === conn.source);
+      if (sourceNode?.type === 'linspace') {
+        const config = sourceNode.data.config;
+        const values = generateLinspaceValues(config.min, config.max, config.steps);
+        parameterValues[conn.targetInput] = values;
+      }
+    }
+
+    // 4. Find base template from connected MX3 Parser
+    let baseTemplate = '';
+    let selectedParameters: string[] = [];
+    
+    // Try to find MX3 Parser connected to any LinSpace
+    for (const conn of parameterConnections) {
+      const linspaceNode = activeFlow.nodes.find(n => n.id === conn.source);
+      if (linspaceNode?.type === 'linspace') {
+        // Find MX3 Parser connected to this LinSpace
+        const parserConnection = activeFlow.connections.find(
+          c => c.target === linspaceNode.id && c.targetInput === 'parameter_name'
+        );
+        
+        if (parserConnection) {
+          const parserNode = activeFlow.nodes.find(n => n.id === parserConnection.source);
+          if (parserNode?.type === 'mx3-parser') {
+            // Find MX3 File Loader connected to parser
+            const loaderConnection = activeFlow.connections.find(
+              c => c.target === parserNode.id && c.targetInput === 'file_content'
+            );
+            
+            if (loaderConnection) {
+              const loaderNode = activeFlow.nodes.find(n => n.id === loaderConnection.source);
+              if (loaderNode?.type === 'mx3-file-loader' && loaderNode.data.config?.file_content) {
+                baseTemplate = loaderNode.data.config.file_content;
+                selectedParameters = parserNode.data.outputs || [];
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    if (!baseTemplate) {
+      toast.error("Błąd: Brak podstawowego template MX3");
+      return { success: false, files: [] };
+    }
+
+    // 5. Generate all parameter combinations
+    const combinations = generateParameterCombinations(parameterValues);
+    
+    if (combinations.length === 0) {
+      toast.error("Błąd: Brak kombinacji parametrów do wygenerowania");
+      return { success: false, files: [] };
+    }
+
+    // 6. Generate MX3 files for each combination
+    const generatedFiles: Array<{name: string, content: string}> = [];
+    
+    combinations.forEach((combination, index) => {
+      const fileName = `simulation_${String(index + 1).padStart(4, '0')}.mx3`;
+      const content = substituteParametersInTemplate(baseTemplate, combination, selectedParameters);
+      
+      generatedFiles.push({
+        name: fileName,
+        content: content
+      });
+    });
+
+    return { success: true, files: generatedFiles };
+  };
+
+  // Generate linearly spaced values
+  const generateLinspaceValues = (min: number, max: number, steps: number): number[] => {
+    if (steps <= 1) return [min];
+    
+    const values: number[] = [];
+    const stepSize = (max - min) / (steps - 1);
+    
+    for (let i = 0; i < steps; i++) {
+      values.push(min + i * stepSize);
+    }
+    
+    return values;
+  };
+
+  // Generate all combinations of parameters (Cartesian product)
+  const generateParameterCombinations = (parameterValues: Record<string, number[]>): Record<string, number>[] => {
+    const paramNames = Object.keys(parameterValues);
+    if (paramNames.length === 0) return [];
+
+    const combinations: Record<string, number>[] = [];
+    
+    function generateCombos(index: number, currentCombo: Record<string, number>) {
+      if (index === paramNames.length) {
+        combinations.push({...currentCombo});
+        return;
+      }
+      
+      const paramName = paramNames[index];
+      const values = parameterValues[paramName];
+      
+      for (const value of values) {
+        currentCombo[paramName] = value;
+        generateCombos(index + 1, currentCombo);
+      }
+    }
+    
+    generateCombos(0, {});
+    return combinations;
+  };
+
+  // Substitute parameters in MX3 template
+  const substituteParametersInTemplate = (
+    template: string, 
+    parameters: Record<string, number>,
+    selectedParameters: string[]
+  ): string => {
+    let result = template;
+    
+    // Add header comment with parameter values
+    const headerComment = `// Generated MX3 simulation script
+// Parameters: ${Object.entries(parameters).map(([key, value]) => `${key}=${value}`).join(', ')}
+// Generated on: ${new Date().toISOString()}
+
+`;
+    
+    result = headerComment + result;
+    
+    // Substitute each parameter
+    for (const [paramName, paramValue] of Object.entries(parameters)) {
+      if (selectedParameters.includes(paramName)) {
+        // Replace parameter definitions with actual values
+        const patterns = [
+          new RegExp(`^\\s*${paramName}\\s*:?=\\s*[0-9.-]+`, 'gm'),
+          new RegExp(`^\\s*${paramName}\\s*:?=\\s*[^\\n]+`, 'gm'),
+          new RegExp(`\\b${paramName}\\b(?=\\s*[^a-zA-Z0-9_])`, 'g')
+        ];
+        
+        for (const pattern of patterns) {
+          result = result.replace(pattern, (match) => {
+            if (match.includes('=')) {
+              return `${paramName} := ${paramValue}`;
+            } else {
+              return paramValue.toString();
+            }
+          });
+        }
+      }
+    }
+    
+    return result;
+  };
+
+  // Pipeline validation function
+  const validatePipeline = (downloadNodeId: string): { isValid: boolean; errors: string[] } => {
+    const errors: string[] = [];
+    
+    if (!activeFlow) {
+      errors.push("Brak aktywnego przepływu");
+      return { isValid: false, errors };
+    }
+
+    const downloadNode = activeFlow.nodes.find(n => n.id === downloadNodeId);
+    if (!downloadNode || downloadNode.type !== 'download-scripts') {
+      errors.push("Nieprawidłowy węzeł pobierania");
+      return { isValid: false, errors };
+    }
+
+    // Check if SimsGen is connected
+    const simsGenConnection = activeFlow.connections.find(
+      conn => conn.target === downloadNodeId && conn.targetInput === 'simulation_scripts'
+    );
+    
+    if (!simsGenConnection) {
+      errors.push("Węzeł 'Download Scripts' musi być połączony z 'Simulations Generator'");
+    } else {
+      const simsGenNode = activeFlow.nodes.find(n => n.id === simsGenConnection.source);
+      if (!simsGenNode || simsGenNode.type !== 'sims-gen') {
+        errors.push("Nieprawidłowe połączenie z węzłem SimsGen");
+      } else {
+        // Check if SimsGen has parameter inputs
+        const paramConnections = activeFlow.connections.filter(
+          conn => conn.target === simsGenNode.id
+        );
+        
+        if (paramConnections.length === 0) {
+          errors.push("Węzeł 'Simulations Generator' musi mieć podłączone parametry z 'LinSpace Generator'");
+        }
+
+        // Check if we have a complete chain: FileLoader -> Parser -> LinSpace -> SimsGen
+        let hasCompleteChain = false;
+        
+        for (const conn of paramConnections) {
+          const sourceNode = activeFlow.nodes.find(n => n.id === conn.source);
+          if (sourceNode?.type === 'linspace') {
+            // Check if LinSpace has parameter name from Parser
+            const parserConnection = activeFlow.connections.find(
+              c => c.target === sourceNode.id
+            );
+            
+            if (parserConnection) {
+              const parserNode = activeFlow.nodes.find(n => n.id === parserConnection.source);
+              if (parserNode?.type === 'mx3-parser') {
+                // Check if Parser has file from FileLoader
+                const loaderConnection = activeFlow.connections.find(
+                  c => c.target === parserNode.id
+                );
+                
+                if (loaderConnection) {
+                  const loaderNode = activeFlow.nodes.find(n => n.id === loaderConnection.source);
+                  if (loaderNode?.type === 'mx3-file-loader' && loaderNode.data.uploadedFile) {
+                    hasCompleteChain = true;
+                    break;
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        if (!hasCompleteChain) {
+          errors.push("Brak kompletnego łańcucha: MX3 File Loader → MX3 Parser → LinSpace Generator → Simulations Generator → Download Scripts");
+        }
+      }
+    }
+
+    return { isValid: errors.length === 0, errors };
+  };
+
+  // Enhanced download with validation
+  const downloadScriptsWithValidation = (nodeId: string) => {
+    const validation = validatePipeline(nodeId);
+    
+    if (!validation.isValid) {
+      toast.error("Błędy w pipeline:");
+      validation.errors.forEach(error => {
+        toast.error(error);
+      });
+      return;
+    }
+
+    downloadScripts(nodeId);
+  };
+
+  const downloadScripts = (nodeId: string) => {
+    if (!activeFlow) return;
+    
+    toast.info("Wykonywanie pipeline i generowanie skryptów...");
+    
+    try {
+      // Execute the full pipeline
+      const result = executeFullPipeline(nodeId);
+      
+      if (!result.success || result.files.length === 0) {
+        toast.error("Nie udało się wygenerować skryptów");
+        return;
+      }
+      
+      // Create ZIP file with all generated scripts
+      const JSZip = require('jszip'); // Note: You'll need to install jszip
+      const zip = new JSZip();
+      
+      // Add all generated files to ZIP
+      result.files.forEach(file => {
+        zip.file(file.name, file.content);
+      });
+      
+      // Add metadata file
+      const metadata = {
+        generated_at: new Date().toISOString(),
+        total_files: result.files.length,
+        flow_name: activeFlow.name,
+        flow_id: activeFlow.id,
+        parameters_info: "Check individual files for parameter values"
+      };
+      
+      zip.file('metadata.json', JSON.stringify(metadata, null, 2));
+      
+      // Generate and download ZIP
+      zip.generateAsync({ type: 'blob' }).then((content: Blob) => {
+        const url = URL.createObjectURL(content);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `mx3_simulations_${activeFlow.name.replace(/[^a-zA-Z0-9]/g, '_')}_${Date.now()}.zip`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+        toast.success(`Wygenerowano i pobrano ${result.files.length} skryptów symulacji`);
+      });
+      
+    } catch (error) {
+      console.error('Error generating scripts:', error);
+      toast.error("Błąd podczas generowania skryptów");
+    }
   };
 
   if (isLoading) {
@@ -685,27 +1101,27 @@ export default function FlowDesignerPage() {
               <DropdownMenuContent>
                 <DropdownMenuLabel>Typy węzłów</DropdownMenuLabel>
                 <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={() => addNode('mx3-template', { x: 100, y: 200 })}>
+                <DropdownMenuItem onClick={() => addNode('mx3-file-loader', { x: 100, y: 200 })}>
                   <Upload className="h-4 w-4 mr-2" />
-                  MX3 Template
+                  MX3 File Loader
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => addNode('mx3-parser', { x: 300, y: 200 })}>
                   <FileText className="h-4 w-4 mr-2" />
                   MX3 Parser
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => addNode('fft', { x: 400, y: 200 })}>
-                  <Zap className="h-4 w-4 mr-2" />
-                  FFT Analysis
+                <DropdownMenuItem onClick={() => addNode('linspace', { x: 500, y: 200 })}>
+                  <ArrowRight className="h-4 w-4 mr-2" />
+                  LinSpace Generator
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => addNode('spectrum', { x: 600, y: 200 })}>
-                  <Brain className="h-4 w-4 mr-2" />
-                  Spectrum Analyzer
+                <DropdownMenuItem onClick={() => addNode('sims-gen', { x: 700, y: 200 })}>
+                  <Cpu className="h-4 w-4 mr-2" />
+                  Simulations Generator
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => addNode('custom', { x: 800, y: 200 })}>
-                  <Settings className="h-4 w-4 mr-2" />
-                  Custom Module
+                <DropdownMenuItem onClick={() => addNode('download-scripts', { x: 900, y: 200 })}>
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Scripts
                 </DropdownMenuItem>
-                <DropdownMenuItem onClick={() => addNode('output', { x: 1000, y: 200 })}>
+                <DropdownMenuItem onClick={() => addNode('output', { x: 1100, y: 200 })}>
                   <Database className="h-4 w-4 mr-2" />
                   Output Node
                 </DropdownMenuItem>
@@ -990,11 +1406,11 @@ export default function FlowDesignerPage() {
                   >
                     {/* Header with title and type color */}
                     <div className={`h-8 flex items-center justify-center rounded-t-md text-white text-sm font-medium ${
-                      node.type === 'mx3-template' ? 'bg-orange-500' :
+                      node.type === 'mx3-file-loader' ? 'bg-orange-500' :
                       node.type === 'mx3-parser' ? 'bg-blue-500' :
-                      node.type === 'fft' ? 'bg-yellow-500' :
-                      node.type === 'spectrum' ? 'bg-purple-500' :
-                      node.type === 'custom' ? 'bg-green-500' :
+                      node.type === 'linspace' ? 'bg-green-500' :
+                      node.type === 'sims-gen' ? 'bg-purple-500' :
+                      node.type === 'download-scripts' ? 'bg-cyan-500' :
                       node.type === 'output' ? 'bg-red-500' : 'bg-gray-500'
                     }`}>
                       <div className="flex items-center gap-2">
@@ -1065,78 +1481,150 @@ export default function FlowDesignerPage() {
 
                     {/* Node content body */}
                     <div className="p-3 pt-2 h-full overflow-hidden" style={{ paddingTop: '8px', paddingBottom: '8px' }}>
-                      {/* Special content for MX3 Template */}
-                      {node.type === 'mx3-template' && (
-                        <div className="flex flex-col items-center justify-center h-full text-center">
+                      
+                      {/* MX3 File Loader - Upload interface */}
+                      {node.type === 'mx3-file-loader' && (
+                        <div className="flex flex-col items-center justify-center h-full">
                           {!node.data.uploadedFile ? (
-                            <div 
-                              className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-2 w-full h-full flex flex-col items-center justify-center cursor-pointer hover:border-orange-400 transition-colors"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                const input = document.createElement('input');
-                                input.type = 'file';
-                                input.accept = '.mx3,.txt';
-                                input.onchange = (event) => {
-                                  const file = (event.target as HTMLInputElement).files?.[0];
-                                  if (file) {
-                                    handleFileUpload(node.id, file);
-                                  }
-                                };
-                                input.click();
-                              }}
-                            >
-                              <Upload className="h-6 w-6 text-gray-400 mb-2" />
-                              <span className="text-xs text-gray-500">Kliknij aby załadować</span>
-                              <span className="text-xs text-gray-500">plik MX3</span>
-                            </div>
-                          ) : (
-                            <div className="w-full h-full flex flex-col items-center justify-center">
-                              <FileText className="h-6 w-6 text-orange-500 mb-1" />
-                              <span className="text-xs text-gray-700 dark:text-gray-300 truncate max-w-full">
-                                {node.data.uploadedFile.name}
-                              </span>
-                              {node.data.parsedParameters && node.data.parsedParameters.length > 0 && (
-                                <span className="text-xs text-green-600 dark:text-green-400 mt-1">
-                                  {node.data.parsedParameters.length} parametrów
-                                </span>
-                              )}
+                            <div className="text-center">
                               <button
-                                className="text-xs text-blue-500 hover:text-blue-700 mt-1"
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   const input = document.createElement('input');
                                   input.type = 'file';
-                                  input.accept = '.mx3,.txt';
-                                  input.onchange = (event) => {
-                                    const file = (event.target as HTMLInputElement).files?.[0];
+                                  input.accept = '.mx3';
+                                  input.onchange = (evt) => {
+                                    const file = (evt.target as HTMLInputElement).files?.[0];
                                     if (file) {
                                       handleFileUpload(node.id, file);
                                     }
                                   };
                                   input.click();
                                 }}
+                                className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600"
                               >
-                                Zmień plik
+                                Upload MX3
                               </button>
-                              {node.data.parsedParameters && node.data.parsedParameters.length > 0 && (
-                                <button
-                                  className="text-xs bg-orange-500 text-white px-2 py-1 rounded hover:bg-orange-600 mt-1"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    openConfigModal(node.id);
-                                  }}
-                                >
-                                  <Settings className="h-3 w-3 inline mr-1" />
-                                  Konfiguruj wyjścia
-                                </button>
-                              )}
+                            </div>
+                          ) : (
+                            <div className="text-center">
+                              <div className="text-xs text-green-600 mb-1">✓ {node.data.uploadedFile.name}</div>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  const input = document.createElement('input');
+                                  input.type = 'file';
+                                  input.accept = '.mx3';
+                                  input.onchange = (evt) => {
+                                    const file = (evt.target as HTMLInputElement).files?.[0];
+                                    if (file) {
+                                      handleFileUpload(node.id, file);
+                                    }
+                                  };
+                                  input.click();
+                                }}
+                                className="text-xs px-2 py-1 bg-orange-500 text-white rounded hover:bg-orange-600"
+                              >
+                                Change File
+                              </button>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {/* Regular content for other node types */}
-                      {node.type !== 'mx3-template' && (
+                      {/* MX3 Parser - Parameter selection */}
+                      {node.type === 'mx3-parser' && (
+                        <div className="flex flex-col h-full">
+                          <div className="text-xs text-center mb-2">
+                            {node.data.parsedParameters?.length ? 
+                              `${node.data.selectedParameters?.length || 0}/${node.data.parsedParameters.length} params` :
+                              'No file connected'
+                            }
+                          </div>
+                          {node.data.parsedParameters && node.data.parsedParameters.length > 0 && (
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                openConfigModal(node.id);
+                              }}
+                              className="text-xs px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+                            >
+                              Configure
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+                      {/* LinSpace - Range configuration */}
+                      {node.type === 'linspace' && (
+                        <div className="flex flex-col h-full">
+                          <div className="text-xs text-center mb-2">
+                            <div>Min: {node.data.config?.min || 0}</div>
+                            <div>Max: {node.data.config?.max || 1}</div>
+                            <div>Steps: {node.data.config?.steps || 10}</div>
+                          </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openLinspaceModal(node.id);
+                            }}
+                            className="text-xs bg-green-500 text-white px-2 py-1 rounded hover:bg-green-600 transition-colors"
+                          >
+                            Konfiguruj
+                          </button>
+                        </div>
+                      )}
+
+                      {/* SimsGen - Input configuration */}
+                      {node.type === 'sims-gen' && (
+                        <div className="flex flex-col h-full">
+                          <div className="text-xs text-center mb-2">
+                            Inputs: {node.data.inputCount || 1}
+                          </div>
+                          <div className="flex gap-1 justify-center">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateSimsGenInputs(node.id, Math.max(1, (node.data.inputCount || 1) - 1));
+                              }}
+                              className="text-xs px-1 py-0.5 bg-red-500 text-white rounded hover:bg-red-600"
+                            >
+                              -
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updateSimsGenInputs(node.id, (node.data.inputCount || 1) + 1);
+                              }}
+                              className="text-xs px-1 py-0.5 bg-green-500 text-white rounded hover:bg-green-600"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Download Scripts - Download button */}
+                      {node.type === 'download-scripts' && (
+                        <div className="flex flex-col h-full justify-center items-center">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              downloadScriptsWithValidation(node.id);
+                            }}
+                            className="text-xs bg-cyan-500 text-white px-3 py-2 rounded hover:bg-cyan-600 transition-colors flex items-center gap-1"
+                          >
+                            <Download className="h-3 w-3" />
+                            Pobierz
+                          </button>
+                          <div className="text-xs text-gray-500 mt-1 text-center">
+                            Pobierz wszystkie wygenerowane skrypty
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Default content for other node types */}
+                      {!['mx3-file-loader', 'mx3-parser', 'linspace', 'sims-gen', 'download-scripts'].includes(node.type) && (
                         <div className="flex h-full">
                         <div className="flex-1 pr-2">
                           {node.data.inputs && node.data.inputs.length > 0 && (
@@ -1332,6 +1820,68 @@ export default function FlowDesignerPage() {
             </Button>
             <Button onClick={saveOutputConfiguration}>
               Zapisz ({selectedOutputs.length} wyjść)
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* LinSpace Template configuration modal */}
+      <Dialog open={linspaceModalOpen} onOpenChange={setLinspaceModalOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Konfiguracja dla LinSpace Template</DialogTitle>
+            <DialogDescription>
+              Ustawienia dla węzła LinSpace
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            {currentLinspaceNodeId && activeFlow && (() => {
+              const node = activeFlow.nodes.find(n => n.id === currentLinspaceNodeId);
+              
+              return (
+                <div>
+                  <Label className="text-sm font-medium">Zakres</Label>
+                  <div className="flex flex-col mt-2">
+                    <div className="flex items-center">
+                      <Label className="text-sm">Min:</Label>
+                      <Input
+                        type="number"
+                        value={linspaceConfig.min}
+                        onChange={(e) => setLinspaceConfig({ ...linspaceConfig, min: parseFloat(e.target.value) })}
+                        className="ml-2"
+                      />
+                    </div>
+                    <div className="flex items-center mt-2">
+                      <Label className="text-sm">Max:</Label>
+                      <Input
+                        type="number"
+                        value={linspaceConfig.max}
+                        onChange={(e) => setLinspaceConfig({ ...linspaceConfig, max: parseFloat(e.target.value) })}
+                        className="ml-2"
+                      />
+                    </div>
+                    <div className="flex items-center mt-2">
+                      <Label className="text-sm">Kroki:</Label>
+                      <Input
+                        type="number"
+                        value={linspaceConfig.steps}
+                        onChange={(e) => setLinspaceConfig({ ...linspaceConfig, steps: parseInt(e.target.value) })}
+                        className="ml-2"
+                      />
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setLinspaceModalOpen(false)}>
+              Anuluj
+            </Button>
+            <Button onClick={() => {
+              saveLinspaceConfig();
+            }}>
+              Zapisz
             </Button>
           </DialogFooter>
         </DialogContent>

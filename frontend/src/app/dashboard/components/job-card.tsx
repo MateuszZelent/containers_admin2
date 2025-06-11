@@ -8,7 +8,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Code2, Loader2 } from "lucide-react";
-import { Job } from "../../../../lib/types";
+import { Job } from "@/lib/types";
 import { LiveTimer } from "./live-timer";
 import {
   Tooltip,
@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { formatContainerName } from "@/lib/container-utils";
 
 interface TunnelData {
   id: number;
@@ -78,7 +79,7 @@ export const JobCard = React.memo(({
             <p><span className="font-medium">ID:</span> {job.id}</p>
             <p><span className="font-medium">SLURM ID:</span> {job.job_id}</p>
             <p><span className="font-medium">Partycja:</span> {job.partition}</p>
-            <p><span className="font-medium">Szablon:</span> {job.template_name}</p>
+            <p><span className="font-medium">Szablon:</span> {formatContainerName(job.name)}</p>
           </div>
           
           {/* Resource allocation */}

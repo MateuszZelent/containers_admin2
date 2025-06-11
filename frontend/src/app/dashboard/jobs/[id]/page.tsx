@@ -10,6 +10,7 @@ import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, Dialog
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { jobsApi } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
+import { formatContainerName } from "@/lib/container-utils";
 
 // Helper function for error handling
 const getErrorMessage = (error: unknown, defaultMessage: string): string => {
@@ -321,7 +322,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
             </div>
             <div className="flex justify-between py-1">
               <span className="font-medium">Nazwa:</span>
-              <span>{job.job_name}</span>
+              <span>{formatContainerName(job.job_name)}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="font-medium">Status:</span>

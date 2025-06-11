@@ -41,6 +41,7 @@ import { AnimatePresence } from "framer-motion";
 import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
+import { formatContainerName } from "@/lib/container-utils";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -1046,7 +1047,7 @@ export default function DashboardPage() {
                                     <div>
                                       <p><strong>Job ID:</strong> {job.job_id}</p>
                                       <p><strong>Właściciel:</strong> ID {job.owner_id}</p>
-                                      <p><strong>Template:</strong> {job.template_name}</p>
+                                      <p><strong>Template:</strong> {formatContainerName(job.name)}</p>
                                     </div>
                                     <div>
                                       <p><strong>Węzeł:</strong> {job.node || "Brak"}</p>
@@ -1106,7 +1107,7 @@ export default function DashboardPage() {
         open={deleteConfirmOpen}
         onOpenChange={setDeleteConfirmOpen}
         title="Usuń kontener"
-        description={jobToDelete ? `Czy na pewno chcesz usunąć kontener "${jobToDelete.job_name}"?\n\nInformacje o kontenerze:\n• ID: ${jobToDelete.id}\n• Status: ${jobToDelete.status}\n• Szablon: ${jobToDelete.template_name}\n• CPU: ${jobToDelete.num_cpus}, RAM: ${jobToDelete.memory_gb}GB, GPU: ${jobToDelete.num_gpus}\n• Utworzono: ${formatDate(jobToDelete.created_at)}\n\nTa operacja jest nieodwracalna.` : ""}
+        description={jobToDelete ? `Czy na pewno chcesz usunąć kontener "${jobToDelete.job_name}"?\n\nInformacje o kontenerze:\n• ID: ${jobToDelete.id}\n• Status: ${jobToDelete.status}\n• Szablon: ${formatContainerName(jobToDelete.template_name)}\n• CPU: ${jobToDelete.num_cpus}, RAM: ${jobToDelete.memory_gb}GB, GPU: ${jobToDelete.num_gpus}\n• Utworzono: ${formatDate(jobToDelete.created_at)}\n\nTa operacja jest nieodwracalna.` : ""}
         confirmText="Usuń kontener"
         cancelText="Anuluj"
         onConfirm={confirmDelete}

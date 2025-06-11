@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { use } from "react"; // Import React.use
+import { formatContainerName } from "@/lib/container-utils";
 
 interface TaskDetail {
   id: number;
@@ -272,7 +273,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
             </div>
             <div className="flex justify-between py-1">
               <span className="font-medium">Nazwa:</span>
-              <span>{task.name}</span>
+              <span>{formatContainerName(task.name)}</span>
             </div>
             <div className="flex justify-between py-1">
               <span className="font-medium">Status:</span>

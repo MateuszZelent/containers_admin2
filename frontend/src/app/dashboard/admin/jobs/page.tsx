@@ -27,6 +27,7 @@ import {
 import { toast } from "sonner";
 import { userApi, adminApi } from "@/lib/api-client";
 import { User, Job } from "@/lib/types";
+import { formatContainerName } from "@/lib/container-utils";
 
 export default function AdminJobsPage() {
   const router = useRouter();
@@ -308,7 +309,7 @@ export default function AdminJobsPage() {
                             <div className="flex items-center gap-3">
                               {getStatusIcon(job.status || "")}
                               <div>
-                                <h4 className="font-medium text-lg">{job.job_name}</h4>
+                                <h4 className="font-medium text-lg">{formatContainerName(job.job_name)}</h4>
                                 <div className="flex items-center gap-2 mt-1">
                                   <Badge 
                                     variant={getStatusColor(job.status || "")}
@@ -326,7 +327,7 @@ export default function AdminJobsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
                               <div>
                                 <p><strong>Job ID:</strong> {job.job_id}</p>
-                                <p><strong>Template:</strong> {job.template_name}</p>
+                                <p><strong>Template:</strong> {formatContainerName(job.name)}</p>
                                 <p><strong>Partycja:</strong> {job.partition}</p>
                               </div>
                               <div>
@@ -405,7 +406,7 @@ export default function AdminJobsPage() {
                             <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm text-muted-foreground">
                               <div>
                                 <p><strong>Job ID:</strong> {job.job_id}</p>
-                                <p><strong>Template:</strong> {job.template_name}</p>
+                                <p><strong>Template:</strong> {formatContainerName(job.name)}</p>
                                 <p><strong>Partycja:</strong> {job.partition}</p>
                               </div>
                               <div>
