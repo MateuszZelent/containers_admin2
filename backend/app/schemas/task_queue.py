@@ -189,3 +189,9 @@ class FileValidationResult(BaseModel):
     file_path: str
     is_valid: bool
     message: str
+
+
+class FileValidationRequest(BaseModel):
+    """Schema for file validation request."""
+    
+    file_path: str = Field(..., description="Path to the file to validate")

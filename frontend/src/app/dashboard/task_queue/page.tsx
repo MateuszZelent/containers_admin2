@@ -5,8 +5,7 @@ import { toast } from "sonner";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm } from "react-hook-form";
 import * as z from "zod";
-import { Loader2, RefreshCcw, Plus, FileText } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { Loader2, RefreshCcw, Plus, FileText, Trash2, XCircle, Eye } from "lucide-react";
 import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
@@ -14,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import {
   Card,
   CardContent,
@@ -31,8 +31,20 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { tasksApi } from "@/lib/api-client"; // Update import to use tasksApi
-import { Progress } from "@/components/ui/progress";
+import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
+import { FilePreviewDialog } from "@/components/ui/file-preview-dialog";
 
 // Define task interface
 interface Task {
@@ -63,7 +75,7 @@ interface QueueStatus {
   active_worker_count: number;
 }
 
-// Schema for submitting new task
+// Schema for submitting new task - updated to better handle different task types
 const formSchema = z.object({
   name: z.string().min(3, "Nazwa musi mieć co najmniej 3 znaki").max(50, "Nazwa nie może przekraczać 50 znaków"),
   simulation_file: z.string().min(1, "Ścieżka do pliku symulacji jest wymagana"),
@@ -73,16 +85,43 @@ const formSchema = z.object({
   num_gpus: z.coerce.number().int().min(0, "Minimum 0 GPU").max(8, "Maksimum 8 GPU"),
   time_limit: z.string().min(5, "Określ limit czasu (np. 24:00:00)").regex(/^\d+:\d{2}:\d{2}$/, "Format: HH:MM:SS"),
   priority: z.coerce.number().int().min(0, "Minimum 0").max(100, "Maksimum 100"),
+}).refine((data) => {
+  // Special validation for Amumax tasks (.mx3 files)
+  if (data.simulation_file.endsWith('.mx3')) {
+    return data.num_gpus >= 1; // Amumax requires at least 1 GPU
+  }
+  return true;
+}, {
+  message: "Zadania Amumax (.mx3) wymagają co najmniej 1 GPU",
+  path: ["num_gpus"],
 });
 
 export default function TaskQueuePage() {
-  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [queueStatus, setQueueStatus] = useState<QueueStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string | null>(null);
+  const [fileValidation, setFileValidation] = useState<{
+    isValid: boolean;
+    message: string;
+    fileType?: string;
+    fileExists?: boolean;
+    fileSize?: number;
+    fileContent?: string;
+  } | null>(null);
+  const [isValidating, setIsValidating] = useState(false);
+
+  // Delete confirmation dialog state
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [taskToDelete, setTaskToDelete] = useState<Task | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  // File preview dialog state
+  const [previewDialogOpen, setPreviewDialogOpen] = useState(false);
+  const [previewFilePath, setPreviewFilePath] = useState<string>("");
+  const [previewFileType, setPreviewFileType] = useState<string>("text");
 
   // Initialize form
   const form = useForm<z.infer<typeof formSchema>>({
@@ -99,6 +138,9 @@ export default function TaskQueuePage() {
     },
   });
 
+  // Watch simulation file changes for validation
+  const watchedSimulationFile = form.watch("simulation_file");
+
   // Fetch tasks
   const fetchTasks = useCallback(async () => {
     setIsLoading(true);
@@ -107,10 +149,8 @@ export default function TaskQueuePage() {
       setTasks(response.data);
       return response;
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Nie udało się pobrać listy zadań";
-      // toast.error(errorMessage);
-      console.error("Error fetching tasks:", error);
-      throw error;
+      console.error("Error refreshing data:", error);
+      toast.error("Błąd podczas odświeżania danych");
     } finally {
       setIsLoading(false);
     }
@@ -182,6 +222,61 @@ export default function TaskQueuePage() {
     }
   };
 
+  // Handle delete/cancel task button click
+  const handleTaskAction = (task: Task) => {
+    const isActiveTask = ["PENDING", "RUNNING", "CONFIGURING"].includes(task.status);
+    
+    if (isActiveTask) {
+      // For active tasks, cancel/interrupt first
+      cancelTask(task.id);
+    } else {
+      // For completed/failed tasks, show delete confirmation
+      setTaskToDelete(task);
+      setDeleteDialogOpen(true);
+    }
+  };
+
+  // Delete task from database
+  const deleteTask = async () => {
+    if (!taskToDelete) return;
+    
+    setIsDeleting(true);
+    try {
+      await tasksApi.deleteTask(taskToDelete.id);
+      toast.success("Zadanie zostało usunięte z bazy danych");
+      fetchTasks(); // Refresh the list
+      setDeleteDialogOpen(false);
+      setTaskToDelete(null);
+    } catch (error: any) {
+      const errorMessage = error.response?.data?.detail || "Nie udało się usunąć zadania";
+      toast.error(errorMessage);
+      console.error(`Error deleting task ${taskToDelete.id}:`, error);
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  // Get action button text and variant based on task status
+  const getTaskActionButton = (task: Task) => {
+    const isActiveTask = ["PENDING", "RUNNING", "CONFIGURING"].includes(task.status);
+    
+    if (isActiveTask) {
+      return {
+        text: task.status === "RUNNING" ? "Przerwij symulację" : "Anuluj",
+        variant: "destructive" as const,
+        action: () => handleTaskAction(task),
+        icon: <XCircle className="h-4 w-4 mr-1" />
+      };
+    } else {
+      return {
+        text: "Usuń",
+        variant: "outline" as const,
+        action: () => handleTaskAction(task),
+        icon: <Trash2 className="h-4 w-4 mr-1" />
+      };
+    }
+  };
+
   // Format date
   const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString();
@@ -236,6 +331,76 @@ export default function TaskQueuePage() {
     );
   }, [tasks]);
 
+  // Validate file and auto-adjust form based on file type
+  const validateAndAdjustForm = useCallback(async (filePath: string) => {
+    if (!filePath.trim()) {
+      setFileValidation(null);
+      return;
+    }
+
+    setIsValidating(true);
+    try {
+      const response = await tasksApi.validateFile(filePath);
+      const validation = response.data;
+
+      setFileValidation({
+        isValid: validation.is_valid,
+        message: validation.message,
+        fileType: validation.file_type,
+        fileExists: validation.file_exists,
+        fileSize: validation.file_size,
+        fileContent: validation.file_content,
+      });
+
+      // Auto-adjust form defaults based on file type
+      if (validation.is_valid && validation.file_type === "amumax") {
+        // Amumax requires GPU
+        if (form.getValues("num_gpus") === 0) {
+          form.setValue("num_gpus", 1);
+        }
+        // Set appropriate defaults for micromagnetic simulations
+        if (form.getValues("memory_gb") < 16) {
+          form.setValue("memory_gb", 24);
+        }
+      }
+    } catch (error: any) {
+      setFileValidation({
+        isValid: false,
+        message: "Błąd podczas walidacji pliku",
+        fileType: "unknown",
+      });
+    } finally {
+      setIsValidating(false);
+    }
+  }, [form]);
+
+  // Effect for file validation with debouncing
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (watchedSimulationFile) {
+        validateAndAdjustForm(watchedSimulationFile);
+      }
+    }, 500); // Debounce validation
+
+    return () => clearTimeout(timer);
+  }, [watchedSimulationFile, validateAndAdjustForm]);
+
+  // Helper function to get task type badge
+  const getTaskTypeBadge = (simulationFile: string) => {
+    if (simulationFile.endsWith('.mx3')) {
+      return <Badge variant="secondary" className="bg-blue-100 text-blue-800">Amumax</Badge>;
+    } else if (simulationFile.endsWith('.py')) {
+      return <Badge variant="secondary" className="bg-green-100 text-green-800">Python</Badge>;
+    }
+    return <Badge variant="outline">Inne</Badge>;
+  };
+
+  // Handle preview file button click
+  const handlePreviewFile = (filePath: string) => {
+    setPreviewFilePath(filePath);
+    setPreviewDialogOpen(true);
+  };
+
   // Auto-refresh
   useEffect(() => {
     const interval = setInterval(() => {
@@ -262,10 +427,7 @@ export default function TaskQueuePage() {
         <div>
           <h1 className="text-3xl font-bold">Kolejka zadań symulacji</h1>
           <p className="text-muted-foreground mt-1">
-            Zarządzaj wszystkimi zadaniami symulacji. 
-            <Link href="/dashboard/amumax" className="ml-2 text-primary hover:underline">
-              Przejdź do zadań Amumax →
-            </Link>
+            Zarządzaj wszystkimi zadaniami symulacji. Obsługuje Amumax (.mx3), Python (.py) i inne typy zadań.
           </p>
         </div>
         <div className="flex gap-2">
@@ -392,6 +554,7 @@ export default function TaskQueuePage() {
                       <tr className="border-b">
                         <th className="text-left py-2">ID</th>
                         <th className="text-left py-2">Nazwa</th>
+                        <th className="text-left py-2">Typ</th>
                         <th className="text-left py-2">Status</th>
                         <th className="text-left py-2">Postęp</th>
                         <th className="text-left py-2">Plik symulacji</th>
@@ -405,8 +568,9 @@ export default function TaskQueuePage() {
                         <tr key={task.id} className="border-b hover:bg-muted/50">
                           <td className="py-2">{task.task_id}</td>
                           <td className="py-2">{task.name}</td>
+                          <td className="py-2">{getTaskTypeBadge(task.simulation_file)}</td>
                           <td className="py-2">
-                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                            <Badge variant={getStatusBadgeVariant(task.status) as any}>
                               {task.status}
                               {task.retry_count > 0 && ` (${task.retry_count})`}
                             </Badge>
@@ -432,17 +596,27 @@ export default function TaskQueuePage() {
                                   Szczegóły
                                 </Button>
                               </Link>
-                              {(task.status === "PENDING" || 
-                                task.status === "RUNNING" || 
-                                task.status === "CONFIGURING") && (
-                                <Button 
-                                  variant="destructive" 
-                                  size="sm"
-                                  onClick={() => cancelTask(task.id)} // Changed from task.task_id to task.id
-                                >
-                                  Anuluj
-                                </Button>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreviewFile(task.simulation_file)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Preview
+                              </Button>
+                              {(() => {
+                                const actionButton = getTaskActionButton(task);
+                                return (
+                                  <Button 
+                                    variant={actionButton.variant}
+                                    size="sm"
+                                    onClick={actionButton.action}
+                                  >
+                                    {actionButton.icon}
+                                    {actionButton.text}
+                                  </Button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>
@@ -481,6 +655,7 @@ export default function TaskQueuePage() {
                       <tr className="border-b">
                         <th className="text-left py-2">ID</th>
                         <th className="text-left py-2">Nazwa</th>
+                        <th className="text-left py-2">Typ</th>
                         <th className="text-left py-2">Status</th>
                         <th className="text-left py-2">Postęp</th>
                         <th className="text-left py-2">Plik symulacji</th>
@@ -494,8 +669,9 @@ export default function TaskQueuePage() {
                         <tr key={task.id} className="border-b hover:bg-muted/50">
                           <td className="py-2">{task.task_id}</td>
                           <td className="py-2">{task.name}</td>
+                          <td className="py-2">{getTaskTypeBadge(task.simulation_file)}</td>
                           <td className="py-2">
-                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                            <Badge variant={getStatusBadgeVariant(task.status) as any}>
                               {task.status}
                               {task.retry_count > 0 && ` (${task.retry_count})`}
                             </Badge>
@@ -521,17 +697,27 @@ export default function TaskQueuePage() {
                                   Szczegóły
                                 </Button>
                               </Link>
-                              {(task.status === "PENDING" || 
-                                task.status === "RUNNING" || 
-                                task.status === "CONFIGURING") && (
-                                <Button 
-                                  variant="destructive" 
-                                  size="sm"
-                                  onClick={() => cancelTask(task.id)} // Changed from task.task_id to task.id
-                                >
-                                  Anuluj
-                                </Button>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreviewFile(task.simulation_file)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Preview
+                              </Button>
+                              {(() => {
+                                const actionButton = getTaskActionButton(task);
+                                return (
+                                  <Button 
+                                    variant={actionButton.variant}
+                                    size="sm"
+                                    onClick={actionButton.action}
+                                  >
+                                    {actionButton.icon}
+                                    {actionButton.text}
+                                  </Button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>
@@ -570,6 +756,7 @@ export default function TaskQueuePage() {
                       <tr className="border-b">
                         <th className="text-left py-2">ID</th>
                         <th className="text-left py-2">Nazwa</th>
+                        <th className="text-left py-2">Typ</th>
                         <th className="text-left py-2">Status</th>
                         <th className="text-left py-2">Plik symulacji</th>
                         <th className="text-left py-2">Zakończone</th>
@@ -581,8 +768,9 @@ export default function TaskQueuePage() {
                         <tr key={task.id} className="border-b hover:bg-muted/50">
                           <td className="py-2">{task.task_id}</td>
                           <td className="py-2">{task.name}</td>
+                          <td className="py-2">{getTaskTypeBadge(task.simulation_file)}</td>
                           <td className="py-2">
-                            <Badge variant={getStatusBadgeVariant(task.status)}>
+                            <Badge variant={getStatusBadgeVariant(task.status) as any}>
                               {task.status}
                               {task.retry_count > 0 && ` (${task.retry_count})`}
                             </Badge>
@@ -599,17 +787,27 @@ export default function TaskQueuePage() {
                                   Szczegóły
                                 </Button>
                               </Link>
-                              {(task.status === "PENDING" || 
-                                task.status === "RUNNING" || 
-                                task.status === "CONFIGURING") && (
-                                <Button 
-                                  variant="destructive" 
-                                  size="sm"
-                                  onClick={() => cancelTask(task.id)} // Changed from task.task_id to task.id
-                                >
-                                  Anuluj
-                                </Button>
-                              )}
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreviewFile(task.simulation_file)}
+                              >
+                                <Eye className="h-4 w-4 mr-1" />
+                                Preview
+                              </Button>
+                              {(() => {
+                                const actionButton = getTaskActionButton(task);
+                                return (
+                                  <Button 
+                                    variant={actionButton.variant}
+                                    size="sm"
+                                    onClick={actionButton.action}
+                                  >
+                                    {actionButton.icon}
+                                    {actionButton.text}
+                                  </Button>
+                                );
+                              })()}
                             </div>
                           </td>
                         </tr>
@@ -656,16 +854,53 @@ export default function TaskQueuePage() {
                     name="simulation_file"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Ścieżka do pliku .mx3</FormLabel>
+                        <FormLabel>Plik symulacji</FormLabel>
                         <FormControl>
                           <Input 
-                            placeholder="/mnt/local/kkingstoun/admin/pcss_storage/mannga/path/to/file.mx3"
+                            placeholder="np. /mnt/local/.../simulation.mx3 lub /path/to/script.py"
                             {...field} 
                           />
                         </FormControl>
                         <FormDescription>
-                          Pełna ścieżka do pliku symulacji w kontenerze
+                          Ścieżka do pliku symulacji (.mx3 dla Amumax, .py dla Python, itp.)
                         </FormDescription>
+                        {isValidating && (
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Sprawdzanie pliku...
+                          </div>
+                        )}
+                        {fileValidation && (
+                          <div className="space-y-2">
+                            <div className={`text-sm ${
+                              fileValidation.isValid ? "text-green-600" : "text-red-600"
+                            }`}>
+                              {fileValidation.message}
+                              {fileValidation.fileType && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  Typ: {fileValidation.fileType}
+                                </span>
+                              )}
+                              {fileValidation.fileSize && (
+                                <span className="ml-2 text-xs text-muted-foreground">
+                                  Rozmiar: {(fileValidation.fileSize / 1024).toFixed(1)}KB
+                                </span>
+                              )}
+                            </div>
+                            {fileValidation.isValid && (
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => handlePreviewFile(form.getValues("simulation_file"))}
+                                className="text-xs"
+                              >
+                                <FileText className="h-3 w-3 mr-1" />
+                                Podgląd pliku
+                              </Button>
+                            )}
+                          </div>
+                        )}
                         <FormMessage />
                       </FormItem>
                     )}
@@ -752,6 +987,11 @@ export default function TaskQueuePage() {
                           <FormControl>
                             <Input type="number" min={0} max={8} {...field} />
                           </FormControl>
+                          <FormDescription>
+                            {watchedSimulationFile?.endsWith('.mx3') ? 
+                              "Amumax wymaga co najmniej 1 GPU" : 
+                              "0 = bez GPU, 1+ = z GPU"}
+                          </FormDescription>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -804,6 +1044,40 @@ export default function TaskQueuePage() {
           </Card>
         </TabsContent>
       </Tabs>
+      
+      {/* Delete Confirmation Dialog */}
+      <ConfirmationDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        title={taskToDelete && ["PENDING", "RUNNING", "CONFIGURING"].includes(taskToDelete.status) 
+          ? "Przerwij symulację" 
+          : "Usuń zadanie z bazy"
+        }
+        description={taskToDelete 
+          ? (["PENDING", "RUNNING", "CONFIGURING"].includes(taskToDelete.status)
+            ? `Czy na pewno chcesz przerwać symulację "${taskToDelete.name}"?\n\nInformacje o zadaniu:\n• ID: ${taskToDelete.task_id}\n• Status: ${taskToDelete.status}\n• Typ: ${taskToDelete.simulation_file.endsWith('.mx3') ? 'Amumax (.mx3)' : taskToDelete.simulation_file.endsWith('.py') ? 'Python (.py)' : 'Inne'}\n• CPU: ${taskToDelete.num_cpus}, RAM: ${taskToDelete.memory_gb}GB, GPU: ${taskToDelete.num_gpus}\n• Utworzono: ${new Date(taskToDelete.created_at).toLocaleString()}\n\nSymulacja zostanie zatrzymana, ale dane pozostaną w bazie.`
+            : `Czy na pewno chcesz usunąć zadanie "${taskToDelete.name}" z bazy danych?\n\nInformacje o zadaniu:\n• ID: ${taskToDelete.task_id}\n• Status: ${taskToDelete.status}\n• Typ: ${taskToDelete.simulation_file.endsWith('.mx3') ? 'Amumax (.mx3)' : taskToDelete.simulation_file.endsWith('.py') ? 'Python (.py)' : 'Inne'}\n• CPU: ${taskToDelete.num_cpus}, RAM: ${taskToDelete.memory_gb}GB, GPU: ${taskToDelete.num_gpus}\n• Utworzono: ${new Date(taskToDelete.created_at).toLocaleString()}\n\nTa operacja jest nieodwracalna.`)
+          : ""
+        }
+        confirmText={taskToDelete && ["PENDING", "RUNNING", "CONFIGURING"].includes(taskToDelete.status) 
+          ? "Przerwij symulację" 
+          : "Usuń z bazy"
+        }
+        cancelText="Anuluj"
+        onConfirm={taskToDelete && ["PENDING", "RUNNING", "CONFIGURING"].includes(taskToDelete.status) 
+          ? () => cancelTask(taskToDelete.id)
+          : deleteTask
+        }
+        isLoading={isDeleting}
+        variant="destructive"
+      />
+
+      {/* File Preview Dialog */}
+      <FilePreviewDialog
+        open={previewDialogOpen}
+        onOpenChange={setPreviewDialogOpen}
+        filePath={previewFilePath}
+      />
     </div>
   );
 }

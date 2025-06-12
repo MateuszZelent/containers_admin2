@@ -2,7 +2,7 @@ FROM python:3.9-slim
 
 WORKDIR /app
 
-# Instalacja zależności systemowych (dodano openssh-client)
+# Instalacja zależności systemowych (dodano openssh-client i sshfs)
 RUN apt-get update && apt-get install -y \
     curl \
     postgresql-client \
@@ -15,6 +15,8 @@ RUN apt-get update && apt-get install -y \
     htop \
     nano \
     openssh-client \
+    sshfs \
+    fuse3 \
     && rm -rf /var/lib/apt/lists/*
 
 # Kopiowanie i instalacja zależności Pythona
@@ -24,6 +26,10 @@ RUN pip install psutil
 
 # Kopiowanie kodu aplikacji
 COPY . .
+
+# Kopiowanie i ustawienie skryptu montowania dysków
+COPY mount-network-drives.sh /root/mount-network-drives.sh
+RUN chmod +x /root/mount-network-drives.sh
 
 # Tworzenie katalogu .ssh
 RUN mkdir -p /root/.ssh && chmod 700 /root/.ssh
@@ -39,6 +45,14 @@ else \n\
   echo "Warning: SSH key not found at /root/.ssh/id_rsa" \n\
 fi \n\
 \n\
+# Montowanie dysków siecowych \n\
+echo "Mounting network drives..." \n\
+if /root/mount-network-drives.sh mount; then \n\
+  echo "Network drives mounted successfully" \n\
+else \n\
+  echo "Warning: Some network drives failed to mount - continuing anyway" \n\
+fi \n\
+\n\
 echo "Waiting for PostgreSQL..." \n\
 while ! nc -z postgres 5432; do \n\
   sleep 0.5 \n\
@@ -48,6 +62,8 @@ echo "PostgreSQL started" \n\
 # Uruchomienie migracji \n\
 alembic upgrade head \n\
 \n\
+
+/root/mount-network-drives.sh \n\
 # Uruchomienie serwera FastAPI \n\
 exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload' > /app/entrypoint.sh \
 && chmod +x /app/entrypoint.sh

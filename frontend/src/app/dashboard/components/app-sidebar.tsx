@@ -10,10 +10,8 @@ import {
   IconInnerShadowTop,
   IconListCheck,
   IconShield,
-  IconUsers,
-  IconServer,
 } from "@tabler/icons-react"
-import { Cog, Zap } from "lucide-react"
+import { Cog } from "lucide-react"
 
 import {
   Sidebar,
@@ -41,11 +39,6 @@ const data = {
       title: "Kolejka zadań",
       url: "/dashboard/task_queue",
       icon: IconListCheck,
-    },
-    {
-      title: "Zadania Amumax",
-      url: "/dashboard/amumax",
-      icon: Zap,
     },
     {
       title: "Ustawienia",

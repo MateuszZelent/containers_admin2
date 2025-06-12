@@ -280,7 +280,13 @@ export const adminApi = {
 
 export const tasksApi = {
   // Get all tasks
-  getTasks: () => apiClient.get('/tasks/'),
+  getTasks: (status?: string, skip?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (skip !== undefined) params.append('skip', skip.toString());
+    if (limit !== undefined) params.append('limit', limit.toString());
+    return apiClient.get(`/tasks/?${params.toString()}`);
+  },
 
   // Get active tasks
   getActiveTasks: () => apiClient.get('/tasks/active-tasks'),
@@ -291,13 +297,13 @@ export const tasksApi = {
   // Get task status
   getTaskStatus: (taskId: number) => apiClient.get(`/tasks/${taskId}/status`),
 
-  // Submit new task
+  // Submit new task (unified for all task types)
   createTask: (taskData: { [key: string]: any }) => apiClient.post('/tasks/', taskData),
   
   // Get available templates
   getTemplates: () => apiClient.get('/tasks/templates'),
 
-  // Get queue status (renamed from getClusterStatus)
+  // Get queue status
   getQueueStatus: () => apiClient.get('/tasks/status'),
 
   // Get code server URL
@@ -316,48 +322,26 @@ export const tasksApi = {
   closeTaskTunnel: (taskId: number, tunnelId: number) =>
     apiClient.delete(`/tasks/${taskId}/tunnels/${tunnelId}`),
 
-  // Update task - new method
+  // Update task
   updateTask: (taskId: number, taskData: { [key: string]: any }) => 
     apiClient.put(`/tasks/${taskId}`, taskData),
   
-  // Get task results - new method
+  // Get task results (automatically detects type and returns appropriate format)
   getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
   
-  // Cancel task - new method
+  // Cancel task
   cancelTask: (taskId: number) => apiClient.post(`/tasks/${taskId}/cancel`),
   
-  // Process queue - new method
+  // Process queue
   processQueue: () => apiClient.post('/tasks/process'),
 
-  // Amumax-specific endpoints
-  // Create Amumax task
-  createAmumaxTask: (taskData: {
-    mx3_file_path: string;
-    task_name: string;
-    partition?: string;
-    num_cpus?: number;
-    memory_gb?: number;
-    num_gpus?: number;
-    time_limit?: string;
-    priority?: number;
-    auto_submit?: boolean;
-  }) => apiClient.post('/tasks/amumax', taskData),
-
-  // Get Amumax tasks only
-  getAmumaxTasks: (skip?: number, limit?: number) => {
-    const params = new URLSearchParams();
-    if (skip !== undefined) params.append('skip', skip.toString());
-    if (limit !== undefined) params.append('limit', limit.toString());
-    return apiClient.get(`/tasks/amumax?${params.toString()}`);
-  },
-
-  // Get Amumax-specific results
-  getAmumaxResults: (taskId: number) => 
-    apiClient.get(`/tasks/${taskId}/amumax-results`),
-
-  // Validate MX3 file
-  validateMx3File: (filePath: string) => 
-    apiClient.post('/tasks/amumax/validate', { file_path: filePath }),
+  // Validate simulation file (works for .mx3, .py, and other file types)
+  validateFile: (filePath: string) => 
+    apiClient.post('/tasks/validate', { file_path: filePath }),
+    
+  // Get full file content for preview with syntax highlighting
+  getFileContent: (filePath: string) => 
+    apiClient.get('/tasks/file-content', { params: { file_path: filePath } }),
 };
 
 
