@@ -1,5 +1,3 @@
-"use client";
-
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -47,6 +45,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TaskCard } from "./task-card-new";
+import { TaskQueueJob as GlobalTaskQueueJob } from "@/lib/types";
 import {
   Clock,
   Search,
@@ -216,6 +216,37 @@ const getTaskCategory = (task: TaskQueueJob): keyof typeof TASK_CATEGORIES => {
     }
   }
   return "other";
+};
+
+// Helper function to convert local TaskQueueJob to global TaskQueueJob type
+const convertToGlobalTaskQueueJob = (localTask: TaskQueueJob): GlobalTaskQueueJob => {
+  return {
+    id: localTask.id,
+    task_id: localTask.task_id,
+    name: localTask.name,
+    status: localTask.status,
+    progress: localTask.progress,
+    priority: 1,
+    task_type: getTaskCategory(localTask),
+    simulation_file: localTask.simulation_file,
+    slurm_job_id: localTask.slurm_job_id || undefined,
+    node: localTask.node || undefined,
+    partition: localTask.partition,
+    num_cpus: localTask.num_cpus,
+    memory_gb: localTask.memory_gb,
+    num_gpus: localTask.num_gpus,
+    time_limit: localTask.time_limit,
+    script: undefined,
+    logs: localTask.logs || undefined,
+    error_message: localTask.error_message || undefined,
+    retry_count: 0,
+    max_retries: 3,
+    created_at: localTask.created_at,
+    started_at: localTask.started_at || undefined,
+    finished_at: localTask.finished_at || undefined,
+    updated_at: localTask.finished_at || localTask.started_at || localTask.created_at,
+    owner_id: localTask.owner_id
+  };
 };
 
 export function TaskQueueDashboard() {
@@ -610,15 +641,15 @@ export function TaskQueueDashboard() {
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
               exit={{ opacity: 0 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"
+              className="flex flex-wrap justify-center gap-6"
             >
               {filteredTasks.map((task) => (
                 <TaskCard
                   key={task.id}
-                  task={task}
-                  onDelete={deleteTask}
-                  onCancel={cancelTask}
-                  onView={viewTaskDetails}
+                  task={convertToGlobalTaskQueueJob(task)}
+                  onDelete={() => deleteTask(task)}
+                  onCancel={() => cancelTask(task)}
+                  onView={() => viewTaskDetails(task)}
                 />
               ))}
             </motion.div>
@@ -822,189 +853,6 @@ export function TaskQueueDashboard() {
         </DialogContent>
       </Dialog>
     </div>
-  );
-}
-
-// Task Card Component
-function TaskCard({ 
-  task, 
-  onDelete, 
-  onCancel,
-  onView
-}: { 
-  task: TaskQueueJob;
-  onDelete: (task: TaskQueueJob) => void;
-  onCancel: (task: TaskQueueJob) => void;
-  onView: (task: TaskQueueJob) => void;
-}) {
-  const status = STATUS_CONFIG[task.status as keyof typeof STATUS_CONFIG] || STATUS_CONFIG.UNKNOWN;
-  const category = TASK_CATEGORIES[getTaskCategory(task)];
-  
-  const formatTime = (timestamp: string | null) => {
-    if (!timestamp) return "N/A";
-    return new Date(timestamp).toLocaleString();
-  };
-
-  const formatDuration = (start: string | null, end: string | null) => {
-    if (!start) return "N/A";
-    const startTime = new Date(start);
-    const endTime = end ? new Date(end) : new Date();
-    const diff = endTime.getTime() - startTime.getTime();
-    
-    const hours = Math.floor(diff / (1000 * 60 * 60));
-    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-    
-    if (hours > 0) return `${hours}h ${minutes}m`;
-    return `${minutes}m`;
-  };
-
-  return (
-    <motion.div
-      layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.2 }}
-    >
-      <Card className="hover:shadow-md transition-shadow">
-        <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2">
-              <category.icon className={`h-4 w-4 ${category.color}`} />
-              <div>
-                <CardTitle className="text-sm font-medium truncate">
-                  {task.name}
-                </CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  {category.label}
-                </p>
-              </div>
-            </div>
-            <Badge 
-              variant="outline" 
-              className={`${status.textColor} ${status.bgColor} border-0`}
-            >
-              <status.icon className="h-3 w-3 mr-1" />
-              {status.label}
-            </Badge>
-          </div>
-        </CardHeader>
-        
-        <CardContent className="space-y-3">
-          {/* Progress bar for running tasks */}
-          {task.status === "RUNNING" && (
-            <div className="space-y-1">
-              <div className="flex justify-between text-xs">
-                <span>Progress</span>
-                <span>{task.progress}%</span>
-              </div>
-              <div className="w-full bg-gray-200 rounded-full h-2">
-                <div 
-                  className="bg-green-500 h-2 rounded-full transition-all duration-300"
-                  style={{ width: `${task.progress}%` }}
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Task details */}
-          <div className="grid grid-cols-2 gap-2 text-xs">
-            <div className="flex items-center gap-1">
-              <Cpu className="h-3 w-3 text-muted-foreground" />
-              <span>{task.num_cpus} CPU</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <HardDrive className="h-3 w-3 text-muted-foreground" />
-              <span>{task.memory_gb}GB</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Zap className="h-3 w-3 text-muted-foreground" />
-              <span>{task.num_gpus} GPU</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <Server className="h-3 w-3 text-muted-foreground" />
-              <span>{task.node || "N/A"}</span>
-            </div>
-          </div>
-
-          {/* Time information */}
-          <div className="space-y-1 text-xs">
-            <div className="flex justify-between">
-              <span className="text-muted-foreground">Created:</span>
-              <span>{formatTime(task.created_at)}</span>
-            </div>
-            {task.started_at && (
-              <div className="flex justify-between">
-                <span className="text-muted-foreground">Duration:</span>
-                <span>{formatDuration(task.started_at, task.finished_at)}</span>
-              </div>
-            )}
-          </div>
-
-          {/* Error message */}
-          {task.error_message && (
-            <div className="p-2 bg-red-50 border border-red-200 rounded text-xs">
-              <p className="text-red-600 truncate" title={task.error_message}>
-                {task.error_message}
-              </p>
-            </div>
-          )}
-
-          {/* Actions */}
-          <div className="flex gap-1 pt-2">
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    className="flex-1"
-                    onClick={() => onView(task)}
-                  >
-                    <Eye className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>View Details</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-
-            {(task.status === "PENDING" || task.status === "RUNNING") && (
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      onClick={() => onCancel(task)}
-                      className="flex-1"
-                    >
-                      <Square className="h-3 w-3" />
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent>Cancel</TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
-            )}
-
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={() => onDelete(task)}
-                    className="flex-1 text-red-600 hover:text-red-700"
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Delete</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
-          </div>
-        </CardContent>
-      </Card>
-    </motion.div>
   );
 }
 

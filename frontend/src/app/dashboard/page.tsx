@@ -36,7 +36,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Job, User } from "@/lib/types";
 import axios from "axios";
-import { ModernJobCard } from "./components/modern-job-card";
+import { JobCard } from "./components/job-card-new";
 import { AnimatePresence } from "framer-motion";
 import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
@@ -667,7 +667,7 @@ export default function DashboardPage() {
       <Tabs defaultValue="all" className="w-full">
         <TabsList className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
           <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
-          <TabsTrigger value="active">Lista zadań</TabsTrigger>
+          {/* <TabsTrigger value="active">Lista zadań</TabsTrigger> */}
           <TabsTrigger value="task-queue">Task Queue</TabsTrigger>
           <TabsTrigger value="completed">Zadania zakończone</TabsTrigger>
           {currentUser?.is_superuser && (
@@ -814,7 +814,7 @@ export default function DashboardPage() {
             <AnimatePresence mode="popLayout">
               <div className="flex flex-wrap justify-start gap-6">
                 {getActiveJobs().map((job) => (
-                  <ModernJobCard 
+                  <JobCard 
                     key={job.id}
                     job={job}
                     activeJobData={activeJobsMap.get(job.job_id)}
@@ -852,7 +852,7 @@ export default function DashboardPage() {
                 <AnimatePresence mode="popLayout">
                   <div className="flex flex-wrap justify-center gap-6">
                     {getActiveJobs().map((job) => (
-                      <ModernJobCard 
+                      <JobCard 
                         key={job.id}
                         job={job}
                         activeJobData={activeJobsMap.get(job.job_id)}
@@ -895,7 +895,7 @@ export default function DashboardPage() {
                 <AnimatePresence mode="popLayout">
                   <div className="flex flex-wrap justify-center gap-6">
                     {getCompletedJobs().map((job) => (
-                      <ModernJobCard 
+                      <JobCard 
                         key={job.id}
                         job={job}
                         activeJobData={activeJobsMap.get(job.job_id)}
@@ -1055,7 +1055,7 @@ export default function DashboardPage() {
                                     <div>
                                       <p><strong>Job ID:</strong> {job.job_id}</p>
                                       <p><strong>Właściciel:</strong> ID {job.owner_id}</p>
-                                      <p><strong>Template:</strong> {formatContainerName(job.name)}</p>
+                                      <p><strong>Template:</strong> {formatContainerName(job.name || "Unknown")}</p>
                                     </div>
                                     <div>
                                       <p><strong>Węzeł:</strong> {job.node || "Brak"}</p>
