@@ -270,13 +270,25 @@ class JobService:
                     state = job_info["state"]
                     log_slurm_job(str(job_id), str(state), job_info)
 
-                    if str(db_job.status) != state:
+                    # Map SLURM state to full status name
+                    from app.services.task_queue import TaskQueueService
+                    
+                    mapped_status_enum = TaskQueueService.SLURM_STATE_MAPPING.get(
+                        state, "UNKNOWN"
+                    )
+                    # Convert enum to string for database storage
+                    if hasattr(mapped_status_enum, 'value'):
+                        mapped_status = mapped_status_enum.value
+                    else:
+                        mapped_status = str(mapped_status_enum)
+
+                    if str(db_job.status) != mapped_status:
                         old_status = str(db_job.status)
-                        msg = f"Job {job_id}: {old_status} → {state}"
+                        msg = f"Job {job_id}: {old_status} → {mapped_status}"
                         cluster_logger.info(msg)
 
                         # Handle PENDING to RUNNING transition
-                        if old_status == "PENDING" and state == "RUNNING":
+                        if old_status == "PENDING" and mapped_status == "RUNNING":
                             node = job_info.get(
                                 "node"
                             ) or await slurm_service.get_job_node(job_id)
@@ -296,16 +308,16 @@ class JobService:
                                     cluster_logger.warning(msg)
 
                         # Update status
-                        setattr(db_job, "status", str(state))
+                        setattr(db_job, "status", mapped_status)
                         db.commit()
 
                         # Adjust check interval
-                        if state == "RUNNING" and check_interval != 20:
+                        if mapped_status == "RUNNING" and check_interval != 20:
                             cluster_logger.info(
                                 f"Job {job_id}: increase interval to 20s"
                             )
                             check_interval = 20
-                        elif state in ["PENDING", "CONFIGURING"]:
+                        elif mapped_status in ["PENDING", "CONFIGURING"]:
                             if check_interval != 2:
                                 cluster_logger.info(f"Job {job_id}: short interval")
                                 check_interval = 2

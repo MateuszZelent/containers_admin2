@@ -278,78 +278,14 @@ export const adminApi = {
   getAllJobs: () => apiClient.get('/jobs/admin/all'),
 }
 
-export const tasksApi = {
-  // Get all tasks
-  getTasks: (status?: string, skip?: number, limit?: number) => {
-    const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (skip !== undefined) params.append('skip', skip.toString());
-    if (limit !== undefined) params.append('limit', limit.toString());
-    return apiClient.get(`/tasks/?${params.toString()}`);
-  },
-
-  // Get active tasks
-  getActiveTasks: () => apiClient.get('/tasks/active-tasks'),
-
-  // Get task details
-  getTask: (taskId: number) => apiClient.get(`/tasks/${taskId}`),
-
-  // Get task status
-  getTaskStatus: (taskId: number) => apiClient.get(`/tasks/${taskId}/status`),
-
-  // Submit new task (unified for all task types)
-  createTask: (taskData: { [key: string]: any }) => apiClient.post('/tasks/', taskData),
-  
-  // Get available templates
-  getTemplates: () => apiClient.get('/tasks/templates'),
-
-  // Get queue status
-  getQueueStatus: () => apiClient.get('/tasks/status'),
-
-  // Get code server URL
-  getCodeServerUrl: (taskId: number) => apiClient.get(`/tasks/${taskId}/code-server`),
-
-  // Delete task
-  deleteTask: (taskId: number) => apiClient.delete(`/tasks/${taskId}`),
-
-  // Get SSH tunnels for task
-  getTaskTunnels: (taskId: number) => apiClient.get(`/tasks/${taskId}/tunnels`),
-
-  // Create SSH tunnel for task
-  createTaskTunnel: (taskId: number) => apiClient.post(`/tasks/${taskId}/tunnels`),
-
-  // Close SSH tunnel
-  closeTaskTunnel: (taskId: number, tunnelId: number) =>
-    apiClient.delete(`/tasks/${taskId}/tunnels/${tunnelId}`),
-
-  // Update task
-  updateTask: (taskId: number, taskData: { [key: string]: any }) => 
-    apiClient.put(`/tasks/${taskId}`, taskData),
-  
-  // Get task results (automatically detects type and returns appropriate format)
-  getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
-  
-  // Cancel task
-  cancelTask: (taskId: number) => apiClient.post(`/tasks/${taskId}/cancel`),
-  
-  // Process queue
-  processQueue: () => apiClient.post('/tasks/process'),
-
-  // Validate simulation file (works for .mx3, .py, and other file types)
-  validateFile: (filePath: string) => 
-    apiClient.post('/tasks/validate', { file_path: filePath }),
-    
-  // Get full file content for preview with syntax highlighting
-  getFileContent: (filePath: string) => 
-    apiClient.get('/tasks/file-content', { params: { file_path: filePath } }),
-};
-
-
-
+// Jobs API (Containers)
 export const jobsApi = {
   // Get all jobs
   getJobs: () => apiClient.get('/jobs/'),
   
+  // Get all active jobs (containers + task_queue)
+  getActiveAllJobs: () => apiClient.get('/jobs/active-all'),
+
   // Get active jobs
   getActiveJobs: () => apiClient.get('/jobs/active-jobs'),
   
@@ -387,6 +323,122 @@ export const jobsApi = {
   // Check tunnel health
   checkTunnelHealth: (jobId: number, tunnelId: number) => 
     apiClient.post(`/jobs/${jobId}/tunnels/${tunnelId}/health-check`),
+};
+
+export const tasksApi = {
+  // Get all tasks
+  getTasks: (status?: string, skip?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (skip !== undefined) params.append('skip', skip.toString());
+    if (limit !== undefined) params.append('limit', limit.toString());
+    return apiClient.get(`/tasks/?${params.toString()}`);
+  },
+
+  // Get active tasks
+  getActiveTasks: () => apiClient.get('/tasks/active'),
+
+  // Get task details
+  getTask: (taskId: number) => apiClient.get(`/tasks/${taskId}`),
+
+  // Get task status
+  getTaskStatus: (taskId: number) => apiClient.get(`/tasks/${taskId}/status`),
+
+  // Submit new task (unified for all task types)
+  createTask: (taskData: { [key: string]: any }) => apiClient.post('/tasks/', taskData),
+  
+  // Get available templates
+  getTemplates: () => apiClient.get('/tasks/templates'),
+
+  // Get queue status
+  getQueueStatus: () => apiClient.get('/tasks/status'),
+
+  // Get code server URL
+  getCodeServerUrl: (taskId: number) => apiClient.get(`/tasks/${taskId}/code-server`),
+
+  // Delete task
+  deleteTask: (taskId: number) => apiClient.delete(`/tasks/${taskId}`),
+
+  // Cancel task
+  cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
+
+  // Get SSH tunnels for task
+  getTaskTunnels: (taskId: number) => apiClient.get(`/tasks/${taskId}/tunnels`),
+
+  // Create SSH tunnel for task
+  createTaskTunnel: (taskId: number) => apiClient.post(`/tasks/${taskId}/tunnels`),
+
+  // Close SSH tunnel
+  closeTaskTunnel: (taskId: number, tunnelId: number) =>
+    apiClient.delete(`/tasks/${taskId}/tunnels/${tunnelId}`),
+
+  // Update task
+  updateTask: (taskId: number, taskData: { [key: string]: any }) => 
+    apiClient.put(`/tasks/${taskId}`, taskData),
+  
+  // Get task results (automatically detects type and returns appropriate format)
+  getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
+  
+  // Cancel task
+  cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
+  
+  // Process queue
+  processQueue: () => apiClient.post('/tasks/process'),
+
+  // Validate simulation file (works for .mx3, .py, and other file types)
+  validateFile: (filePath: string) => 
+    apiClient.post('/tasks/validate', { file_path: filePath }),
+    
+  // Get full file content for preview with syntax highlighting
+  getFileContent: (filePath: string) => 
+    apiClient.get('/tasks/file-content', { params: { file_path: filePath } }),
+    
+  // Refresh task details (trigger SLURM detail fetch)
+  refreshTaskDetails: (taskId: string) => 
+    apiClient.post(`/tasks/${taskId}/refresh-details`),
+};
+
+// Task Queue API
+export const taskQueueApi = {
+  // Get all tasks for current user
+  getTasks: (status?: string, skip?: number, limit?: number) => {
+    const params = new URLSearchParams();
+    if (status) params.set('status', status);
+    if (skip !== undefined) params.set('skip', skip.toString());
+    if (limit !== undefined) params.set('limit', limit.toString());
+    return apiClient.get(`/task-queue/?${params.toString()}`);
+  },
+  
+  // Get specific task
+  getTask: (taskId: string) => apiClient.get(`/task-queue/${taskId}`),
+  
+  // Create new task
+  createTask: (taskData: any) => apiClient.post('/task-queue/', taskData),
+  
+  // Update task
+  updateTask: (taskId: string, taskData: any) => 
+    apiClient.put(`/task-queue/${taskId}`, taskData),
+  
+  // Delete task
+  deleteTask: (taskId: string) => apiClient.delete(`/task-queue/${taskId}`),
+  
+  // Get queue status
+  getQueueStatus: () => apiClient.get('/task-queue/status'),
+  
+  // Get active tasks
+  getActiveTasks: () => apiClient.get('/task-queue/active'),
+  
+  // Refresh task details (trigger SLURM detail fetch)
+  refreshTaskDetails: (taskId: string) => 
+    apiClient.post(`/task-queue/${taskId}/refresh-details`),
+  
+  // Submit task to SLURM
+  submitTask: (taskId: string) => 
+    apiClient.post(`/task-queue/${taskId}/submit`),
+  
+  // Cancel task
+  cancelTask: (taskId: string) => 
+    apiClient.post(`/task-queue/${taskId}/cancel`),
 };
 
 // CLI Tokens API

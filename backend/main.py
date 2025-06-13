@@ -91,6 +91,33 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to start SLURM monitoring service: {str(e)}")
 
+    # Start the SLURM detail fetcher service
+    logger.info("Starting SLURM detail fetcher service")
+    try:
+        from app.services.slurm import SlurmSSHService
+        from app.services.task_queue import TaskQueueService
+        from app.services.slurm_detail_fetcher import (
+            init_slurm_detail_fetcher,
+            get_slurm_detail_fetcher
+        )
+
+        # Create services
+        slurm_service = SlurmSSHService()
+        db = next(get_db())
+        task_service = TaskQueueService(db)
+        
+        # Initialize and start the detail fetcher
+        init_slurm_detail_fetcher(slurm_service, task_service)
+        detail_fetcher = get_slurm_detail_fetcher()
+        
+        # Set the detail fetcher reference in task service
+        task_service.set_detail_fetcher(detail_fetcher)
+        
+        await detail_fetcher.start()
+        logger.info("SLURM detail fetcher service started")
+    except Exception as e:
+        logger.error(f"Failed to start SLURM detail fetcher: {str(e)}")
+
     # Start cluster monitoring
     await cluster_monitoring_task.start()
     logger.info("Background cluster monitoring started")
@@ -136,22 +163,22 @@ async def health_check(db: Session = Depends(get_db)):
 #         logger.info("Admin user already exists")
 
 
-@app.on_event("startup")
-async def restore_ssh_tunnels():
-    """Restore SSH tunnels from database after server restart."""
-    logger.info("Restoring SSH tunnels after server startup")
-    try:
-        # Get a database session
-        db = next(get_db()) 
-        # Create SSH tunnel service
-        from app.services.ssh_tunnel import SSHTunnelService
+# @app.on_event("startup")
+# async def restore_ssh_tunnels():
+#     """Restore SSH tunnels from database after server restart."""
+#     logger.info("Restoring SSH tunnels after server startup")
+#     try:
+#         # Get a database session
+#         db = next(get_db()) 
+#         # Create SSH tunnel service
+#         from app.services.ssh_tunnel import SSHTunnelService
 
-        tunnel_service = SSHTunnelService(db)
-        # Restore active tunnels
-        result = await tunnel_service.restore_active_tunnels()
-        logger.info(f"SSH tunnel restoration complete: {result}")
-    except Exception as e:
-        logger.error(f"Error restoring SSH tunnels: {str(e)}")
+#         tunnel_service = SSHTunnelService(db)
+#         # Restore active tunnels
+#         result = await tunnel_service.restore_active_tunnels()
+#         logger.info(f"SSH tunnel restoration complete: {result}")
+#     except Exception as e:
+#         logger.error(f"Error restoring SSH tunnels: {str(e)}")
 
 
 @app.on_event("shutdown")
@@ -160,7 +187,7 @@ async def shutdown_event():
     logger.info(f"Shutting down {settings.PROJECT_NAME}")
 
     # Stop background services
-    await cluster_monitoring_task.stop()
+    # await cluster_monitoring_task.stop()
     logger.info("Background cluster monitoring stopped")
 
 

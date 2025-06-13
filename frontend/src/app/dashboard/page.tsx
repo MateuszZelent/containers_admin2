@@ -42,6 +42,7 @@ import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { formatContainerName } from "@/lib/container-utils";
+import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -172,6 +173,7 @@ export default function DashboardPage() {
   const fetchActiveJobs = useCallback(async () => {
     setIsActiveJobsLoading(true);
     try {
+      // Use the active jobs endpoint (containers only for now)
       const response = await jobsApi.getActiveJobs();
       
       // Advanced update strategy for animation preservation
@@ -666,6 +668,7 @@ export default function DashboardPage() {
         <TabsList className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
           <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
           <TabsTrigger value="active">Lista zadań</TabsTrigger>
+          <TabsTrigger value="task-queue">Task Queue</TabsTrigger>
           <TabsTrigger value="completed">Zadania zakończone</TabsTrigger>
           {currentUser?.is_superuser && (
             <TabsTrigger value="admin">Panel administracyjny</TabsTrigger>
@@ -867,6 +870,11 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        
+        {/* Task Queue tab */}
+        <TabsContent value="task-queue" className="mt-4">
+          <TaskQueueDashboard />
         </TabsContent>
         
         {/* Completed jobs tab */}

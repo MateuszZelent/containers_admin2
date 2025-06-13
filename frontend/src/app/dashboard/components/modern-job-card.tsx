@@ -127,6 +127,12 @@ const AutoTimer: React.FC<{ createdAt: string }> = ({ createdAt }) => {
 
 // Calculate job progress with improved error handling
 const calculateProgress = (job: Job): number => {
+  // For task_queue jobs, use the progress field if available
+  if (job.type === 'task_queue' && job.progress !== undefined) {
+    return Math.min(100, Math.max(0, job.progress));
+  }
+
+  // For container jobs or when progress field is not available, use time-based calculation
   if (job.status !== "RUNNING" || !job.created_at || !job.time_limit) {
     return 0;
   }
@@ -274,6 +280,42 @@ const getRelativeTimeString = (dateString: string): string => {
   }
 };
 
+// Helper function to determine job type and format name
+const getJobDisplayName = (job: Job): string => {
+  if (job.type === 'task_queue') {
+    return job.name || job.job_name || 'Task Queue Job';
+  }
+  return formatContainerName(job.job_name);
+};  // Helper function to get appropriate icon for job type
+  const getJobTypeIcon = (job: Job) => {
+    if (job.type === 'task_queue') {
+      return <Zap className="h-4 w-4 text-orange-600 dark:text-orange-400" />;
+    }
+    return getStatusIcon(job.status);
+  };
+
+// Helper function to get job type badge
+const getJobTypeBadge = (job: Job) => {
+  if (job.type === 'task_queue') {
+    return (
+      <Badge 
+        variant="outline" 
+        className="text-xs bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-900/20 dark:text-orange-300 dark:border-orange-700"
+      >
+        AMUMAX
+      </Badge>
+    );
+  }
+  return (
+    <Badge 
+      variant="outline" 
+      className="text-xs bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-900/20 dark:text-blue-300 dark:border-blue-700"
+    >
+      CONTAINER
+    </Badge>
+  );
+};
+
 export const ModernJobCard = React.memo(({
   job,
   activeJobData,
@@ -347,17 +389,27 @@ export const ModernJobCard = React.memo(({
         <CardHeader className="pb-4 relative z-10">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 lg:gap-0">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
-              {statusIcon}
-              <CardTitle className="text-base lg:text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300 truncate">
-                {formatContainerName(job.job_name)}
-              </CardTitle>
+              {getJobTypeIcon(job)}
+              <div className="flex flex-col min-w-0 flex-1">
+                <CardTitle className="text-base lg:text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300 truncate">
+                  {getJobDisplayName(job)}
+                </CardTitle>
+                {job.simulation_file && (
+                  <span className="text-xs text-slate-600 dark:text-slate-400 truncate">
+                    {job.simulation_file.split('/').pop()}
+                  </span>
+                )}
+              </div>
             </div>
-            <Badge 
-              variant={statusVariant} 
-              className="flex items-center gap-2 px-3 py-1.5 font-semibold text-xs bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-md text-slate-700 dark:text-slate-200 self-start lg:self-auto"
-            >
-              {job.status}
-            </Badge>
+            <div className="flex flex-col items-end gap-2">
+              {getJobTypeBadge(job)}
+              <Badge 
+                variant={statusVariant} 
+                className="flex items-center gap-2 px-3 py-1.5 font-semibold text-xs bg-white/95 dark:bg-slate-800/95 backdrop-blur-xl border border-white/60 dark:border-slate-700/60 shadow-md text-slate-700 dark:text-slate-200"
+              >
+                {job.status}
+              </Badge>
+            </div>
           </div>
           
           {/* Enhanced info bar with responsive layout */}
@@ -521,60 +573,89 @@ export const ModernJobCard = React.memo(({
           {/* Enhanced Action buttons with improved horizontal layout */}
           <div className="flex items-center justify-between pt-4 mt-2 border-t border-white/30 dark:border-slate-700/40">
             <div className="flex items-center gap-3">
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button
-                      variant={canUseCodeServer ? "default" : "outline"}
-                      size="sm"
-                      onClick={onOpenCodeServer}
-                      disabled={!canUseCodeServer || isProcessing}
-                      className={`flex items-center gap-2 transition-all duration-300 font-semibold text-sm px-4 py-2 ${
-                        canUseCodeServer 
-                          ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl border-0 hover:scale-105' 
-                          : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg hover:scale-105'
-                      }`}
-                    >
-                      <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/25' : 'bg-blue-500/12 dark:bg-blue-400/15'} p-1.5`}>
-                        {isProcessing ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Code2 className="h-4 w-4" />
-                        )}
-                      </div>
-                      {canUseCodeServer ? "Otwórz IDE" : "Code Server"}
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
-                    {!canUseCodeServer ? (
-                      <p>Kontener musi być w stanie RUNNING, aby uruchomić Code Server</p>
-                    ) : (
-                      <p>Otwórz interfejs Code Server w nowej karcie</p>
-                    )}
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* Primary action based on job type */}
+              {job.type === 'task_queue' ? (
+                // Task queue jobs - show results or progress
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="default"
+                        size="sm"
+                        onClick={onDetails}
+                        className="flex items-center gap-2 transition-all duration-300 font-semibold text-sm px-4 py-2 bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-lg hover:shadow-xl border-0 hover:scale-105"
+                      >
+                        <div className="rounded-lg bg-white/25 p-1.5">
+                          <Activity className="h-4 w-4" />
+                        </div>
+                        {job.status === 'COMPLETED' ? 'Zobacz wyniki' : 'Szczegóły'}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
+                      <p>{job.status === 'COMPLETED' ? 'Zobacz wyniki symulacji' : 'Zobacz szczegóły zadania'}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              ) : (
+                // Container jobs - show Code Server
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant={canUseCodeServer ? "default" : "outline"}
+                        size="sm"
+                        onClick={onOpenCodeServer}
+                        disabled={!canUseCodeServer || isProcessing}
+                        className={`flex items-center gap-2 transition-all duration-300 font-semibold text-sm px-4 py-2 ${
+                          canUseCodeServer 
+                            ? 'bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-lg hover:shadow-xl border-0 hover:scale-105' 
+                            : 'bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg hover:scale-105'
+                        }`}
+                      >
+                        <div className={`rounded-lg ${canUseCodeServer ? 'bg-white/25' : 'bg-blue-500/12 dark:bg-blue-400/15'} p-1.5`}>
+                          {isProcessing ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Code2 className="h-4 w-4" />
+                          )}
+                        </div>
+                        {canUseCodeServer ? "Otwórz IDE" : "Code Server"}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="max-w-[200px] text-center bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
+                      {!canUseCodeServer ? (
+                        <p>Kontener musi być w stanie RUNNING, aby uruchomić Code Server</p>
+                      ) : (
+                        <p>Otwórz interfejs Code Server w nowej karcie</p>
+                      )}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
 
-              <TooltipProvider>
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <Button 
-                      variant="outline" 
-                      size="sm" 
-                      className="flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg font-semibold text-sm px-4 py-2 hover:scale-105 transition-all duration-300"
-                      onClick={onDetails}
-                    >
-                      <div className="bg-slate-500/12 dark:bg-slate-400/15 p-1.5 rounded-lg">
-                        <ExternalLink className="h-4 w-4 text-slate-600 dark:text-slate-400" />
-                      </div>
-                      <span className="text-slate-700 dark:text-slate-200">Szczegóły</span>
-                    </Button>
-                  </TooltipTrigger>
-                  <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
-                    <p>Zobacz szczegółowe informacje o kontenerze</p>
-                  </TooltipContent>
-                </Tooltip>
-              </TooltipProvider>
+              {/* Details button (for containers) */}
+              {job.type !== 'task_queue' && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        className="flex items-center gap-2 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border border-white/70 dark:border-slate-700/70 shadow-md hover:shadow-lg font-semibold text-sm px-4 py-2 hover:scale-105 transition-all duration-300"
+                        onClick={onDetails}
+                      >
+                        <div className="bg-slate-500/12 dark:bg-slate-400/15 p-1.5 rounded-lg">
+                          <ExternalLink className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+                        </div>
+                        <span className="text-slate-700 dark:text-slate-200">Szczegóły</span>
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
+                      <p>Zobacz szczegółowe informacje o kontenerze</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
             </div>
 
             <TooltipProvider>
@@ -600,7 +681,7 @@ export const ModernJobCard = React.memo(({
                   </Button>
                 </TooltipTrigger>
                 <TooltipContent className="bg-white/95 dark:bg-slate-800/95 backdrop-blur-sm">
-                  <p>Usuń kontener</p>
+                  <p>Usuń {job.type === 'task_queue' ? 'zadanie' : 'kontener'}</p>
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

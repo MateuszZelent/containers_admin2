@@ -66,6 +66,7 @@ class TaskQueueJobInDB(TaskQueueJobBase):
     status: str
     retry_count: int = 0
     progress: int = 0
+    node: Optional[str] = None
     created_at: datetime
     queued_at: datetime
     submitted_at: Optional[datetime] = None

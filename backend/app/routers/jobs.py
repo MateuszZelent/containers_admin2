@@ -939,3 +939,80 @@ async def check_job_tunnel_health(
         else None,
         "error_message": health_info.error_message,
     }
+
+
+@router.get("/active-all")
+async def get_active_all_jobs(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> List[Dict[str, Any]]:
+    """
+    Get real-time status of user's active jobs from both containers and task_queue.
+    This endpoint provides unified view of all active jobs (containers + amumax tasks).
+    """
+    try:
+        from app.services.slurm_monitor import monitor_service
+
+        jobs_logger.debug(
+            f"Fetching all active jobs for user: {current_user.username}"
+        )
+
+        # Get all active jobs (containers + task_queue) from monitoring service
+        all_active_jobs = await monitor_service.get_user_all_active_jobs(
+            db, current_user.username
+        )
+
+        if not all_active_jobs:
+            return []
+
+        # Format data for frontend consistency
+        jobs_data = []
+        for job in all_active_jobs:
+            job_data = {
+                "id": job["id"],
+                "job_id": job["job_id"],
+                "name": job["name"],
+                "type": job["type"],  # 'container' or 'task_queue'
+                "user": current_user.username,
+                "state": job["status"],
+                "partition": job["partition"],
+                "node": job.get("node"),
+                "node_count": 1,  # Default for task_queue
+                "time_used": job.get("time_used", ""),
+                "time_left": job.get("time_left", ""),
+                "memory_requested": f"{job['memory_gb']}G",
+                "start_time": None,
+                "submit_time": job["created_at"].isoformat(),
+                "reason": "",
+                "monitoring_active": True,
+                "last_updated": (
+                    job["updated_at"].isoformat() 
+                    if job["updated_at"] else None
+                ),
+                "template": job.get("template_name", "unknown"),
+                "created_at": job["created_at"].isoformat(),
+                "updated_at": (
+                    job["updated_at"].isoformat() 
+                    if job["updated_at"] else None
+                ),
+                # Additional fields for task_queue
+                "simulation_file": job.get("simulation_file"),
+                "progress": job.get("progress", 0),
+                "num_cpus": job["num_cpus"],
+                "memory_gb": job["memory_gb"],
+                "num_gpus": job["num_gpus"],
+            }
+            jobs_data.append(job_data)
+
+        jobs_logger.info(
+            f"Found {len(jobs_data)} active jobs for user {current_user.username}"
+        )
+        return jobs_data
+
+    except Exception as e:
+        jobs_logger.error(f"Error fetching all active jobs: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch all active jobs: {str(e)}",
+        )
+

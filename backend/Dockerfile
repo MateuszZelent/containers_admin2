@@ -62,8 +62,6 @@ echo "PostgreSQL started" \n\
 # Uruchomienie migracji \n\
 alembic upgrade head \n\
 \n\
-
-/root/mount-network-drives.sh \n\
 # Uruchomienie serwera FastAPI \n\
 exec uvicorn main:app --host 0.0.0.0 --port 8000 --reload' > /app/entrypoint.sh \
 && chmod +x /app/entrypoint.sh

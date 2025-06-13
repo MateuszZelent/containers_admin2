@@ -3,7 +3,7 @@ from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from sqlalchemy.sql import func
 import json
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from sqlalchemy.ext.hybrid import hybrid_property
 from sqlalchemy.types import TypeDecorator, TEXT
 
@@ -180,6 +180,7 @@ class TaskQueueJob(Base):
     memory_gb = Column(Integer, default=24)
     num_gpus = Column(Integer, default=1)
     time_limit = Column(String, default="24:00:00")
+    node = Column(String, nullable=True)  # Node where the job is running
 
     # Output and results
     output_dir = Column(String, nullable=True)  # Directory for simulation results
@@ -233,14 +234,14 @@ class TaskQueueJob(Base):
         if self.estimated_duration is None:
             return None
 
-        elapsed = (datetime.utcnow() - self.started_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - self.started_at).total_seconds()
         total_estimated = (elapsed / self.progress) * 100 if self.progress > 0 else 0
         remaining = total_estimated - elapsed
 
         if remaining <= 0:
             return None
 
-        return datetime.utcnow() + timedelta(seconds=remaining)
+        return datetime.now(timezone.utc) + timedelta(seconds=remaining)
 
 
 class CLIToken(Base):

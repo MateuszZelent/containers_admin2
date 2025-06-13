@@ -1,11 +1,10 @@
-version: '3.8'
-
 services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: containers_admin_backend
+    privileged: true  # Wymagane dla FUSE/sshfs
     ports:
       - "5678:5678"  # Port debuggera
       - "8000:8000"
@@ -26,6 +25,12 @@ services:
       - ~/.ssh/known_hosts:/root/.ssh/known_hosts:ro
       # Montowanie ścieżki do plików kontenerów
       - /mnt/storage_3:/mnt/storage_3:ro
+    devices:
+      - /dev/fuse:/dev/fuse  # Wymagane dla FUSE
+    cap_add:
+      - SYS_ADMIN  # Wymagane dla montowania systemów plików
+    security_opt:
+      - apparmor:unconfined  # Wymagane dla niektórych operacji FUSE
     restart: unless-stopped
     depends_on:
       - postgres

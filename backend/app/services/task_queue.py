@@ -1,5 +1,5 @@
 from typing import List, Optional, Dict, Any, Union, Tuple
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import uuid
 import json
 import asyncio
@@ -48,19 +48,27 @@ class TaskQueueService:
 
     # Mapping from SLURM job states to our task states
     SLURM_STATE_MAPPING = {
-        # Configuring states
-        "PD": TaskStatus.CONFIGURING,  # Pending
+        # Pending states - waiting in queue
+        "PD": TaskStatus.PENDING,  # Pending (waiting in queue)
+        "PENDING": TaskStatus.PENDING,  # Full name version
+        # Configuring states - resources allocated, preparing to run
         "CF": TaskStatus.CONFIGURING,  # Configuring
+        "CONFIGURING": TaskStatus.CONFIGURING,  # Full name version
         "ST": TaskStatus.CONFIGURING,  # Starting
         "S": TaskStatus.CONFIGURING,  # Suspended
         # Running states
         "R": TaskStatus.RUNNING,  # Running
+        "RUNNING": TaskStatus.RUNNING,  # Full name version
         "CG": TaskStatus.RUNNING,  # Completing
         # Completed states
         "CD": TaskStatus.COMPLETED,  # Completed
+        "COMPLETED": TaskStatus.COMPLETED,  # Full name version
         "F": TaskStatus.ERROR,  # Failed
+        "FAILED": TaskStatus.ERROR,  # Full name version
         "CA": TaskStatus.CANCELLED,  # Cancelled
+        "CANCELLED": TaskStatus.CANCELLED,  # Full name version
         "TO": TaskStatus.TIMEOUT,  # Timeout
+        "TIMEOUT": TaskStatus.TIMEOUT,  # Full name version
     }
 
     # Time to wait before retrying a failed job
@@ -78,6 +86,11 @@ class TaskQueueService:
         self._monitor_lock = None  # Initialize as None, create lazily when needed
         self._is_monitoring = False
         self._job_monitors = {}  # Track individual job monitors
+        self._detail_fetcher = None  # Will be set after initialization
+
+    def set_detail_fetcher(self, detail_fetcher):
+        """Set the SLURM detail fetcher reference."""
+        self._detail_fetcher = detail_fetcher
 
     def _get_monitor_lock(self):
         """Get the monitor lock lazily, only when needed in an async context."""
@@ -348,6 +361,9 @@ class TaskQueueService:
             return None
 
         try:
+            # Store old status for state change detection
+            old_status = task.status.value if task.status else None
+            
             # Apply updates
             update_dict = update_data.dict(exclude_unset=True)
             for key, value in update_dict.items():
@@ -357,14 +373,14 @@ class TaskQueueService:
             if "status" in update_dict:
                 new_status = update_dict["status"]
                 if new_status == TaskStatus.RUNNING and not task.started_at:
-                    task.started_at = datetime.utcnow()
+                    task.started_at = datetime.now(timezone.utc)
                 elif new_status in [
                     TaskStatus.COMPLETED,
                     TaskStatus.ERROR,
                     TaskStatus.ERROR_RETRY_3,
                     TaskStatus.CANCELLED,
                 ]:
-                    task.finished_at = datetime.utcnow()
+                    task.finished_at = datetime.now(timezone.utc)
 
             # Update the task
             self.db.add(task)
@@ -373,6 +389,32 @@ class TaskQueueService:
 
             # Log update
             cluster_logger.info(f"Task {task.task_id} updated: {update_dict}")
+
+            # Trigger detail fetcher on status change if available
+            if "status" in update_dict and self._detail_fetcher:
+                new_status = update_dict["status"]
+                if new_status != old_status:
+                    try:
+                        # Run the state change handler asynchronously
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.create_task(
+                                self._detail_fetcher.on_job_state_change(
+                                    task.task_id, old_status, new_status.value
+                                )
+                            )
+                        else:
+                            # If no event loop is running, schedule for later
+                            cluster_logger.debug(
+                                f"No event loop running, "
+                                f"detail fetch skipped for task {task.task_id}"
+                            )
+                    except Exception as e:
+                        cluster_logger.warning(
+                            f"Error triggering detail fetch "
+                            f"for task {task.task_id}: {e}"
+                        )
 
             return task
 
@@ -403,7 +445,20 @@ class TaskQueueService:
             and task.slurm_job_id
         ):
             try:
-                asyncio.create_task(self.slurm_service.cancel_job(task.slurm_job_id))
+                # Try to cancel in SLURM - but don't wait for it since we're in sync context
+                # The task will be marked as deleted regardless
+                import asyncio
+                try:
+                    loop = asyncio.get_running_loop()
+                    # We're in async context, create task
+                    asyncio.create_task(self.slurm_service.cancel_job(task.slurm_job_id))
+                except RuntimeError:
+                    # We're not in async context, skip SLURM cancellation
+                    # The task will still be deleted from database
+                    cluster_logger.warning(
+                        f"Skipping SLURM cancellation for task {task.task_id} "
+                        f"(sync context), task deleted from database only"
+                    )
             except Exception as e:
                 cluster_logger.warning(
                     f"Error cancelling task {task.task_id} in SLURM: {str(e)}"
@@ -442,9 +497,15 @@ class TaskQueueService:
         avg_wait_time = None
         if pending_tasks:
             wait_times = []
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc)
             for task in pending_tasks:
-                wait_time = (now - task.created_at).total_seconds()
+                # Handle both timezone-aware and timezone-naive datetimes
+                created_at = task.created_at
+                if created_at.tzinfo is None:
+                    # If timezone-naive, assume UTC
+                    created_at = created_at.replace(tzinfo=timezone.utc)
+                
+                wait_time = (now - created_at).total_seconds()
                 wait_times.append(wait_time)
             avg_wait_time = sum(wait_times) / len(wait_times) if wait_times else 0
 
@@ -485,7 +546,7 @@ class TaskQueueService:
             # Update task with SLURM job ID and status
             task.slurm_job_id = slurm_job_id
             task.status = TaskStatus.CONFIGURING
-            task.submitted_at = datetime.utcnow()
+            task.submitted_at = datetime.now(timezone.utc)
             self.db.add(task)
             self.db.commit()
 
@@ -646,7 +707,7 @@ class TaskQueueService:
     async def _process_retries(self):
         """Process failed tasks that need to be retried."""
         # Get tasks that need retry and are past their retry time
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc)
         retry_tasks = (
             self.db.query(TaskQueueJob)
             .filter(
@@ -657,10 +718,23 @@ class TaskQueueService:
                         TaskStatus.ERROR_RETRY_2,
                     ]
                 ),
-                TaskQueueJob.next_retry_at <= now,
+                TaskQueueJob.next_retry_at.isnot(None),
             )
             .all()
         )
+        
+        # Filter tasks that are past their retry time, handling timezone issues
+        filtered_retry_tasks = []
+        for task in retry_tasks:
+            if task.next_retry_at:
+                next_retry_at = task.next_retry_at
+                if next_retry_at.tzinfo is None:
+                    # If timezone-naive, assume UTC
+                    next_retry_at = next_retry_at.replace(tzinfo=timezone.utc)
+                if next_retry_at <= now:
+                    filtered_retry_tasks.append(task)
+        
+        retry_tasks = filtered_retry_tasks
 
         for task in retry_tasks:
             # Determine next retry status
@@ -682,7 +756,7 @@ class TaskQueueService:
                         "slurm_job_id": task.slurm_job_id,
                         "status": task.status,
                         "error_message": task.error_message,
-                        "timestamp": datetime.utcnow().isoformat(),
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
                     }
                 )
                 task.previous_attempts = previous_attempts
@@ -805,7 +879,7 @@ class TaskQueueService:
 
                             # Set the next retry time
                             delay = self.RETRY_DELAYS[task.retry_count]
-                            next_retry_at = datetime.utcnow() + delay
+                            next_retry_at = datetime.now(timezone.utc) + delay
 
                             # Update task with error info and retry timing
                             self.update_task(
@@ -880,8 +954,14 @@ class TaskQueueService:
         if task.status != TaskStatus.RUNNING or not task.started_at:
             return None
 
+        # Handle both timezone-aware and timezone-naive datetimes
+        started_at = task.started_at
+        if started_at.tzinfo is None:
+            # If timezone-naive, assume UTC
+            started_at = started_at.replace(tzinfo=timezone.utc)
+
         # Calculate based on elapsed time vs time limit
-        elapsed = (datetime.utcnow() - task.started_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
 
         # Parse time limit (format: HH:MM:SS)
         time_parts = task.time_limit.split(":")
@@ -1156,7 +1236,7 @@ class TaskQueueService:
             self.update_task(
                 task.id,
                 TaskQueueJobUpdate(
-                    status=TaskStatus.CANCELLED, finished_at=datetime.utcnow()
+                    status=TaskStatus.CANCELLED, finished_at=datetime.now(timezone.utc)
                 ),
             )
 

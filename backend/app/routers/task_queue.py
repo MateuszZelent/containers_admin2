@@ -302,3 +302,100 @@ async def process_queue(
 
     task_service = TaskQueueService(db)
     return await task_service.start_queue_processor(background_tasks)
+
+
+@router.get("/active", response_model=List[TaskQueueJobInDB])
+def get_active_tasks(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Get active tasks (PENDING, CONFIGURING, RUNNING) for the current user.
+    This endpoint is equivalent to /jobs/active-jobs but for task_queue.
+    """
+    task_service = TaskQueueService(db)
+    active_statuses = ["PENDING", "CONFIGURING", "RUNNING"]
+    
+    # Get tasks with active status
+    active_tasks = []
+    for status_filter in active_statuses:
+        tasks = task_service.get_tasks(
+            current_user.id,
+            status=status_filter,
+            skip=0,
+            limit=100
+        )
+        active_tasks.extend(tasks)
+    
+    cluster_logger.debug(
+        f"Found {len(active_tasks)} active tasks "
+        f"for user {current_user.username}"
+    )
+    
+    return active_tasks
+
+
+@router.post("/{task_id}/refresh-details")
+async def refresh_task_details(
+    *,
+    db: Session = Depends(get_db),
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Refresh SLURM details for a specific task on demand.
+    """
+    task_service = TaskQueueService(db)
+
+    # Try to convert to integer if it's a numeric string
+    parsed_id = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+
+    task = task_service.get_task(parsed_id)
+
+    if not task:
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Task with ID {task_id} not found"
+        )
+    if task.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=403, 
+            detail="Not authorized to access this task"
+        )
+
+    if not task.slurm_job_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Task has no SLURM job ID"
+        )
+
+    try:
+        from app.services.slurm_detail_fetcher import get_slurm_detail_fetcher
+        
+        detail_fetcher = get_slurm_detail_fetcher()
+        await detail_fetcher.trigger_immediate_fetch(
+            task.slurm_job_id, 
+            task.task_id,
+            "on_demand_api"
+        )
+        
+        # Refresh task from database to get updated logs
+        db.refresh(task)
+        
+        return {
+            "message": "Details refresh triggered successfully",
+            "task_id": task.task_id,
+            "slurm_job_id": task.slurm_job_id,
+            "logs_updated": bool(task.logs)
+        }
+        
+    except Exception as e:
+        cluster_logger.error(
+            f"Error refreshing details for task {task_id}: {e}"
+        )
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error refreshing task details: {str(e)}"
+        )

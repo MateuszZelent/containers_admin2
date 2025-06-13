@@ -42,6 +42,56 @@ export interface Job {
   updated_at: string | null;
   owner_id: number;
   tunnels: SSHTunnel[];
+  
+  // Additional fields for unified job interface (containers + task_queue)
+  type?: 'container' | 'task_queue';  // Job type
+  name?: string;                       // Unified name field
+  simulation_file?: string;            // For task_queue jobs
+  progress?: number;                   // Progress percentage (0-100)
+  time_used?: string;                  // Time used from SLURM
+  time_left?: string;                  // Time left from SLURM
+}
+
+// Task Queue types
+export interface TaskQueueJob {
+  id: number;
+  task_id: string;
+  name: string;
+  status: string;
+  progress?: number;
+  priority: number;
+  task_type: string;
+  simulation_file: string;
+  slurm_job_id?: string;
+  node?: string;
+  partition?: string;
+  num_cpus?: number;
+  memory_gb?: number;
+  num_gpus?: number;
+  time_limit?: string;
+  script?: string;
+  logs?: string;
+  error_message?: string;
+  retry_count: number;
+  max_retries: number;
+  created_at: string;
+  started_at?: string;
+  finished_at?: string;
+  updated_at?: string;
+  owner_id: number;
+  
+  // Additional SLURM details
+  time_used?: string;
+  time_left?: string;
+}
+
+export interface TaskQueueStatus {
+  total_tasks: number;
+  pending_tasks: number;
+  running_tasks: number;
+  completed_tasks: number;
+  failed_tasks: number;
+  avg_wait_time_minutes: number;
 }
 
 export interface ClusterStats {

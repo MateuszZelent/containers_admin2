@@ -169,22 +169,43 @@ class SlurmSSHService:
 
     async def get_active_jobs(self, username: str = None) -> List[Dict[str, str]]:
         """Get active jobs for the specified user."""
-        slurm_logger.debug(f"Fetching active jobs for user {username} ")
+        slurm_logger.debug(f"Fetching active jobs for user {username}")
+
+        # Get all active jobs in one call
+        all_jobs = await self.get_all_active_jobs_raw()
+        
+        # Filter for container jobs
+        container_jobs = self.filter_jobs_for_containers(all_jobs, username)
+        
+        # Filter for task queue jobs (no username filtering)
+        task_queue_jobs = self.filter_jobs_for_task_queue(all_jobs)
+        
+        # Combine both types
+        combined_jobs = container_jobs + task_queue_jobs
+        
+        slurm_logger.debug(
+            f"Found {len(combined_jobs)} matching jobs "
+            f"(containers: {len(container_jobs)}, tasks: {len(task_queue_jobs)})"
+        )
+        return combined_jobs
+
+    async def get_all_active_jobs_raw(self) -> List[Dict[str, str]]:
+        """
+        Get all active jobs from SLURM without any filtering.
+        This is used as a common data source for both containers and tasks.
+        """
+        slurm_logger.debug("Fetching all active jobs from SLURM (no filtering)")
 
         # Format string definition (for reference):
         # %A: Job ID          (0) | %P: Partition      (1) | %j: Job name        (2) | %u: User           (3)
-        # %T: Job state       (4) | %m: MemReq         (5) | %M: Time Used      (6) | %L: Time Left      (7)
+        # %t: Job state       (4) | %m: MemReq         (5) | %M: Time Used      (6) | %L: Time Left      (7)
         # %D: Node Count      (8) | %N: Node list      (9) | %S: Start time     (10)| %R: Reason         (11)
         # %b: MinMemGeneric   (12)| %V: Submission time(13)
-        squeue_format = "%A|%P|%j|%u|%T|%m|%M|%L|%D|%N|%S|%R|%b|%V"
+        squeue_format = "%A|%P|%j|%u|%t|%m|%M|%L|%D|%N|%S|%R|%b|%V"
         expected_fields = len(squeue_format.split("|"))  # Oczekujemy 14 pól
 
-        # Użyjemy --me tylko jeśli username nie jest podany, w przeciwnym razie filtrujemy po username
-        # UWAGA: Filtrowanie po nazwie zadania jest mniej niezawodne niż użycie opcji SLURM.
-        # Rozważ użycie `squeue -u {username} ...` jeśli to możliwe i bardziej odpowiednie.
-        # Obecna logika filtruje PO pobraniu, co może być nieefektywne.
-        # Zostawiam logikę filtrowania po nazwie, jak była, ale zwracam uwagę na potencjalne problemy.
-        command = f"squeue --me -o '{squeue_format}' -h"  # Nadal pobiera dla --me, filtruje później
+        # Get all active jobs - no filtering at this stage
+        command = f"squeue --me -o '{squeue_format}' -h"
         output = await self._execute_async_command(command)
 
         jobs = []
@@ -223,41 +244,113 @@ class SlurmSSHService:
                 "name": name,
                 "user": user,
                 "state": state,
-                "memory_requested": memory_requested,  # Używamy %m jako głównego wskaźnika pamięci
-                "time_used": time_used,  # Dodano poprawne pole 'time_used'
+                "memory_requested": memory_requested,  
+                "time_used": time_used,  
                 "time_left": time_left,
                 "node_count": node_count,
                 "node": node,
                 "start_time": start_time
                 if start_time != "N/A"
-                else None,  # Lepsze radzenie sobie z N/A
+                else None,  
                 "submit_time": submit_time if submit_time else None,
                 "reason": reason if reason else None,
             }
 
-            # Logika filtrowania pozostaje taka sama (z zastrzeżeniami wspomnianymi wyżej)
-            # Only process container jobs
-            if "container_" in name:
-                # If username filter is provided
+            # Add all jobs without filtering
+            jobs.append(job_info)
+
+        slurm_logger.debug(f"Found {len(jobs)} total active jobs in SLURM")
+        return jobs
+
+    def filter_jobs_for_containers(
+        self, all_jobs: List[Dict[str, str]], username: Optional[str] = None
+    ) -> List[Dict[str, str]]:
+        """
+        Filter jobs to get only container jobs.
+        """
+        container_jobs = []
+        
+        for job_info in all_jobs:
+            name = job_info.get("name", "")
+            
+            # Check if it's a container job
+            if name.startswith("container_"):
                 if username:
                     # Pattern: "container_{username}{digits}" or "container_{username}_..."
-                    # Bądźmy bardziej elastyczni z wzorcem
                     pattern = f"container_{username}"
                     if name.startswith(pattern):
-                        jobs.append(job_info)
-                        # log_slurm_job(job_id, state, job_info)
+                        container_jobs.append(job_info)
                         slurm_logger.debug(
-                            f"Added job {job_id} matching username '{username}'"
+                            f"Added container job {job_info['job_id']} "
+                            f"matching username '{username}'"
                         )
-                    # else:
-                    # slurm_logger.debug(f"Job {job_id} name '{name}' does not match username pattern '{pattern}'")
                 else:
                     # No username filter, include all container jobs
-                    # log_slurm_job(job_id, state, job_info)
-                    jobs.append(job_info)
+                    container_jobs.append(job_info)
+                    
+        slurm_logger.debug(f"Filtered {len(container_jobs)} container jobs from {len(all_jobs)} total jobs")
+        return container_jobs
 
-        slurm_logger.debug(f"Found {len(jobs)} matching jobs")
-        return jobs
+    def filter_jobs_for_task_queue(self, all_jobs: List[Dict[str, str]]) -> List[Dict[str, str]]:
+        """
+        Filter jobs to get only task queue jobs.
+        Tasks include: amumax_task_*, python_task_*, simulation_task_*,
+        task_*, amp_*
+        """
+        task_queue_jobs = []
+        
+        for job_info in all_jobs:
+            name = job_info.get("name", "")
+            
+            # Check if it's a task queue job
+            # Include all task patterns including amp_* (which are also tasks)
+            task_prefixes = [
+                "amumax_task_", "python_task_", "simulation_task_",
+                "task_", "amp_"
+            ]
+            if any(name.startswith(prefix) for prefix in task_prefixes):
+                task_queue_jobs.append(job_info)
+                slurm_logger.debug(
+                    f"Added task_queue job {job_info['job_id']}: {name}"
+                )
+                    
+        slurm_logger.debug(
+            f"Filtered {len(task_queue_jobs)} task queue jobs "
+            f"from {len(all_jobs)} total jobs"
+        )
+        return task_queue_jobs
+
+    def filter_jobs_for_admin(
+        self, all_jobs: List[Dict[str, str]]
+    ) -> List[Dict[str, str]]:
+        """
+        Filter jobs to get administrative jobs.
+        These are jobs that don't belong to container_ or task_queue patterns.
+        NOTE: amp_* are now classified as tasks, not admin jobs.
+        """
+        admin_jobs = []
+        
+        for job_info in all_jobs:
+            name = job_info.get("name", "")
+            
+            # Exclude all container_ and task patterns (including amp_*)
+            task_prefixes = [
+                "amumax_task_", "python_task_", "simulation_task_",
+                "task_", "amp_"
+            ]
+            if (not name.startswith("container_") and
+                    not any(name.startswith(prefix)
+                            for prefix in task_prefixes)):
+                admin_jobs.append(job_info)
+                slurm_logger.debug(
+                    f"Added admin job {job_info['job_id']}: {name}"
+                )
+                    
+        slurm_logger.debug(
+            f"Filtered {len(admin_jobs)} admin jobs "
+            f"from {len(all_jobs)} total jobs"
+        )
+        return admin_jobs
 
     async def get_job_node(self, job_id: str) -> Optional[str]:
         """Get the node where a specific job is running."""
