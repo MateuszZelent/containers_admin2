@@ -426,54 +426,67 @@ class TaskQueueService:
                 detail=f"Error updating task: {str(e)}",
             )
 
-    def delete_task(self, task_id: Union[str, int], owner_id: int) -> bool:
-        """Delete a task from the queue if it's not running."""
-        task = self.get_task(task_id)
-        if not task:
-            return False
-
-        # Check ownership
-        if task.owner_id != owner_id:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not authorized to delete this task",
-            )
-
-        # Cancel running task if needed
-        if (
-            task.status in [TaskStatus.CONFIGURING, TaskStatus.RUNNING]
-            and task.slurm_job_id
-        ):
-            try:
-                # Try to cancel in SLURM - but don't wait for it since we're in sync context
-                # The task will be marked as deleted regardless
-                import asyncio
-                try:
-                    loop = asyncio.get_running_loop()
-                    # We're in async context, create task
-                    asyncio.create_task(self.slurm_service.cancel_job(task.slurm_job_id))
-                except RuntimeError:
-                    # We're not in async context, skip SLURM cancellation
-                    # The task will still be deleted from database
-                    cluster_logger.warning(
-                        f"Skipping SLURM cancellation for task {task.task_id} "
-                        f"(sync context), task deleted from database only"
-                    )
-            except Exception as e:
-                cluster_logger.warning(
-                    f"Error cancelling task {task.task_id} in SLURM: {str(e)}"
+    async def delete_task(self, task_id: Union[str, int], owner_id: int) -> None:
+        """Delete a task from the queue."""
+        try:
+            task = self.get_task(task_id)
+            if not task:
+                cluster_logger.warning(f"Task {task_id} not found for deletion")
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Task not found"
                 )
 
-        try:
+            # Check ownership
+            if task.owner_id != owner_id:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Not authorized to delete this task",
+                )
+
+            # For running tasks, cancel them first in SLURM
+            if task.status in [TaskStatus.CONFIGURING, TaskStatus.RUNNING]:
+                cluster_logger.info(
+                    f"Deleting running task {task.task_id} - cancelling in SLURM first"
+                )
+                try:
+                    # Cancel in SLURM if job_id exists
+                    if task.slurm_job_id:
+                        cancel_success = await self.slurm_service.cancel_job(task.slurm_job_id)
+                        if cancel_success:
+                            cluster_logger.info(f"Successfully cancelled SLURM job {task.slurm_job_id}")
+                        else:
+                            cluster_logger.warning(f"Failed to cancel SLURM job {task.slurm_job_id}")
+                    
+                    # Update status to cancelled
+                    task.status = TaskStatus.CANCELLED
+                    task.finished_at = datetime.now(timezone.utc)
+                    self.db.commit()
+                except Exception as e:
+                    self.db.rollback()
+                    cluster_logger.error(
+                        f"Error cancelling task in SLURM before deletion: {str(e)}"
+                    )
+                    # Continue with deletion even if SLURM cancel fails
+
             # Delete from database
             self.db.delete(task)
             self.db.commit()
-            cluster_logger.info(f"Task {task.task_id} deleted by user {owner_id}")
-            return True
+            cluster_logger.info(
+                f"Task {task.task_id} deleted by user {owner_id}"
+            )
+            
+        except HTTPException:
+            # Re-raise HTTP exceptions
+            raise
         except Exception as e:
             self.db.rollback()
             cluster_logger.error(f"Error deleting task {task_id}: {str(e)}")
-            return False
+            cluster_logger.error(f"Traceback: {traceback.format_exc()}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Failed to delete task: {str(e)}"
+            )
 
     def get_queue_status(self, owner_id: Optional[int] = None) -> TaskQueueStatus:
         """Get the current status of the task queue."""
@@ -1282,3 +1295,117 @@ class TaskQueueService:
             .limit(limit)
             .all()
         )
+
+    async def get_task_output(self, task_id: Union[str, int], owner_id: int) -> Dict[str, Any]:
+        """Get SLURM output logs for a task."""
+        task = self.get_task(task_id)
+        if not task:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Task not found"
+            )
+
+        # Check ownership
+        if task.owner_id != owner_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not authorized to view this task",
+            )
+
+        output_content = ""
+        output_file = None
+        
+        # If task has SLURM job ID, try to read output file
+        if task.slurm_job_id:
+            try:
+                logs_dir = (
+                    "/mnt/storage_2/scratch/pl0095-01/zelent/"
+                    "amucontainers/logs"
+                )
+                import glob
+                import os
+                # Use a relaxed pattern: any file with SLURM job ID and .out
+                # For Amumax, the output file is named as:
+                # amumax_task_<id>_admin-amumax_task_<id>_admin.<slurm_job_id>.<node>.out
+                # Try to match this pattern first
+                amumax_pattern = (
+                    f"amumax_task_*_admin-"
+                    f"amumax_task_*_admin.{task.slurm_job_id}.*.out"
+                )
+                amumax_pattern_path = os.path.join(logs_dir, amumax_pattern)
+                matching_files = glob.glob(amumax_pattern_path)
+                # Fallback: match any file with the job id and .out
+                if not matching_files:
+                    relaxed_pattern = f"*.{task.slurm_job_id}.*.out"
+                    pattern_path = os.path.join(logs_dir, relaxed_pattern)
+                    matching_files = glob.glob(pattern_path)
+                if matching_files:
+                    output_file = matching_files[0]
+                    cluster_logger.info(
+                        f"Found output file: {output_file}"
+                    )
+                    if os.path.exists(output_file):
+                        with open(
+                            output_file, 'r', encoding='utf-8', errors='ignore'
+                        ) as f:
+                            output_content = f.read()
+                        cluster_logger.info(
+                            f"Successfully read {len(output_content)} "
+                            f"characters from output file"
+                        )
+                    else:
+                        output_content = (
+                            "Output file exists but cannot be read"
+                        )
+                else:
+                    cluster_logger.warning(
+                        "No output files found for pattern: "
+                        f"{amumax_pattern} or {relaxed_pattern}"
+                    )
+                    output_content = (
+                        "Log file not found. Searched patterns: "
+                        f"{amumax_pattern_path} and {pattern_path}"
+                    )
+                pattern_path = os.path.join(logs_dir, relaxed_pattern)
+                matching_files = glob.glob(pattern_path)
+                if matching_files:
+                    output_file = matching_files[0]
+                    cluster_logger.info(
+                        f"Found output file: {output_file}"
+                    )
+                    if os.path.exists(output_file):
+                        with open(
+                            output_file, 'r', encoding='utf-8', errors='ignore'
+                        ) as f:
+                            output_content = f.read()
+                        cluster_logger.info(
+                            f"Successfully read {len(output_content)} "
+                            f"characters from output file"
+                        )
+                    else:
+                        output_content = (
+                            "Output file exists but cannot be read"
+                        )
+                else:
+                    cluster_logger.warning(
+                        f"No output files found for pattern: {pattern_path}"
+                    )
+                    output_content = (
+                        f"Log file not found. Searched pattern: {pattern_path}"
+                    )
+            except Exception as e:
+                cluster_logger.error(
+                    f"Error reading output file for task {task_id}: {str(e)}"
+                )
+                output_content = f"Error reading log file: {str(e)}"
+        else:
+            output_content = "Task not yet submitted to SLURM"
+
+        return {
+            "task_id": task.task_id,
+            "status": task.status,
+            "slurm_job_id": task.slurm_job_id,
+            "output_file": output_file,
+            "output_content": output_content,
+            "node": task.node
+        }

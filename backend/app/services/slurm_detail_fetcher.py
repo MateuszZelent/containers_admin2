@@ -13,7 +13,7 @@ from typing import Dict, Optional, Set
 
 from sqlalchemy.orm import Session
 
-from ..db.database import get_db
+from ..db.session import get_db
 from ..db.models import TaskQueueJob
 from .slurm import SlurmSSHService  
 from .task_queue import TaskQueueService

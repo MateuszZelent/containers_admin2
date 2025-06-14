@@ -574,10 +574,11 @@ export default function DashboardPage() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <span>
-                  <Link href="/dashboard/submit-job">
+                  <Link href="/dashboard/task_queue/submit">
                     <Button 
                       size="sm" 
                       disabled={!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))}
+                      className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       <Plus className="h-4 w-4 mr-2" />
                       Nowe zadanie
@@ -802,8 +803,8 @@ export default function DashboardPage() {
                       Utwórz nowy kontener, aby rozpocząć pracę z klastrze obliczeniowym.
                     </p>
                   </div>
-                  <Link href="/dashboard/submit-job">
-                    <Button className="mt-4">
+                  <Link href="/dashboard/task_queue/submit">
+                    <Button className="mt-4 bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105">
                       <Plus className="h-4 w-4 mr-2" />
                       Utwórz pierwszy kontener
                     </Button>

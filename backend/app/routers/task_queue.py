@@ -218,24 +218,24 @@ def update_task(
 
 
 @router.delete("/{task_id}")
-def delete_task(
+async def delete_task(
     *,
     db: Session = Depends(get_db),
-    task_id: Union[str, int],
+    task_id: str,  # Always a string from path parameter
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, str]:
     """
     Delete a task from the queue.
     """
     task_service = TaskQueueService(db)
-    success = task_service.delete_task(task_id, current_user.id)
-
-    if not success:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to delete task",
-        )
-
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    # Service handles all exceptions internally and raises HTTPException
+    await task_service.delete_task(parsed_id, current_user.id)
     return {"message": "Task deleted successfully"}
 
 
@@ -243,14 +243,20 @@ def delete_task(
 async def get_task_results(
     *,
     db: Session = Depends(get_db),
-    task_id: Union[str, int],
+    task_id: str,  # Always a string from path parameter
     current_user: User = Depends(get_current_active_user),
 ) -> Any:
     """
     Get results for a completed task.
     """
     task_service = TaskQueueService(db)
-    task = task_service.get_task(task_id)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    task = task_service.get_task(parsed_id)
 
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
@@ -267,14 +273,20 @@ async def get_task_results(
 async def cancel_task(
     *,
     db: Session = Depends(get_db),
-    task_id: Union[str, int],
+    task_id: str,  # Always a string from path parameter
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, str]:
     """
     Cancel a task that is pending or running.
     """
     task_service = TaskQueueService(db)
-    success = await task_service.cancel_task(task_id, current_user.id)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    success = await task_service.cancel_task(parsed_id, current_user.id)
 
     if not success:
         raise HTTPException(
@@ -399,3 +411,23 @@ async def refresh_task_details(
             status_code=500,
             detail=f"Error refreshing task details: {str(e)}"
         )
+
+
+@router.get("/{task_id}/output")
+async def get_task_output(
+    *,
+    db: Session = Depends(get_db),
+    task_id: str,  # Always a string from path parameter
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """
+    Get SLURM output logs for a task.
+    """
+    task_service = TaskQueueService(db)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    return await task_service.get_task_output(parsed_id, current_user.id)

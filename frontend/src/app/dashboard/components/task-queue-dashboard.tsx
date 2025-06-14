@@ -1,4 +1,7 @@
+"use client";
+
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Card,
@@ -250,6 +253,8 @@ const convertToGlobalTaskQueueJob = (localTask: TaskQueueJob): GlobalTaskQueueJo
 };
 
 export function TaskQueueDashboard() {
+  const router = useRouter();
+  
   // State
   const [tasks, setTasks] = useState<TaskQueueJob[]>([]);
   const [stats, setStats] = useState<TaskQueueStats | null>(null);
@@ -289,6 +294,11 @@ export function TaskQueueDashboard() {
     
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
+  };
+
+  // Navigation handler
+  const handleNewTask = () => {
+    router.push("/dashboard/task_queue/submit");
   };
 
   // Data fetching
@@ -394,7 +404,7 @@ export function TaskQueueDashboard() {
   // Task operations
   const deleteTask = async (task: TaskQueueJob) => {
     try {
-      await tasksApi.deleteTask(task.id);
+      await tasksApi.deleteTask(task.task_id);
       toast.success(`Task "${task.name}" deleted successfully`);
       await refreshData();
     } catch (error) {
@@ -481,7 +491,11 @@ export function TaskQueueDashboard() {
             <RefreshCcw className={`h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
             Refresh
           </Button>
-          <Button size="sm">
+          <Button 
+            size="sm" 
+            onClick={handleNewTask}
+            className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+          >
             <Plus className="h-4 w-4 mr-2" />
             New Task
           </Button>

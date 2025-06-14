@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="{job_name}"
 #SBATCH --output={job_name}-%x.%J.%N.out
+#SBATCH --output=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/logs/{job_name}-%x.%J.%N.out
 #SBATCH --ntasks={num_nodes}
 #SBATCH --tasks-per-node={tasks_per_node}
 #SBATCH --cpus-per-task={num_cpus}

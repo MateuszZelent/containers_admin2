@@ -357,7 +357,7 @@ export const tasksApi = {
   getCodeServerUrl: (taskId: number) => apiClient.get(`/tasks/${taskId}/code-server`),
 
   // Delete task
-  deleteTask: (taskId: number) => apiClient.delete(`/tasks/${taskId}`),
+  deleteTask: (taskId: string) => apiClient.delete(`/tasks/${taskId}`),
 
   // Cancel task
   cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
@@ -379,9 +379,6 @@ export const tasksApi = {
   // Get task results (automatically detects type and returns appropriate format)
   getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
   
-  // Cancel task
-  cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
-  
   // Process queue
   processQueue: () => apiClient.post('/tasks/process'),
 
@@ -389,9 +386,46 @@ export const tasksApi = {
   validateFile: (filePath: string) => 
     apiClient.post('/tasks/validate', { file_path: filePath }),
     
+  // Validate MX3 file specifically for Amumax tasks
+  validateMx3File: (filePath: string) => 
+    apiClient.post('/tasks/validate', { file_path: filePath }),
+    
   // Get full file content for preview with syntax highlighting
-  getFileContent: (filePath: string) => 
-    apiClient.get('/tasks/file-content', { params: { file_path: filePath } }),
+  getFileContent: (filePath: string, options?: { lines?: number }) => 
+    apiClient.get('/tasks/file-content', { 
+      params: { 
+        file_path: filePath,
+        ...(options?.lines && { lines: options.lines })
+      } 
+    }),
+    
+  // Create Amumax task specifically
+  createAmumaxTask: (taskData: {
+    name: string;
+    mx3_file_path: string;
+    description?: string;
+    partition?: string;
+    num_cpus?: number;
+    memory_gb?: number;
+    num_gpus?: number;
+    time_limit?: string;
+    priority?: number;
+  }) => {
+    // Convert frontend format to backend format
+    const backendTaskData = {
+      name: `amumax_${taskData.name}`, // Add amumax prefix
+      simulation_file: taskData.mx3_file_path, // Backend expects simulation_file
+      partition: taskData.partition || "proxima",
+      num_cpus: taskData.num_cpus || 4,
+      memory_gb: taskData.memory_gb || 16,
+      num_gpus: taskData.num_gpus || 1,
+      time_limit: taskData.time_limit || "12:00:00",
+      priority: taskData.priority || 5,
+      parameters: taskData.description ? { description: taskData.description } : {}
+    };
+    
+    return apiClient.post('/tasks/', backendTaskData);
+  },
     
   // Refresh task details (trigger SLURM detail fetch)
   refreshTaskDetails: (taskId: string) => 

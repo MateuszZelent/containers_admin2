@@ -1,2 +1,5 @@
-// Import the new modern interface
-export { default } from './modern-page';
+import { TaskQueueDashboard } from "../components/task-queue-dashboard";
+
+export default function TaskQueuePage() {
+  return <TaskQueueDashboard />;
+}
