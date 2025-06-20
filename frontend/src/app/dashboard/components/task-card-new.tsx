@@ -46,7 +46,7 @@ const TASK_CATEGORIES = {
 
 // Helper function to categorize tasks
 const getTaskCategory = (task: TaskQueueJob) => {
-  if (task.name.toLowerCase().includes('amp_') || task.task_type?.toLowerCase().includes('amumax')) {
+  if (task.name.toLowerCase().includes('amp_') || task.task_type?.toLowerCase().includes('amuc_amumax_')) {
     return TASK_CATEGORIES.AMUMAX;
   }
   if (task.task_type?.toLowerCase().includes('comsol')) {

@@ -1,6 +1,7 @@
 from typing import List, Optional
 import os
 import random
+import socket
 import asyncio
 import re
 from datetime import datetime
@@ -52,14 +53,49 @@ class JobService:
         return sanitized
 
     def _find_free_port(self) -> int:
-        """Find a free port between 8600 and 8700"""
+        """Find a free port between 8600 and 8700 from active jobs only"""
+        import socket
+        
+        # Only check ports from ACTIVE jobs (PENDING, RUNNING, CONFIGURING)
         used_ports = set(
-            job.port for job in self.db.query(Job).filter(Job.port.isnot(None)).all()
+            job.port for job in self.db.query(Job)
+            .filter(Job.port.isnot(None))
+            .filter(Job.status.in_(["PENDING", "RUNNING", "CONFIGURING"]))
+            .all()
         )
-        while True:
+        
+        max_attempts = 3  # Prevent infinite loop
+        attempts = 0
+        
+        while attempts < max_attempts:
+            attempts += 1
             port = random.randint(8600, 8700)
-            if port not in used_ports:
+            
+            # Skip if port is registered in active jobs
+            if port in used_ports:
+                continue
+                
+            # Check if port is actually free in the system
+            try:
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                    s.settimeout(1)
+                    result = s.connect_ex(('127.0.0.1', port))
+                    if result == 0:
+                        # Port is in use by some process
+                        continue
+                    
+                # Port is free - return it
                 return port
+                
+            except Exception:
+                # If we can't check the port, skip it
+                continue
+        
+        # If we couldn't find a free port, raise an exception
+        raise HTTPException(
+            status_code=500, 
+            detail=f"Could not find a free port after {max_attempts} attempts. All ports between 8600-8700 seem to be in use."
+        )
 
     def _get_template_content(self, template_name: str) -> str:
         template_path = os.path.join(settings.TEMPLATE_DIR, template_name)

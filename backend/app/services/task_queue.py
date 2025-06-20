@@ -1324,21 +1324,26 @@ class TaskQueueService:
                 )
                 import glob
                 import os
-                # Use a relaxed pattern: any file with SLURM job ID and .out
-                # For Amumax, the output file is named as:
-                # amumax_task_<id>_admin-amumax_task_<id>_admin.<slurm_job_id>.<node>.out
-                # Try to match this pattern first
+                
+                # Define patterns upfront
+                relaxed_pattern = f"*.{task.slurm_job_id}.*.out"
                 amumax_pattern = (
                     f"amumax_task_*_admin-"
                     f"amumax_task_*_admin.{task.slurm_job_id}.*.out"
                 )
+                
+                # Use a relaxed pattern: any file with SLURM job ID and .out
+                # For Amumax, the output file is named as:
+                # amumax_task_<id>_admin-amumax_task_<id>_admin.<slurm_job_id>.<node>.out
+                # Try to match this pattern first
                 amumax_pattern_path = os.path.join(logs_dir, amumax_pattern)
                 matching_files = glob.glob(amumax_pattern_path)
+                
                 # Fallback: match any file with the job id and .out
                 if not matching_files:
-                    relaxed_pattern = f"*.{task.slurm_job_id}.*.out"
                     pattern_path = os.path.join(logs_dir, relaxed_pattern)
                     matching_files = glob.glob(pattern_path)
+                    
                 if matching_files:
                     output_file = matching_files[0]
                     cluster_logger.info(
@@ -1358,40 +1363,16 @@ class TaskQueueService:
                             "Output file exists but cannot be read"
                         )
                 else:
+                    relaxed_pattern_path = os.path.join(
+                        logs_dir, relaxed_pattern
+                    )
                     cluster_logger.warning(
-                        "No output files found for pattern: "
-                        f"{amumax_pattern} or {relaxed_pattern}"
+                        f"No output files found for patterns: "
+                        f"{amumax_pattern_path} or {relaxed_pattern_path}"
                     )
                     output_content = (
-                        "Log file not found. Searched patterns: "
-                        f"{amumax_pattern_path} and {pattern_path}"
-                    )
-                pattern_path = os.path.join(logs_dir, relaxed_pattern)
-                matching_files = glob.glob(pattern_path)
-                if matching_files:
-                    output_file = matching_files[0]
-                    cluster_logger.info(
-                        f"Found output file: {output_file}"
-                    )
-                    if os.path.exists(output_file):
-                        with open(
-                            output_file, 'r', encoding='utf-8', errors='ignore'
-                        ) as f:
-                            output_content = f.read()
-                        cluster_logger.info(
-                            f"Successfully read {len(output_content)} "
-                            f"characters from output file"
-                        )
-                    else:
-                        output_content = (
-                            "Output file exists but cannot be read"
-                        )
-                else:
-                    cluster_logger.warning(
-                        f"No output files found for pattern: {pattern_path}"
-                    )
-                    output_content = (
-                        f"Log file not found. Searched pattern: {pattern_path}"
+                        f"Log file not found. Searched patterns: "
+                        f"{amumax_pattern_path} and {relaxed_pattern_path}"
                     )
             except Exception as e:
                 cluster_logger.error(

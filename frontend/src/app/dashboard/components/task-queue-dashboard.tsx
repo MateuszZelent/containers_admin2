@@ -497,7 +497,7 @@ export function TaskQueueDashboard() {
             className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
           >
             <Plus className="h-4 w-4 mr-2" />
-            New Task
+            Nowa symulacja
           </Button>
         </div>
       </div>

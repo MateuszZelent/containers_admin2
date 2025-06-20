@@ -218,7 +218,7 @@ const getStatusConfig = (status: string, cardType: 'job' | 'task') => {
 };
 
 const getTaskCategory = (task: TaskQueueJob) => {
-  if (task.name.toLowerCase().includes('amp_') || task.task_type?.toLowerCase().includes('amumax')) {
+  if (task.name.toLowerCase().includes('amp_') || task.task_type?.toLowerCase().includes('amuc_amumax_')) {
     return 'AMUMAX';
   }
   if (task.task_type?.toLowerCase().includes('comsol')) {

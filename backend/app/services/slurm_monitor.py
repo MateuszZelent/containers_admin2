@@ -5,7 +5,6 @@ Optimized to minimize direct SLURM connections and reduce network traffic.
 """
 
 import asyncio
-import re
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Dict, Any
 from sqlalchemy.orm import Session
@@ -171,8 +170,12 @@ class SlurmMonitorService:
         """
         try:
             # Pobieramy wszystkie aktywne zadania z SLURM w jednym wywołaniu
-            slurm_logger.debug("Pobieranie wszystkich aktywnych zadań z SLURM (RAW)")
-            all_active_jobs_raw = await self.slurm_service.get_all_active_jobs_raw()
+            slurm_logger.debug(
+                "Pobieranie wszystkich aktywnych zadań z SLURM (RAW)"
+            )
+            all_active_jobs_raw = (
+                await self.slurm_service.get_all_active_jobs_raw()
+            )
 
             if not all_active_jobs_raw:
                 slurm_logger.debug("Brak aktywnych zadań w SLURM")
@@ -188,11 +191,15 @@ class SlurmMonitorService:
             )
 
             # Filtrujemy zadania używając dedykowanych metod
-            container_jobs_data = self.slurm_service.filter_jobs_for_containers(
-                all_active_jobs_raw
+            container_jobs_data = (
+                self.slurm_service.filter_jobs_for_containers(
+                    all_active_jobs_raw
+                )
             )
-            task_queue_jobs_data = self.slurm_service.filter_jobs_for_task_queue(
-                all_active_jobs_raw
+            task_queue_jobs_data = (
+                self.slurm_service.filter_jobs_for_task_queue(
+                    all_active_jobs_raw
+                )
             )
             admin_jobs_data = self.slurm_service.filter_jobs_for_admin(
                 all_active_jobs_raw
@@ -547,9 +554,10 @@ class SlurmMonitorService:
         """Check if job is a task queue job based on name pattern."""
         # Include all task patterns including amp_* which are also tasks
         return (job_name.startswith("amumax_task_") or  # Our amumax tasks
-                job_name.startswith("python_task_") or   # Our python tasks
-                job_name.startswith("simulation_task_") or  # Our simulation tasks
-                job_name.startswith("amp_") or   # amp tasks are also tasks
+                job_name.startswith("python_task_") or  # Our python tasks
+                job_name.startswith("amuc_amumax_") or  # Our python tasks
+                job_name.startswith("simulation_task_") or  # Sim tasks
+                job_name.startswith("amp_") or  # amp tasks are also tasks
                 job_name.startswith("task_"))  # Generic task prefix
 
     async def _update_container_job(self, db: Session, job_id: str,
@@ -648,7 +656,7 @@ class SlurmMonitorService:
             if node_list and node_list != task.node:
                 task.node = node_list
                 slurm_logger.debug(
-                    f"Node updated for task {job_id}: {task.node} -> {node_list}"
+                    f"Node for task {job_id}: {task.node} -> {node_list}"
                 )
 
             # Only update timestamps if status actually changed
@@ -668,21 +676,70 @@ class SlurmMonitorService:
                     task.progress = progress
                     task_updated = True
 
-            # Only commit if something actually changed
+            # Only commit if something actually change  
             if task_updated or (node_list and node_list != task.node):
                 db.add(task)
                 # Only log significant changes
                 if old_status != mapped_status:
                     slurm_logger.info(
-                        f"Task {job_id} status: {old_status} -> {mapped_status}"
+                        f"Task {job_id}: {old_status} -> {mapped_status}"
                     )
         else:
-            # Task not found in database - this is a SLURM job that wasn't created through our API
-            # This can happen for jobs submitted directly to SLURM
-            # We don't create orphaned tasks automatically to avoid database pollution
-            slurm_logger.debug(
-                f"SLURM job {job_id} ({job_data.get('name', 'unknown')}) "
-                f"not found in TaskQueueJob table - skipping (external job)"
+            # Task not found in database - create new TaskQueueJob
+            # This happens for SLURM jobs that match our task patterns
+            # but weren't created through our API
+            job_name = job_data.get("name", f"slurm_task_{job_id}")
+            
+            # Extract user from job name
+            extracted_user = self._extract_user_from_job_name(job_name)
+            
+            # Get user from database
+            from app.db.models import User
+            user = (
+                db.query(User)
+                .filter(User.username == extracted_user)
+                .first()
+            )
+            # Default to admin if user not found
+            owner_id = user.id if user else 1
+            
+            # Create new TaskQueueJob
+            new_task = TaskQueueJob(
+                owner_id=owner_id,
+                task_id=f"slurm_sync_{job_id}",
+                slurm_job_id=job_id,
+                name=job_name,
+                simulation_file="/tmp/unknown.mx3",  # Required field
+                status=mapped_status,
+                node=node_list,
+                # Set timestamps based on current status
+                started_at=(
+                    datetime.now(timezone.utc)
+                    if mapped_status == "RUNNING"
+                    else None
+                ),
+                finished_at=(
+                    datetime.now(timezone.utc)
+                    if mapped_status in [
+                        "COMPLETED", "ERROR", "CANCELLED", "TIMEOUT"
+                    ]
+                    else None
+                ),
+                progress=(
+                    0 if mapped_status == "PENDING"
+                    else (
+                        100 if mapped_status in [
+                            "COMPLETED", "ERROR", "CANCELLED", "TIMEOUT"
+                        ]
+                        else None
+                    )
+                )
+            )
+            
+            db.add(new_task)
+            slurm_logger.info(
+                f"Created new TaskQueueJob for SLURM job {job_id} "
+                f"({job_name}) for user {extracted_user} (ID: {owner_id})"
             )
     
     async def _update_admin_job(self, db: Session, job_id: str,
@@ -720,36 +777,46 @@ class SlurmMonitorService:
         default_owner_id = 1
         username = None
 
-        # Pattern 1: container_<user>_<name> (e.g., container_admin_glowny)
-        m = re.match(r"container_([a-zA-Z0-9]+)_", job_name)
+        # Pattern 1: amuc_container_USER_NAME
+        # (e.g., amuc_container_admin_glowny)
+        m = re.match(r"amuc_container_([a-zA-Z0-9]+)_", job_name)
         if m:
             username = m.group(1).lower()
         
-        # Pattern 2: amumax_task_<id>_<user> (e.g., amumax_task_9c7acd3a_admin)
+        # Pattern 2: amuc_amumax_USER_NAME (e.g., amuc_amumax_admin_test)
+        elif job_name.startswith("amuc_amumax_"):
+            m = re.match(r"amuc_amumax_([a-zA-Z0-9]+)_", job_name)
+            if m:
+                username = m.group(1).lower()
+        
+        # Pattern 3: amumax_task_<id>_<user> - legacy
+        # (e.g., amumax_task_9c7acd3a_admin)
         elif job_name.startswith("amumax_task_"):
             m = re.match(r"amumax_task_[a-zA-Z0-9]+_([a-zA-Z0-9]+)", job_name)
             if m:
                 username = m.group(1).lower()
         
-        # Pattern 3: amp_<value> - te zadania należą do wszystkich,
+        # Pattern 4: amp_<value> - te zadania należą do wszystkich,
         # ale domyślnie przypisujemy do admin
         elif job_name.startswith("amp_"):
             username = "admin"
         
-        # Pattern 4: inne wzorce amumax_, python_, task_
+        # Pattern 5: inne wzorce amumax_, python_, task_ - legacy,
+        # assign to admin
         elif any(job_name.startswith(prefix) for prefix in
                  ["amumax_", "python_", "simulation_", "task_"]):
-            # Spróbuj wyciągnąć username z końca nazwy
-            parts = job_name.split("_")
-            if len(parts) >= 2:
-                # Sprawdź czy ostatnia część wygląda jak username
-                potential_username = parts[-1]
-                if re.match(r"^[a-zA-Z][a-zA-Z0-9]*$", potential_username):
-                    username = potential_username.lower()
+            username = "admin"
+        
+        # Pattern 6: container_<user>_<name> - legacy
+        # (e.g., container_admin_glowny)
+        elif job_name.startswith("container_"):
+            m = re.match(r"container_([a-zA-Z0-9]+)_", job_name)
+            if m:
+                username = m.group(1).lower()
 
         if not username:
             slurm_logger.warning(
-                f"Nie można wyciągnąć nazwy użytkownika z zadania: "
+                "Nie można wyciągnąć nazwy użytkownika z zadania: "
                 f"{job_name}, używam domyślnego administratora"
             )
             return default_owner_id
@@ -782,24 +849,59 @@ class SlurmMonitorService:
                 max_containers=6,
                 max_gpus=24
             )
-            
             db.add(new_user)
             db.commit()
             db.refresh(new_user)
-            
             slurm_logger.info(
                 f"Utworzono nowego użytkownika {username} "
                 f"(ID: {new_user.id})"
             )
-            
             return new_user.id
-            
         except Exception as e:
             slurm_logger.error(
                 f"Błąd podczas tworzenia użytkownika {username}: {e}"
             )
             db.rollback()
             return default_owner_id
+
+    def _extract_user_from_job_name(self, job_name: str) -> str:
+        """
+        Extract username from job name using various patterns.
+        Returns username as string, defaults to 'admin'.
+        """
+        import re
+        
+        # Default to admin user
+        username = "admin"
+
+        # Pattern 1: amuc_container_USER_NAME
+        # (e.g., amuc_container_admin_glowny)
+        m = re.match(r"amuc_container_([a-zA-Z0-9]+)_", job_name)
+        if m:
+            return m.group(1).lower()
+        
+        # Pattern 2: amuc_amumax_USER_NAME (e.g., amuc_amumax_admin_test)
+        elif job_name.startswith("amuc_amumax_"):
+            m = re.match(r"amuc_amumax_([a-zA-Z0-9]+)_", job_name)
+            if m:
+                return m.group(1).lower()
+        
+        # Pattern 3: amumax_task_<id>_<user> - legacy
+        # (e.g., amumax_task_9c7acd3a_admin)
+        elif job_name.startswith("amumax_task_"):
+            m = re.match(r"amumax_task_[a-zA-Z0-9]+_([a-zA-Z0-9]+)", job_name)
+            if m:
+                return m.group(1).lower()
+        
+        # Pattern 4: container_<user>_<name> - legacy
+        # (e.g., container_admin_glowny)
+        elif job_name.startswith("container_"):
+            m = re.match(r"container_([a-zA-Z0-9]+)_", job_name)
+            if m:
+                return m.group(1).lower()
+        
+        # For all other patterns (amp_, python_, etc.) - assign to admin
+        return username
 
     def _estimate_task_progress(self, task, job_data: dict) -> Optional[int]:
         """Estimate progress for a running task based on time."""

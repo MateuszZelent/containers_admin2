@@ -459,9 +459,14 @@ class SSHTunnelService:
         # First clean up inactive tunnels to free up ports in database
         await self.cleanup_inactive_tunnels()
 
-        # Get used ports from database
+        # Get used ports from database - only from ACTIVE tunnels
         used_ports = set()
-        for tunnel in self.db.query(SSHTunnel).all():
+        active_tunnels = (
+            self.db.query(SSHTunnel)
+            .filter(SSHTunnel.status == "ACTIVE")
+            .all()
+        )
+        for tunnel in active_tunnels:
             if hasattr(tunnel, "external_port") and tunnel.external_port:
                 used_ports.add(tunnel.external_port)
             if hasattr(tunnel, "internal_port") and tunnel.internal_port:
@@ -489,9 +494,14 @@ class SSHTunnelService:
                 )
                 # Try a more aggressive cleanup - delete all non-active tunnels
                 await self._emergency_cleanup_async()
-                # Re-gather used ports
+                # Re-gather used ports - only from ACTIVE tunnels
                 used_ports = set()
-                for tunnel in self.db.query(SSHTunnel).all():
+                active_tunnels = (
+                    self.db.query(SSHTunnel)
+                    .filter(SSHTunnel.status == "ACTIVE")
+                    .all()
+                )
+                for tunnel in active_tunnels:
                     if hasattr(tunnel, "external_port") and tunnel.external_port:
                         if await self._is_port_in_use_async(
                             tunnel.external_port, check_external=True

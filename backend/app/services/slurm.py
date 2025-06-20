@@ -225,7 +225,7 @@ class SlurmSSHService:
             job_id = parts[0].strip()
             partition = parts[1].strip()
             name = parts[2].strip()
-            user = parts[3].strip()
+            slurm_user = parts[3].strip()  # Użytkownik SLURM (zawsze kkingstoun)
             state = parts[4].strip()
             memory_requested = parts[5].strip()  # %m - Pamięć wymagana (np. --mem)
             time_used = parts[6].strip()  # %M - Czas użyty
@@ -237,21 +237,25 @@ class SlurmSSHService:
             # parts[12] (%b) - Min memory per CPU/generic - ignorujemy na razie, chyba że jest potrzebne
             submit_time = parts[13].strip()  # %V - Czas zgłoszenia
 
+            # --- Wyodrębnij prawdziwego użytkownika z nazwy zadania ---
+            actual_user = self._extract_user_from_job_name(name)
+
             # --- Tworzenie słownika job_info z poprawnymi danymi ---
             job_info = {
                 "job_id": job_id,
                 "partition": partition,
                 "name": name,
-                "user": user,
+                "user": actual_user,  # Użytkownik wyodrębniony z nazwy zadania
+                "slurm_user": slurm_user,  # Użytkownik SLURM (dla debugowania)
                 "state": state,
-                "memory_requested": memory_requested,  
-                "time_used": time_used,  
+                "memory_requested": memory_requested,
+                "time_used": time_used,
                 "time_left": time_left,
                 "node_count": node_count,
                 "node": node,
                 "start_time": start_time
                 if start_time != "N/A"
-                else None,  
+                else None,
                 "submit_time": submit_time if submit_time else None,
                 "reason": reason if reason else None,
             }
@@ -261,6 +265,41 @@ class SlurmSSHService:
 
         slurm_logger.debug(f"Found {len(jobs)} total active jobs in SLURM")
         return jobs
+
+    def _extract_user_from_job_name(self, job_name: str) -> str:
+        """
+        Extract the actual user from job name based on naming patterns.
+        
+        Patterns:
+        - amuc_container_USER_NAME -> USER
+        - amuc_amumax_USER_NAME -> USER
+        - container_USER_... -> USER
+        - amumax_task_USER_... -> USER
+        - For old jobs without pattern -> "admin"
+        """
+        import re
+        
+        # Pattern for amuc_container_USER_NAME
+        amuc_container_match = re.match(r'amuc_container_([^_]+)_.*', job_name)
+        if amuc_container_match:
+            return amuc_container_match.group(1)
+        
+        # Pattern for amuc_amumax_USER_NAME
+        amuc_amumax_match = re.match(r'amuc_amumax_([^_]+)_.*', job_name)
+        if amuc_amumax_match:
+            return amuc_amumax_match.group(1)
+        
+        # Pattern for container_USER_...
+        container_match = re.match(r'container_([^_]+).*', job_name)
+        if container_match:
+            return container_match.group(1)
+        
+        # Pattern for amumax_task_USER_...
+        amumax_task_match = re.match(r'amumax_task_([^_]+)_.*', job_name)
+        if amumax_task_match:
+            return amumax_task_match.group(1)
+
+        return "admin"
 
     def filter_jobs_for_containers(
         self, all_jobs: List[Dict[str, str]], username: Optional[str] = None
@@ -276,7 +315,8 @@ class SlurmSSHService:
             # Check if it's a container job
             if name.startswith("container_"):
                 if username:
-                    # Pattern: "container_{username}{digits}" or "container_{username}_..."
+                    # Pattern: "container_{username}{digits}" or
+                    # "container_{username}_..."
                     pattern = f"container_{username}"
                     if name.startswith(pattern):
                         container_jobs.append(job_info)
@@ -300,13 +340,13 @@ class SlurmSSHService:
         task_queue_jobs = []
         
         for job_info in all_jobs:
-            name = job_info.get("name", "")
+            name = job_info.get("name", "") 
             
             # Check if it's a task queue job
             # Include all task patterns including amp_* (which are also tasks)
             task_prefixes = [
                 "amumax_task_", "python_task_", "simulation_task_",
-                "task_", "amp_"
+                "task_", "amp_", "amuc_amumax_"
             ]
             if any(name.startswith(prefix) for prefix in task_prefixes):
                 task_queue_jobs.append(job_info)
@@ -336,7 +376,7 @@ class SlurmSSHService:
             # Exclude all container_ and task patterns (including amp_*)
             task_prefixes = [
                 "amumax_task_", "python_task_", "simulation_task_",
-                "task_", "amp_"
+                "task_", "amp_", "amuc_amumax_"
             ]
             if (not name.startswith("container_") and
                     not any(name.startswith(prefix)

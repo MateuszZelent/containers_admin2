@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # Container settings
     # Używaj wartości z .env lub zmiennych środowiskowych, z odpowiednimi wartościami domyślnymi
     CONTAINER_OUTPUT_DIR: str = os.getenv(
-        "CONTAINER_OUTPUT_DIR", "/mnt/storage_3/home/kkingstoun/containers/run"
+        "CONTAINER_OUTPUT_DIR", "/mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs"
     )
     TEMPLATE_DIR: str = os.getenv("TEMPLATE_DIR", "/app/slurm_templates")
 
