@@ -4,26 +4,23 @@ import uuid
 import json
 import asyncio
 import os
+import glob
 from pathlib import Path
-import logging
 from enum import Enum
 import traceback
 from concurrent.futures import ThreadPoolExecutor
 
 from sqlalchemy.orm import Session
-from sqlalchemy import func, desc, asc
 from fastapi import HTTPException, BackgroundTasks, status
-from pydantic import UUID4, ValidationError
 
 from app.db.models import TaskQueueJob, User
 from app.schemas.task_queue import (
     TaskQueueJobCreate,
     TaskQueueJobUpdate,
     TaskQueueStatus,
-    SimulationResult,
 )
 from app.services.slurm import SlurmSSHService
-from app.core.logging import cluster_logger, slurm_logger
+from app.core.logging import cluster_logger
 from app.core.config import settings
 
 
@@ -97,7 +94,7 @@ class TaskQueueService:
         if self._monitor_lock is None:
             try:
                 # Only create the lock when we're in an async context
-                loop = asyncio.get_running_loop()
+                asyncio.get_running_loop()
                 self._monitor_lock = asyncio.Lock()
             except RuntimeError:
                 # We're not in an async context, so we'll handle this case
@@ -114,6 +111,13 @@ class TaskQueueService:
         return (
             self.db.query(TaskQueueJob).filter(TaskQueueJob.task_id == task_id).first()
         )
+
+    def get_task_by_id(self, task_id: Union[str, int], owner_id: int) -> Optional[TaskQueueJob]:
+        """Get a task by ID or task_id with ownership check."""
+        task = self.get_task(task_id)
+        if task and task.owner_id == owner_id:
+            return task
+        return None
 
     def get_tasks(
         self,
@@ -139,12 +143,9 @@ class TaskQueueService:
         """
         Translate container paths to host filesystem paths.
 
-        This handles the virtual mount mapping differences between container and host.
+        This handles the virtual mount mapping differences between
+        container and host.
         """
-        # Define the path prefix mapping
-        container_prefix = "/mnt/local/kkingstoun/admin/pcss_storage/mannga"
-        host_prefix = "/mnt/storage_2/scratch/pl0095-01/zelent/mannga"
-
         # Check if this is a container path that needs translation
         if filepath and filepath.startswith(
             "/mnt/local/kkingstoun/admin/pcss_storage/mannga"
@@ -155,7 +156,9 @@ class TaskQueueService:
                 "/mnt/storage_2/scratch/pl0095-01/zelent/mannga",
                 1,  # Replace only the first occurrence
             )
-            cluster_logger.debug(f"Translated path: {filepath} -> {translated_path}")
+            cluster_logger.debug(
+                f"Translated path: {filepath} -> {translated_path}"
+            )
             return translated_path
 
         return filepath
@@ -241,7 +244,7 @@ class TaskQueueService:
             if not file_exists:
                 validation_message = "File not found"
                 is_valid = False
-            elif file_type == "amumax" and file_content :
+            elif file_type == "amumax" and file_content:
                 # Basic Amumax file validation
                 required_keywords = ['setgridsize', 'setcellsize', 'run']
                 if not any(kw in file_content.lower() for kw in required_keywords):
@@ -1390,3 +1393,78 @@ class TaskQueueService:
             "output_content": output_content,
             "node": task.node
         }
+
+    def _find_task_log_file(
+        self, slurm_job_id: str, log_type: str = "out"
+    ) -> Optional[str]:
+        """Find log file for a task based on slurm_job_id and log type."""
+        # Base paths for logs and errors
+        logs_base_path = (
+            "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/"
+        )
+        
+        if log_type == "out":
+            search_path = f"{logs_base_path}/logs"
+        elif log_type == "err":
+            search_path = f"{logs_base_path}/errors"
+        else:
+            return None
+            
+        # Search for files containing the slurm_job_id in the filename
+        # Pattern: *{slurm_job_id}*.{log_type}
+        pattern = f"{search_path}/*{slurm_job_id}*.{log_type}"
+        
+        try:
+            matching_files = glob.glob(pattern)
+            if matching_files:
+                # Return the first match (there should be only one)
+                return matching_files[0]
+            return None
+        except Exception as e:
+            cluster_logger.error(
+                f"Error searching for task log file {pattern}: {str(e)}"
+            )
+            return None
+
+    def get_task_log(self, slurm_job_id: str, log_type: str = "out") -> Optional[str]:
+        """Get log content for a task."""
+        log_file_path = self._find_task_log_file(slurm_job_id, log_type)
+        
+        if not log_file_path:
+            cluster_logger.warning(
+                f"Log file not found for task {slurm_job_id} (type: {log_type})"
+            )
+            return None
+            
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return content
+        except FileNotFoundError:
+            cluster_logger.warning(f"Log file not found: {log_file_path}")
+            return None
+        except PermissionError:
+            cluster_logger.error(
+                f"Permission denied reading log file: {log_file_path}"
+            )
+            return None
+        except UnicodeDecodeError:
+            # Try with different encoding if UTF-8 fails
+            try:
+                with open(log_file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+                return content
+            except Exception as e:
+                cluster_logger.error(
+                    f"Error reading log file with fallback encoding: {str(e)}"
+                )
+                return None
+        except Exception as e:
+            cluster_logger.error(
+                f"Error reading log file {log_file_path}: {str(e)}"
+            )
+            return None
+
+    def get_task_error(self, slurm_job_id: str) -> Optional[str]:
+        """Get error log content for a task."""
+        return self.get_task_log(slurm_job_id, "err")

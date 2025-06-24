@@ -431,3 +431,129 @@ async def get_task_output(
         parsed_id = int(task_id)
     
     return await task_service.get_task_output(parsed_id, current_user.id)
+
+
+@router.get("/{task_id}/log")
+async def get_task_log(
+    *,
+    db: Session = Depends(get_db),
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Get log content for a task."""
+    task_service = TaskQueueService(db)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    task = task_service.get_task_by_id(parsed_id, current_user.id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    try:
+        # Use slurm_job_id if available, otherwise use task_id
+        lookup_id = task.slurm_job_id if task.slurm_job_id else str(task.id)
+        
+        if not lookup_id:
+            return {
+                "task_id": task_id,
+                "internal_id": task.id,
+                "slurm_job_id": task.slurm_job_id,
+                "log_content": "",
+                "message": "No SLURM job ID available for this task",
+                "has_content": False
+            }
+
+        log_content = task_service.get_task_log(lookup_id, "out")
+        
+        if log_content is None:
+            return {
+                "task_id": task_id,
+                "internal_id": task.id,
+                "slurm_job_id": task.slurm_job_id,
+                "log_content": "",
+                "message": "Log file not found or not yet created",
+                "has_content": False
+            }
+        
+        return {
+            "task_id": task_id,
+            "internal_id": task.id,
+            "slurm_job_id": task.slurm_job_id,
+            "log_content": log_content,
+            "message": "Log retrieved successfully",
+            "has_content": True,
+            "content_length": len(log_content)
+        }
+        
+    except Exception as e:
+        cluster_logger.error(f"Error getting log for task {task_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve task log"
+        )
+
+
+@router.get("/{task_id}/error")
+async def get_task_error(
+    *,
+    db: Session = Depends(get_db),
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Get error log content for a task."""
+    task_service = TaskQueueService(db)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    task = task_service.get_task_by_id(parsed_id, current_user.id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    try:
+        # Use slurm_job_id if available, otherwise use task_id
+        lookup_id = task.slurm_job_id if task.slurm_job_id else str(task.id)
+        
+        if not lookup_id:
+            return {
+                "task_id": task_id,
+                "internal_id": task.id,
+                "slurm_job_id": task.slurm_job_id,
+                "error_content": "",
+                "message": "No SLURM job ID available for this task",
+                "has_content": False
+            }
+
+        error_content = task_service.get_task_error(lookup_id)
+        
+        if error_content is None:
+            return {
+                "task_id": task_id,
+                "internal_id": task.id,
+                "slurm_job_id": task.slurm_job_id,
+                "error_content": "",
+                "message": "Error file not found or not yet created",
+                "has_content": False
+            }
+        
+        return {
+            "task_id": task_id,
+            "internal_id": task.id,
+            "slurm_job_id": task.slurm_job_id,
+            "error_content": error_content,
+            "message": "Error log retrieved successfully",
+            "has_content": True,
+            "content_length": len(error_content)
+        }
+        
+    except Exception as e:
+        cluster_logger.error(
+            f"Error getting error log for task {task_id}: {str(e)}"
+        )
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve task error log"
+        )

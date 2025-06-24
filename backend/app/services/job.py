@@ -631,7 +631,6 @@ class JobService:
 
     def _find_log_file(self, job_id: str, log_type: str = "out") -> Optional[str]:
         """Find log file for a job based on job_id and log type."""
-        import glob
         
         # Base paths for logs and errors
         logs_base_path = "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers"
