@@ -4,6 +4,7 @@ import random
 import socket
 import asyncio
 import re
+import glob
 from datetime import datetime
 import asyncssh
 
@@ -54,7 +55,6 @@ class JobService:
 
     def _find_free_port(self) -> int:
         """Find a free port between 8600 and 8700 from active jobs only"""
-        import socket
         
         # Only check ports from ACTIVE jobs (PENDING, RUNNING, CONFIGURING)
         used_ports = set(
@@ -93,8 +93,9 @@ class JobService:
         
         # If we couldn't find a free port, raise an exception
         raise HTTPException(
-            status_code=500, 
-            detail=f"Could not find a free port after {max_attempts} attempts. All ports between 8600-8700 seem to be in use."
+            status_code=500,
+            detail=f"Could not find a free port after {max_attempts} attempts. "
+                   f"All ports between 8600-8700 seem to be in use."
         )
 
     def _get_template_content(self, template_name: str) -> str:
@@ -627,3 +628,66 @@ class JobService:
         except Exception as e:
             cluster_logger.error(f"Error cleaning up Caddy for job {job.id}: {str(e)}")
             return False
+
+    def _find_log_file(self, job_id: str, log_type: str = "out") -> Optional[str]:
+        """Find log file for a job based on job_id and log type."""
+        import glob
+        
+        # Base paths for logs and errors
+        logs_base_path = "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers"
+        
+        if log_type == "out":
+            search_path = f"{logs_base_path}/logs"
+        elif log_type == "err":
+            search_path = f"{logs_base_path}/errors"
+        else:
+            return None
+            
+        # Search for files containing the job_id in the filename
+        # Pattern: *{job_id}*.{log_type}
+        pattern = f"{search_path}/*{job_id}*.{log_type}"
+        
+        try:
+            matching_files = glob.glob(pattern)
+            if matching_files:
+                # Return the first match (there should be only one)
+                return matching_files[0]
+            return None
+        except Exception as e:
+            cluster_logger.error(f"Error searching for log file {pattern}: {str(e)}")
+            return None
+
+    def get_job_log(self, job_id: str, log_type: str = "out") -> Optional[str]:
+        """Get log content for a job."""
+        log_file_path = self._find_log_file(job_id, log_type)
+        
+        if not log_file_path:
+            cluster_logger.warning(f"Log file not found for job {job_id} (type: {log_type})")
+            return None
+            
+        try:
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+            return content
+        except FileNotFoundError:
+            cluster_logger.warning(f"Log file not found: {log_file_path}")
+            return None
+        except PermissionError:
+            cluster_logger.error(f"Permission denied reading log file: {log_file_path}")
+            return None
+        except UnicodeDecodeError:
+            # Try with different encoding if UTF-8 fails
+            try:
+                with open(log_file_path, 'r', encoding='latin-1') as f:
+                    content = f.read()
+                return content
+            except Exception as e:
+                cluster_logger.error(f"Error reading log file with fallback encoding: {str(e)}")
+                return None
+        except Exception as e:
+            cluster_logger.error(f"Error reading log file {log_file_path}: {str(e)}")
+            return None
+
+    def get_job_error(self, job_id: str) -> Optional[str]:
+        """Get error log content for a job."""
+        return self.get_job_log(job_id, "err")

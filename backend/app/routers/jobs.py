@@ -455,6 +455,94 @@ async def get_job_node(
     return {"node": None}
 
 
+@router.get("/{job_id}/log")
+async def get_job_log(
+    *,
+    db: Session = Depends(get_db),
+    job_id: int,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Get log content for a job."""
+    # Check if job belongs to user
+    job = JobService.get(db=db, job_id=job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    try:
+        job_service = JobService(db)
+        log_content = job_service.get_job_log(job.job_id, "out")
+        
+        if log_content is None:
+            return {
+                "job_id": job_id,
+                "slurm_job_id": job.job_id,
+                "log_content": "",
+                "message": "Log file not found or not yet created",
+                "has_content": False
+            }
+        
+        return {
+            "job_id": job_id,
+            "slurm_job_id": job.job_id,
+            "log_content": log_content,
+            "message": "Log retrieved successfully",
+            "has_content": True,
+            "content_length": len(log_content)
+        }
+        
+    except Exception as e:
+        jobs_logger.error(f"Error getting log for job {job_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve job log"
+        )
+
+
+@router.get("/{job_id}/error")
+async def get_job_error(
+    *,
+    db: Session = Depends(get_db),
+    job_id: int,
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Get error log content for a job."""
+    # Check if job belongs to user
+    job = JobService.get(db=db, job_id=job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.owner_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Not enough permissions")
+    
+    try:
+        job_service = JobService(db)
+        error_content = job_service.get_job_error(job.job_id)
+        
+        if error_content is None:
+            return {
+                "job_id": job_id,
+                "slurm_job_id": job.job_id,
+                "error_content": "",
+                "message": "Error file not found or not yet created",
+                "has_content": False
+            }
+        
+        return {
+            "job_id": job_id,
+            "slurm_job_id": job.job_id,
+            "error_content": error_content,
+            "message": "Error log retrieved successfully",
+            "has_content": True,
+            "content_length": len(error_content)
+        }
+        
+    except Exception as e:
+        jobs_logger.error(f"Error getting error log for job {job_id}: {str(e)}")
+        raise HTTPException(
+            status_code=500, detail="Failed to retrieve job error log"
+        )
+
+
 @router.get("/{job_id}/tunnels", response_model=List[SSHTunnelInfo])
 def get_job_tunnels(
     job_id: int,

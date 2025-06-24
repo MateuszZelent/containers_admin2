@@ -146,16 +146,36 @@ export default function SubmitAmumaxTaskPage() {
   // Watch for file path changes to trigger validation
   const watchedFilePath = form.watch("mx3_file_path");
 
-  // Validate file when path changes
+  // Debounce validation to avoid excessive API calls
+  const [debouncedFilePath, setDebouncedFilePath] = useState("");
+  const [shouldValidate, setShouldValidate] = useState(false);
+
+  // Debounce the file path changes
   useEffect(() => {
-    if (watchedFilePath && watchedFilePath.trim().length > 0) {
-      validateFile(watchedFilePath.trim());
-    } else {
-      setFileValidation(null);
-      setValidationSteps([]);
-      setFilePreview(null);
+    const timer = setTimeout(() => {
+      if (watchedFilePath && watchedFilePath.trim().length > 0) {
+        setDebouncedFilePath(watchedFilePath.trim());
+        if (shouldValidate) {
+          validateFile(watchedFilePath.trim());
+        }
+      } else {
+        setFileValidation(null);
+        setValidationSteps([]);
+        setFilePreview(null);
+        setDebouncedFilePath("");
+      }
+    }, 1000); // Wait 1 second after user stops typing
+
+    return () => clearTimeout(timer);
+  }, [watchedFilePath, shouldValidate]);
+
+  // Validate file when path changes (with debounce) or on blur
+  const handleFilePathBlur = () => {
+    setShouldValidate(true);
+    if (debouncedFilePath && debouncedFilePath.trim().length > 0) {
+      validateFile(debouncedFilePath.trim());
     }
-  }, [watchedFilePath]);
+  };
 
   // File validation with detailed steps
   const validateFile = async (filePath: string) => {
@@ -305,7 +325,7 @@ export default function SubmitAmumaxTaskPage() {
   const estimatedCost = form.watch("num_cpus") * form.watch("memory_gb") * form.watch("num_gpus");
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+    <div className="min-h-screen">
       <div className="container mx-auto py-8 space-y-8">
         {/* Header */}
         <motion.div 
@@ -313,7 +333,7 @@ export default function SubmitAmumaxTaskPage() {
           animate={{ opacity: 1, y: 0 }}
           className="flex items-center gap-4"
         >
-          <Button variant="outline" asChild className="backdrop-blur-sm bg-white/80 dark:bg-slate-800/80">
+          <Button variant="outline" asChild className="backdrop-blur-sm bg-white/60 dark:bg-slate-800/60">
             <Link href="/dashboard/task_queue">
               <ArrowLeft className="h-4 w-4 mr-2" />
               Powrót do kolejki
@@ -321,13 +341,13 @@ export default function SubmitAmumaxTaskPage() {
           </Button>
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full blur-lg opacity-20"></div>
-              <div className="relative p-3 bg-gradient-to-r from-purple-500 to-blue-500 rounded-full">
+              <div className="absolute inset-0 bg-gradient-to-r from-purple-500 to-blue-500 dark:from-purple-400 dark:to-blue-400 rounded-full blur-lg opacity-20 dark:opacity-30"></div>
+              <div className="relative p-3 bg-gradient-to-r from-purple-500 to-blue-500 dark:from-purple-400 dark:to-blue-400 rounded-full">
                 <Zap className="h-6 w-6 text-white" />
               </div>
             </div>
             <div>
-              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-emerald-600 bg-clip-text text-transparent">
+              <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-600 via-blue-600 to-emerald-600 dark:from-purple-400 dark:via-blue-400 dark:to-emerald-400 bg-clip-text text-transparent">
                 Nowe zadanie Amumax
               </h1>
               <p className="text-muted-foreground">
@@ -344,10 +364,10 @@ export default function SubmitAmumaxTaskPage() {
             animate={{ opacity: 1, x: 0 }}
             className="xl:col-span-2"
           >
-            <Card className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 dark:border-slate-700/50 shadow-2xl">
+            <Card className="backdrop-blur-xl bg-white/60 dark:bg-slate-900/60 border-white/30 dark:border-slate-700/30 shadow-2xl">
               <CardHeader className="pb-6">
                 <CardTitle className="flex items-center gap-2 text-xl">
-                  <Upload className="h-5 w-5 text-blue-500" />
+                  <Upload className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                   Konfiguracja zadania
                 </CardTitle>
                 <CardDescription>
@@ -372,7 +392,7 @@ export default function SubmitAmumaxTaskPage() {
                             <FormControl>
                               <Input 
                                 placeholder="np. magnetization_dynamics_2024"
-                                className="h-12 text-base bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm"
+                                className="h-12 text-base bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
                                 {...field} 
                               />
                             </FormControl>
@@ -393,7 +413,7 @@ export default function SubmitAmumaxTaskPage() {
                             <FormControl>
                               <Input 
                                 placeholder="Dodatkowe informacje o symulacji..."
-                                className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm"
+                                className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
                                 {...field}
                               />
                             </FormControl>
@@ -418,12 +438,16 @@ export default function SubmitAmumaxTaskPage() {
                             <FormControl>
                               <Input 
                                 placeholder="/mnt/local/username/simulation.mx3"
-                                className="h-12 text-base font-mono bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm"
-                                {...field} 
+                                className="h-12 text-base font-mono bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm"
+                                {...field}
+                                onBlur={(e) => {
+                                  field.onBlur();
+                                  handleFilePathBlur();
+                                }}
                               />
                             </FormControl>
                             <FormDescription>
-                              Pełna ścieżka do pliku skryptu Amumax (.mx3)
+                              Pełna ścieżka do pliku skryptu Amumax (.mx3). Walidacja uruchomi się po zakończeniu pisania lub kliknięciu poza pole.
                             </FormDescription>
                             <FormMessage />
                           </FormItem>
@@ -456,13 +480,13 @@ export default function SubmitAmumaxTaskPage() {
                                 }`}
                               >
                                 {step.status === "checking" && (
-                                  <Loader2 className="h-4 w-4 animate-spin text-blue-500" />
+                                  <Loader2 className="h-4 w-4 animate-spin text-blue-500 dark:text-blue-400" />
                                 )}
                                 {step.status === "success" && (
-                                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400" />
                                 )}
                                 {step.status === "error" && (
-                                  <XCircle className="h-4 w-4 text-red-500" />
+                                  <XCircle className="h-4 w-4 text-red-500 dark:text-red-400" />
                                 )}
                                 {step.status === "pending" && (
                                   <div className="h-4 w-4 rounded-full border-2 border-slate-300 dark:border-slate-600" />
@@ -478,7 +502,7 @@ export default function SubmitAmumaxTaskPage() {
                             ))}
                             
                             {fileValidation && fileValidation.file_exists && fileValidation.is_valid && (
-                              <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm rounded-lg border border-white/30 dark:border-slate-600/30 p-4">
+                              <div className="bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm rounded-lg border border-white/30 dark:border-slate-600/30 p-4">
                                 <div className="flex items-center justify-between mb-3">
                                   <h4 className="text-sm font-semibold">Informacje o pliku</h4>
                                   {filePreview && (
@@ -566,10 +590,9 @@ export default function SubmitAmumaxTaskPage() {
                           name="partition"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-base">Partycja</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormLabel className="text-base">Partycja</FormLabel>                                <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                  <SelectTrigger className="h-12 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                  <SelectTrigger className="h-12 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
                                     <SelectValue placeholder="Wybierz partycję" />
                                   </SelectTrigger>
                                 </FormControl>
@@ -596,10 +619,9 @@ export default function SubmitAmumaxTaskPage() {
                           name="time_limit"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-base">Limit czasu</FormLabel>
-                              <Select onValueChange={field.onChange} defaultValue={field.value}>
+                              <FormLabel className="text-base">Limit czasu</FormLabel>                                <Select onValueChange={field.onChange} defaultValue={field.value}>
                                 <FormControl>
-                                  <SelectTrigger className="h-12 bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm">
+                                  <SelectTrigger className="h-12 bg-white/60 dark:bg-slate-800/60 backdrop-blur-sm">
                                     <SelectValue placeholder="Wybierz limit czasu" />
                                   </SelectTrigger>
                                 </FormControl>
@@ -735,7 +757,7 @@ export default function SubmitAmumaxTaskPage() {
                           !fileValidation?.file_exists || 
                           !fileValidation?.is_valid
                         }
-                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500 hover:from-purple-600 hover:via-blue-600 hover:to-emerald-600 text-white shadow-2xl"
+                        className="w-full h-14 text-base font-semibold bg-gradient-to-r from-purple-500 via-blue-500 to-emerald-500 hover:from-purple-600 hover:via-blue-600 hover:to-emerald-600 dark:from-purple-400 dark:via-blue-400 dark:to-emerald-400 dark:hover:from-purple-500 dark:hover:via-blue-500 dark:hover:to-emerald-500 text-white shadow-2xl"
                       >
                         {isSubmitting ? (
                           <>
@@ -763,10 +785,10 @@ export default function SubmitAmumaxTaskPage() {
             className="space-y-6"
           >
             {/* Resource Summary */}
-            <Card className="backdrop-blur-xl bg-white/80 dark:bg-slate-900/80 border-white/20 dark:border-slate-700/50 shadow-xl">
+            <Card className="backdrop-blur-xl bg-white/60 dark:bg-slate-900/60 border-white/30 dark:border-slate-700/30 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Server className="h-5 w-5 text-emerald-500" />
+                  <Server className="h-5 w-5 text-emerald-500 dark:text-emerald-400" />
                   Podsumowanie zasobów
                 </CardTitle>
               </CardHeader>
@@ -814,28 +836,28 @@ export default function SubmitAmumaxTaskPage() {
             </Card>
 
             {/* Help Card */}
-            <Card className="backdrop-blur-xl bg-gradient-to-br from-blue-50 via-white to-purple-50 dark:from-blue-950/50 dark:via-slate-900/80 dark:to-purple-950/50 border-white/20 dark:border-slate-700/50 shadow-xl">
+            <Card className="backdrop-blur-xl bg-gradient-to-br from-blue-50/40 via-white/30 to-purple-50/40 dark:from-blue-950/30 dark:via-slate-900/50 dark:to-purple-950/30 border-white/30 dark:border-slate-700/30 shadow-xl">
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
-                  <Sparkles className="h-5 w-5 text-blue-500" />
+                  <Sparkles className="h-5 w-5 text-blue-500 dark:text-blue-400" />
                   Wskazówki
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
                   <p>Upewnij się, że plik .mx3 jest dostępny z węzłów obliczeniowych</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
                   <p>Wybierz odpowiednią partycję w zależności od wymagań GPU/CPU</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
+                  <CheckCircle2 className="h-4 w-4 text-emerald-500 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
                   <p>Ustaw realistyczny limit czasu dla swojej symulacji</p>
                 </div>
                 <div className="flex items-start gap-3">
-                  <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                  <AlertCircle className="h-4 w-4 text-amber-500 dark:text-amber-400 mt-0.5 flex-shrink-0" />
                   <p>Zadania z wyższym priorytetem będą wykonane wcześniej</p>
                 </div>
               </CardContent>

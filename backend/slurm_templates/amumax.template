@@ -1,6 +1,7 @@
 #!/bin/bash
 #SBATCH --job-name="{job_name}"
 #SBATCH --output=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/logs/{job_name}-%x.%J.%N.out
+#SBATCH --error=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/errors/{job_name}-%x.%J.%N.err
 #SBATCH --ntasks=1
 #SBATCH --tasks-per-node=1
 #SBATCH --cpus-per-task={num_cpus}
@@ -41,7 +42,8 @@ singularity exec \
   --no-home \
   --containall \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
-  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/olek":"/mnt/storage_2/scratch/pl0095-01/zelent/olek":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
   /mnt/storage_2/project_data/pl0095-01/mateuszz/new_home/amu_container_env/docker_amumax/mumax_runtime.sif amumax {simulation_file}

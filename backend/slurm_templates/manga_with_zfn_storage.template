@@ -11,6 +11,7 @@
 #SBATCH --partition={partition}
 #SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/kkingstoun/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/kkingstoun/{loginname}"
 #SBATCH --output=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/logs/{job_name}-%x.%J.%N.out
+#SBATCH --error=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/errors/{job_name}-%x.%J.%N.err
 
 ### 1. Definiowanie "użytkownika" i katalogu docelowego
 localusername="{loggin_name}"

@@ -537,7 +537,7 @@ export default function DashboardPage() {
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 ">
       {/* Header with title and action buttons */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">

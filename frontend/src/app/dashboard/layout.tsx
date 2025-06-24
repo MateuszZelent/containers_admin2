@@ -24,9 +24,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }, []);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
-      <div className="min-h-screen bg-gradient-to-tr from-transparent via-white/5 to-blue-500/5 dark:from-transparent dark:via-slate-700/10 dark:to-blue-900/5">
-        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-transparent via-transparent to-transparent dark:from-slate-900/20 dark:via-transparent dark:to-slate-900/20">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100 dark:from-slate-950 dark:via-slate-900 dark:to-slate-800">
+      <div className="min-h-screen bg-gradient-to-tr from-transparent via-white/10 to-purple-50/20 dark:from-transparent dark:via-slate-700/5 dark:to-purple-900/10">
+        <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-blue-50/30 via-transparent to-emerald-50/20 dark:from-blue-900/10 dark:via-transparent dark:to-emerald-900/10">
           <div className="flex flex-1 flex-col">
             <SidebarProvider
               style={

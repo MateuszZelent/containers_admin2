@@ -1,0 +1,192 @@
+#!/bin/bash
+#SBATCH --job-name="{job_name}"
+#SBATCH --output={job_name}-%x.%J.%N.out
+#SBATCH --ntasks={num_nodes}
+#SBATCH --tasks-per-node={tasks_per_node}
+#SBATCH --cpus-per-task={num_cpus}
+#SBATCH --time={time_limit}
+#SBATCH --mem={memory_gb}G
+#SBATCH --exclude=gpu21
+#SBATCH --gres=gpu:{num_gpus}
+#SBATCH --partition={partition}
+#SBATCH --export=ALL,SINGULARITYENV_SINIMAGE_DIR="/mnt/local/kkingstoun/{loginname}",SINGULARITYENV_CODE_SERVER_WORKSPACE="/mnt/local/kkingstoun/{loginname}"
+#SBATCH --output=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/logs/{job_name}-%x.%J.%N.out
+#SBATCH --error=/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/amucontainers/errors/{job_name}-%x.%J.%N.err
+
+# Funkcja logowania z timestampem
+log_message() {
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
+}
+
+# Funkcja sprawdzania statusu
+check_status() {
+    if [ $? -eq 0 ]; then
+        log_message "✓ $1 - SUCCESS"
+    else
+        log_message "✗ $1 - FAILED"
+        exit 1
+    fi
+}
+
+# Początek zadania
+log_message "Starting job: {job_name}"
+log_message "SLURM Job ID: $SLURM_JOB_ID"
+log_message "Node: $SLURM_JOB_NODELIST"
+log_message "Partition: $SLURM_JOB_PARTITION"
+
+### 1. Definiowanie "użytkownika" i katalogu docelowego
+localusername="{loggin_name}"
+USERNAME="kkingstoun"
+SINIMAGE_DIR="/mnt/local/$USERNAME/$localusername"
+export SINIMAGE_DIR
+NEW_PORT={NEW_PORT}
+NEW_PASSWORD={NEW_PASSWORD}
+
+# Walidacja zmiennych
+if [ "$localusername" == "{loggin_name}" ]; then
+    log_message "ERROR: localusername nie została zastąpiona przez właściwą wartość!"
+    exit 1
+fi
+
+if [ -z "$NEW_PORT" ] || [ "$NEW_PORT" == "{NEW_PORT}" ]; then
+    log_message "ERROR: NEW_PORT nie została ustawiona!"
+    exit 1
+fi
+
+if [ -z "$NEW_PASSWORD" ] || [ "$NEW_PASSWORD" == "{NEW_PASSWORD}" ]; then
+    log_message "ERROR: NEW_PASSWORD nie została ustawiona!"
+    exit 1
+fi
+
+target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
+CONFIG_FILE="$target_dir/code-server/config.yaml"
+
+# Wyświetlanie konfiguracji
+log_message "Configuration:"
+log_message "  - Username: $localusername"
+log_message "  - Target dir: $target_dir"
+log_message "  - SINIMAGE_DIR: $SINIMAGE_DIR"
+log_message "  - Port: $NEW_PORT"
+log_message "  - Config file: $CONFIG_FILE"
+
+### 2. Sprawdzanie dostępności portów
+if netstat -tln | grep -q ":$NEW_PORT "; then
+    log_message "WARNING: Port $NEW_PORT is already in use!"
+    # Możesz dodać logikę do znajdowania wolnego portu
+fi
+
+### 3. Tworzenie folderu i kopiowanie wzorcowej zawartości
+if [ -d "$target_dir" ] && [ "$(ls -A $target_dir)" ]; then
+    log_message "Container directory exists - reactivating: $target_dir"
+else
+    log_message "Creating new container directory: $target_dir"
+    mkdir -p "$target_dir"
+    check_status "Directory creation"
+    
+    cp -r /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/container_example/* "$target_dir"
+    check_status "Template files copy"
+fi
+
+### 4. Sprawdzanie zasobów systemowych
+log_message "System resources:"
+log_message "  - Available memory: $(free -h | grep '^Mem:' | awk '{print $7}')"
+log_message "  - Available disk space: $(df -h $target_dir | tail -1 | awk '{print $4}')"
+log_message "  - GPU status: $(nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null || echo 'N/A')"
+
+### 5. Konfiguracja code-server
+if [ ! -f "$CONFIG_FILE" ]; then
+    log_message "Creating new config file: $CONFIG_FILE"
+    mkdir -p "$(dirname "$CONFIG_FILE")"
+    check_status "Config directory creation"
+    
+    cat <<EOL > "$CONFIG_FILE"
+bind-addr: 0.0.0.0:$NEW_PORT
+password: $NEW_PASSWORD
+auth: password
+cert: false
+EOL
+    check_status "Config file creation"
+else
+    log_message "Updating existing config file: $CONFIG_FILE"
+    sed -i "s|^bind-addr: .*|bind-addr: 0.0.0.0:$NEW_PORT|" "$CONFIG_FILE"
+    sed -i "s|^password: .*|password: $NEW_PASSWORD|" "$CONFIG_FILE"
+    sed -i "s|^auth: .*|auth: password|" "$CONFIG_FILE"
+    check_status "Config file update"
+fi
+
+### 6. Przygotowanie środowiska
+log_message "Preparing environment directories..."
+mkdir -p $SINIMAGE_DIR
+mkdir -p $SINIMAGE_DIR/.config
+mkdir -p $SINIMAGE_DIR/.local/{cache,share,etc}/{conda,jupyter,code-server,matplotlib}
+mkdir -p $SINIMAGE_DIR/.local/share/jupyter/runtime
+mkdir -p $SINIMAGE_DIR/.local/share/ipython
+mkdir -p $SINIMAGE_DIR/.local/run
+mkdir -p $SINIMAGE_DIR/zfn_storage/mannga
+check_status "Environment directories creation"
+
+chmod 700 "$SINIMAGE_DIR/.local/run"
+export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+
+### 7. Cleanup poprzednich mount'ów
+log_message "Cleaning up previous mounts..."
+fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga 2>/dev/null || true
+
+### 8. Sprawdzanie dostępności obrazu Singularity
+SINGULARITY_IMAGE="/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif"
+if [ ! -f "$SINGULARITY_IMAGE" ]; then
+    log_message "ERROR: Singularity image not found: $SINGULARITY_IMAGE"
+    exit 1
+fi
+log_message "Using Singularity image: $SINGULARITY_IMAGE"
+
+### 9. Eksportowanie zmiennych środowiskowych
+export PASSWORD="$NEW_PASSWORD"
+export CODE_SERVER_CONFIG="$CONFIG_FILE"
+
+### 10. Uruchomienie kontenera z monitorowaniem
+log_message "Starting Singularity container..."
+log_message "Code-server will be available at: http://$(hostname):$NEW_PORT"
+
+# Trap do cleanup'u przy wyjściu
+trap 'log_message "Job interrupted or finished"; fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga 2>/dev/null || true' EXIT
+
+singularity run \
+  --nv \
+  --no-home \
+  --containall \
+  --env SINIMAGE_DIR=$SINIMAGE_DIR \
+  --env CODE_SERVER_WORKSPACE=$SINIMAGE_DIR \
+  --env XDG_RUNTIME_DIR=$XDG_RUNTIME_DIR \
+  --env VSCODE_IPC_HOOK_CLI="" \
+  --env PASSWORD=$PASSWORD \
+  --env CODE_SERVER_CONFIG=$CONFIG_FILE \
+  --env SLURM_JOB_ID=$SLURM_JOB_ID \
+  --env SLURM_JOB_NODELIST=$SLURM_JOB_NODELIST \
+  --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
+  --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
+  --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/golebiewski/":"$SINIMAGE_DIR/pcss_storage/manga_golebiewski_folder":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
+  --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
+  --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":ro \
+  --bind "$target_dir/code-server/.local/share/code-server":"$SINIMAGE_DIR/.local/share/code-server":rw \
+  --bind "$target_dir/code-server/settings.json":"$SINIMAGE_DIR/.local/share/code-server/User/settings.json":rw \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
+  --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
+  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
+  $SINGULARITY_IMAGE code-server --bind-addr 0.0.0.0:$NEW_PORT
+
+CONTAINER_EXIT_CODE=$?
+log_message "Container finished with exit code: $CONTAINER_EXIT_CODE"
+
+# Cleanup
+log_message "Performing cleanup..."
+fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga 2>/dev/null || true
+
+log_message "Job completed"
+exit $CONTAINER_EXIT_CODE
