@@ -21,11 +21,6 @@ export SINIMAGE_DIR
 NEW_PORT={NEW_PORT}
 NEW_PASSWORD={NEW_PASSWORD}
 
-if [ "$localusername" == "{loggin_name}" ]; then
-    echo "Zmienna localusername jest ustawiona na: $localusername"
-else
-    echo "Zmienna localusername nie jest poprawnie ustawiona!"
-fi
 target_dir="/mnt/storage_3/home/kkingstoun/new_home/containers2/$localusername"
 CONFIG_FILE="$target_dir/code-server/config.yaml"
 

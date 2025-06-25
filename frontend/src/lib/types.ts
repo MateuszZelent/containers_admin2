@@ -50,6 +50,7 @@ export interface Job {
   progress?: number;                   // Progress percentage (0-100)
   time_used?: string;                  // Time used from SLURM
   time_left?: string;                  // Time left from SLURM
+  domain_ready?: boolean;              // Whether Caddy domain is ready
 }
 
 // Task Queue types

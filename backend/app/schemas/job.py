@@ -97,6 +97,7 @@ class JobInDBBase(JobBase):
     tunnels: List[SSHTunnelInfo] = []
     script: str = Field(default="")
     password: Optional[str] = None
+    domain_ready: bool = Field(default=False, description="Whether Caddy domain is ready")
 
     class Config:
         from_attributes = True

@@ -152,7 +152,7 @@ singularity run \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
-  --bind /mnt/storage_2/scratch/pl0095-01/zelent/syam:/mnt/data:rw \
+  --bind /mnt/storage_2/scratch/pl0095-01/zelent/olek/:$SINIMAGE_DIR/olek:rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
   --bind "$target_dir/starship.toml":"$SINIMAGE_DIR/.config/starship.toml":rw \
   --bind "$CONFIG_FILE":"$SINIMAGE_DIR/.local/etc/code-server/config.yaml":ro \

@@ -43,6 +43,7 @@ import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
+import { DomainReadinessModal } from "@/components/domain-readiness-modal";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -136,6 +137,10 @@ export default function DashboardPage() {
   // Confirmation dialog states
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
+  
+  // Domain readiness modal states
+  const [domainModalOpen, setDomainModalOpen] = useState(false);
+  const [selectedJobForDomain, setSelectedJobForDomain] = useState<Job | null>(null);
   
   // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
@@ -466,27 +471,45 @@ export default function DashboardPage() {
     }
   }, [jobToDelete]);
 
-  // Open Code Server with loading state
+  // Open Code Server with loading state and domain readiness check
   const openCodeServer = useCallback(async (job: Job) => {
     // Set processing state for this job
     setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
     
     try {
-      const toastId = toast.loading("Establishing connection...", {
+      const toastId = toast.loading("Checking domain readiness...", {
         closeButton: true
       });
       
-      const response = await jobsApi.getCodeServerUrl(job.id);
-      const { url } = response.data;
+      // First check if domain is ready
+      try {
+        const domainResponse = await jobsApi.checkDomainStatus(job.id);
+        if (domainResponse.data.domain_ready && domainResponse.data.url) {
+          // Domain is ready, open it directly
+          toast.dismiss(toastId);
+          window.open(domainResponse.data.url, '_blank');
+          toast.success("Opening Code Server via domain...", {
+            duration: 3000,
+            closeButton: true
+          });
+          return;
+        }
+      } catch (domainError) {
+        console.log("Domain not ready, falling back to tunnel");
+      }
       
-      window.open(url, '_blank');
-      toast.success("Code Server connection established. Opening in new tab...", {
-        id: toastId,
-        duration: 5000, // 5 seconds
-        closeButton: true
+      // Domain not ready, show modal for domain readiness
+      toast.dismiss(toastId);
+      toast.info("Domain not ready yet. Opening domain readiness modal...", {
+        duration: 3000
       });
+      
+      // Open domain readiness modal
+      setSelectedJobForDomain(job);
+      setDomainModalOpen(true);
+      
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, "Could not open Code Server");
+      const errorMessage = getErrorMessage(error, "Could not access Code Server");
       console.error('Error opening Code Server:', error);
       toast.error(errorMessage, {
         duration: 5000,
@@ -535,6 +558,18 @@ export default function DashboardPage() {
 
   // Determine if any data is loading
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
+
+  // Open Domain Readiness Modal
+  const openDomainModal = useCallback((job: Job) => {
+    setSelectedJobForDomain(job);
+    setDomainModalOpen(true);
+  }, []);
+
+  // Close Domain Modal
+  const closeDomainModal = useCallback(() => {
+    setDomainModalOpen(false);
+    setSelectedJobForDomain(null);
+  }, []);
 
   return (
     <div className="space-y-6 ">
@@ -1123,6 +1158,15 @@ export default function DashboardPage() {
         isLoading={jobToDelete ? (processingJobs[jobToDelete.id] || false) : false}
       />
       
+      {/* Domain Readiness Modal */}
+      {selectedJobForDomain && (
+        <DomainReadinessModal
+          jobId={selectedJobForDomain.id}
+          jobName={selectedJobForDomain.job_name}
+          isOpen={domainModalOpen}
+          onClose={closeDomainModal}
+        />
+      )}
     </div>
   );
 }

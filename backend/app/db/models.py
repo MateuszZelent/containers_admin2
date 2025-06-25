@@ -76,6 +76,7 @@ class Job(Base):
     # Real-time SLURM fields (updated by monitor)
     time_left = Column(String, default="", nullable=True)
     time_used = Column(String, default="", nullable=True)
+    domain_ready = Column(Boolean, default=False, nullable=False)  # Track when Caddy domain is ready
 
     # Timestamps and relations
     created_at = Column(DateTime(timezone=True), server_default=func.now())

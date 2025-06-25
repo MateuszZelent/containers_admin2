@@ -42,6 +42,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { useDomainStatus } from "@/hooks/use-domain-status";
 import { formatContainerName, formatContainerNameShort } from "@/lib/container-utils";
 
 interface TunnelData {
@@ -285,6 +286,12 @@ export const UnifiedJobCard = React.memo(({
     cardType === 'job' ? calculateProgress(job!) : (task!.progress || 0)
   );
 
+  // Domain status for jobs
+  const { domainStatus, isLoading: isDomainLoading } = useDomainStatus(
+    cardType === 'job' ? job!.id : 0,
+    cardType === 'job' && job!.status === 'RUNNING'
+  );
+
   React.useEffect(() => {
     if (cardType === 'job' && job!.status === "RUNNING") {
       const interval = setInterval(() => {
@@ -455,6 +462,41 @@ export const UnifiedJobCard = React.memo(({
             </div>
           )}
 
+          {/* Domain readiness for running jobs */}
+          {cardType === 'job' && job!.status === 'RUNNING' && domainStatus && (
+            <div className="space-y-1">
+              <p className="text-xs font-medium text-muted-foreground">Domain Status:</p>
+              <div className="flex items-center justify-between text-xs">
+                <div className="flex items-center gap-1">
+                  {domainStatus.domain_ready ? (
+                    <CheckCircle2 className="h-3 w-3 text-green-500" />
+                  ) : isDomainLoading ? (
+                    <Loader2 className="h-3 w-3 text-blue-500 animate-spin" />
+                  ) : (
+                    <Clock className="h-3 w-3 text-yellow-500" />
+                  )}
+                  <span className="truncate max-w-32" title={domainStatus.domain}>
+                    {domainStatus.domain}
+                  </span>
+                </div>
+                <Badge variant={domainStatus.domain_ready ? "default" : "secondary"} className="text-xs">
+                  {domainStatus.domain_ready ? "Ready" : "Preparing"}
+                </Badge>
+              </div>
+              {domainStatus.domain_ready && domainStatus.url && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="w-full mt-1"
+                  onClick={() => window.open(domainStatus.url, '_blank')}
+                >
+                  <ExternalLink className="h-3 w-3 mr-1" />
+                  Open Domain
+                </Button>
+              )}
+            </div>
+          )}
+
           {/* Actions */}
           <div className="flex gap-2 pt-2">
             {/* View/Details button */}
@@ -493,13 +535,19 @@ export const UnifiedJobCard = React.memo(({
                     >
                       {isProcessing ? (
                         <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                      ) : domainStatus?.domain_ready ? (
+                        <CheckCircle2 className="h-3 w-3 mr-1 text-green-500" />
                       ) : (
                         <Code2 className="h-3 w-3 mr-1" />
                       )}
-                      Code
+                      {domainStatus?.domain_ready ? 'Ready' : 'Code'}
                     </Button>
                   </TooltipTrigger>
-                  <TooltipContent>Open Code Server</TooltipContent>
+                  <TooltipContent>
+                    {domainStatus?.domain_ready 
+                      ? 'Domain is ready - Open Code Server' 
+                      : 'Open Code Server (domain preparing)'}
+                  </TooltipContent>
                 </Tooltip>
               </TooltipProvider>
             )}
