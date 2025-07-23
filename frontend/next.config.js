@@ -1,7 +1,7 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
-  
-  allowedDevOrigins: ['https://amucontainers.orion.zfns.eu.org'],
+
+  allowedDevOrigins: ['https://amucontainers.orion.zfns.eu.org', 'amucontainers.orion.zfns.eu.org'],
 
   eslint: {
     ignoreDuringBuilds: true,

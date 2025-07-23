@@ -9,11 +9,11 @@ class CaddyAPIClient:
     Client for interacting with the Caddy API to manage domains and reverse proxies.
     """
 
-    def __init__(self, api_url: str = "http://localhost:2019"):
+    def __init__(self, api_url: str = "http://host.docker.internal:2020"):
         """Initialize the Caddy API client.
 
         Args:
-            api_url: The URL of the Caddy API endpoint, defaults to http://localhost:2019
+            api_url: The URL of the Caddy API endpoint, defaults to http://host.docker.internal:2020
         """
         self.api_url = api_url
         self.headers = {"Content-Type": "application/json"}

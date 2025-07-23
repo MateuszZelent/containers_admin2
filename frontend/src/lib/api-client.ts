@@ -307,11 +307,8 @@ export const jobsApi = {
   // Get code server URL
   getCodeServerUrl: (jobId: number) => apiClient.get(`/jobs/${jobId}/code-server`),
   
-  // Check domain readiness status
-  checkDomainStatus: (jobId: number) => apiClient.get(`/jobs/${jobId}/domain-status`),
-  
-  // Get domain URL if ready
-  getDomainUrl: (jobId: number) => apiClient.get(`/jobs/${jobId}/domain-url`),
+  // Get domain status
+  getDomainStatus: (jobId: number) => apiClient.get(`/jobs/${jobId}/domain-status`),
 
   // Delete job
   deleteJob: (jobId: number) => apiClient.delete(`/jobs/${jobId}`),

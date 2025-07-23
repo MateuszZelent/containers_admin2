@@ -14,6 +14,7 @@ services:
       - SECRET_KEY=zmientomnabardziejzlozonehaslo
       - LOG_LEVEL=DEBUG
       - SSH_KEY_PATH=/root/.ssh/id_rsa
+      - CADDY_API_URL=http://host.docker.internal:2020
       # Konfiguracja ścieżek dla kontenerów
       - CONTAINER_OUTPUT_DIR=/mnt/storage_3/home/kkingstoun/containers/run
       - TEMPLATE_DIR=/app/slurm_templates
@@ -37,6 +38,8 @@ services:
     networks:
       - postgres_network
       - app_network
+    extra_hosts:
+      - "caddy-host:host-gateway"
 
   postgres:
     image: postgres:13

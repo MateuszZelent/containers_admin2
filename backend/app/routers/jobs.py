@@ -2,9 +2,6 @@ from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 import os
-import asyncio
-import time
-import aiohttp
 from caddy_api_client import CaddyAPIClient
 from app.core.logging import logger as jobs_logger
 from app.core.auth import (
@@ -26,23 +23,8 @@ from app.services.ssh_tunnel import SSHTunnelService
 from app.db.models import User, Job, SSHTunnel
 from app.core.config import settings
 
-CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://localhost:2019")
+CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2020")
 router = APIRouter()
-
-
-async def trigger_ssl_certificate_generation(domain_url: str) -> None:
-    """
-    Send asynchronous HTTP request to trigger SSL certificate generation.
-    Does not wait for response - fire and forget.
-    """
-    try:
-        time.sleep(0.1)
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=5)) as session:
-            jobs_logger.info(f"Triggering SSL certificate generation for {domain_url}")
-            # Fire and forget - don't wait for response
-            asyncio.create_task(session.get(domain_url))
-    except Exception as e:
-        jobs_logger.warning(f"Failed to trigger SSL for {domain_url}: {e}")
 
 
 @router.get("/status")
@@ -117,25 +99,15 @@ async def get_all_jobs_admin(
     # Convert to JobInDB format and get current status
     result_jobs = []
     for job in all_jobs:
-        try:
-            # Get current SLURM status from monitoring service
-            job_snapshots = await monitor_service.get_job_snapshot(db, job.job_id)
+        # Get current SLURM status from monitoring service
+        job_snapshots = await monitor_service.get_job_snapshot(db, job.job_id)
 
-            # Ensure domain_ready is always a boolean
-            if job.domain_ready is None:
-                job.domain_ready = False
-                db.commit()
+        job_data = JobInDB.from_orm(job)
+        if job_snapshots:
+            job_data.status = job_snapshots.state  # Using 'state' not 'status'
+            job_data.node = job_snapshots.node  # Using 'node' not 'node_list'
 
-            job_data = JobInDB.model_validate(job)  # Use new Pydantic V2 method
-            if job_snapshots:
-                job_data.status = job_snapshots.state  # Using 'state' not 'status'
-                job_data.node = job_snapshots.node  # Using 'node' not 'node_list'
-
-            result_jobs.append(job_data)
-        except Exception as e:
-            # Log the error but continue with other jobs
-            jobs_logger.error(f"Error processing job {job.id}: {str(e)}")
-            continue
+        result_jobs.append(job_data)
 
     return result_jobs
 
@@ -729,16 +701,10 @@ async def get_code_server_url(
         if not success:
             raise Exception("Caddy configuration returned false")
         
-        # Domain configuration successful - mark as ready immediately
-        job.domain_ready = True
-        db.add(job)
-        db.commit()
-        
-        jobs_logger.info(f"Domain {domain} configured successfully for job {job.id}, marked as ready")
-        
-        # Trigger SSL certificate generation asynchronously (fire and forget)
-        domain_url = f"https://{domain}"
-        asyncio.create_task(trigger_ssl_certificate_generation(domain_url))
+        # Mark domain as ready after successful Caddy configuration
+        job_service = JobService(db)
+        job_service.update_domain_ready_status(job.id, True)
+        jobs_logger.info(f"Domain {domain} configured and marked as ready for job {job.id}")
 
     except Exception as e:
         jobs_logger.error(f"Failed to configure Caddy domain {domain}: {e}")
@@ -1144,87 +1110,113 @@ async def get_active_all_jobs(
         )
 
 
-@router.get("/{job_id}/domain-status")
-async def check_domain_status(
-    *,
-    db: Session = Depends(get_db),
+@router.post("/{job_id}/domain-ready")
+async def mark_domain_ready(
     job_id: int,
+    db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
-    """
-    Check if domain is ready for a job.
-    Returns domain status and URL if ready.
-    """
-    job = JobService.get(db=db, job_id=job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-
-    # Generate the expected domain name
-    username_prefix = f"container_{current_user.username}_"
-    if job.job_name.startswith(username_prefix):
-        user_container_name = job.job_name[len(username_prefix):]
-    else:
-        user_container_name = job.job_name
-
-    safe_container_name = JobService.sanitize_container_name_for_domain(user_container_name)
-    if not safe_container_name:
-        safe_container_name = f"job{job.id}"
-
-    domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
-
-    return {
-        "domain_ready": job.domain_ready,
-        "domain": domain,
-        "url": f"https://{domain}" if job.domain_ready else None,
-        "status": job.status,
-        "job_id": job.id,
-        "monitoring_active": job.status in ["RUNNING", "PENDING"],
-    }
-
-
-@router.get("/{job_id}/domain-url")
-async def get_domain_url(
-    *,
-    db: Session = Depends(get_db),
-    job_id: int,
-    current_user: User = Depends(get_current_active_user),
-) -> Dict[str, Any]:
-    """
-    Get the domain URL for a job if it's ready.
-    """
-    job = JobService.get(db=db, job_id=job_id)
-    if not job:
-        raise HTTPException(status_code=404, detail="Job not found")
-    if job.owner_id != current_user.id:
-        raise HTTPException(status_code=403, detail="Not enough permissions")
-
-    if not job.domain_ready or job.status != "RUNNING":
+    """Mark a job's domain as ready (called by Caddy or monitoring system)."""
+    
+    try:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job with ID {job_id} not found"
+            )
+        
+        # Check if user owns the job or is superuser  
+        if job.owner_id != current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions to update this job"
+            )
+        
+        # Update domain_ready status
+        job.domain_ready = True
+        db.commit()
+        db.refresh(job)
+        
+        jobs_logger.info(f"Domain marked as ready for job {job_id}")
+        
+        return {
+            "message": f"Domain marked as ready for job {job_id}",
+            "job_id": job.id,
+            "domain_ready": job.domain_ready
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        jobs_logger.error(f"Error marking domain ready for job {job_id}: {str(e)}")
         raise HTTPException(
-            status_code=400,
-            detail="Domain is not ready yet or job is not running"
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to mark domain ready: {str(e)}"
         )
 
-    # Generate the domain name
-    username_prefix = f"container_{current_user.username}_"
-    if job.job_name.startswith(username_prefix):
-        user_container_name = job.job_name[len(username_prefix):]
-    else:
-        user_container_name = job.job_name
 
-    safe_container_name = JobService.sanitize_container_name_for_domain(
-        user_container_name
-    )
-    if not safe_container_name:
-        safe_container_name = f"job{job.id}"
-
-    domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
-
-    return {
-        "url": f"https://{domain}",
-        "domain": domain,
-        "job_id": job.id,
-        "ready": True
-    }
+@router.get("/{job_id}/domain-status")
+async def get_domain_status(
+    job_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Dict[str, Any]:
+    """Get domain readiness status for a job."""
+    
+    try:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Job with ID {job_id} not found"
+            )
+        
+        # Check if user owns the job or is superuser
+        if job.owner_id != current_user.id and not current_user.is_superuser:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not enough permissions to access this job"
+            )
+        
+        # Generate URL if domain is ready
+        url = None
+        if job.domain_ready and job.status == "RUNNING":
+            # Generate domain name using same logic as code-server endpoint
+            username_prefix = f"container_{current_user.username}_"
+            if job.job_name.startswith(username_prefix):
+                user_container_name = job.job_name[len(username_prefix):]
+            else:
+                user_container_name = job.job_name
+            
+            # Sanitize container name using centralized method
+            safe_container_name = JobService.sanitize_container_name_for_domain(
+                user_container_name
+            )
+            if not safe_container_name:
+                safe_container_name = f"job{job.id}"
+            
+            # Generate domain using username and clean container name
+            domain = (f"{current_user.username}-{safe_container_name}"
+                      f".orion.zfns.eu.org")
+            url = f"https://{domain}"
+        
+        return {
+            "job_id": job.id,
+            "domain_ready": job.domain_ready,
+            "status": job.status,
+            "node": job.node,
+            "port": job.port,
+            "url": url
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        jobs_logger.error(f"Error getting domain status for job "
+                          f"{job_id}: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to get domain status: {str(e)}"
+        )
 

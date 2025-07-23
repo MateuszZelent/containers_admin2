@@ -652,7 +652,7 @@ class JobService:
                 f"container_{job.owner.username}_", "", 1
             )
 
-            # Sanitize container n ame for domain using centralized method
+            # Sanitize container name for domain using centralized method
             safe_container_name = self.sanitize_container_name_for_domain(
                 container_name
             )
@@ -664,7 +664,7 @@ class JobService:
 
             # Remove domain from Caddy
             caddy_api_url = os.getenv(
-                "CADDY_API_URL", "http://host.docker.internal:2019"
+                "CADDY_API_URL", "http://host.docker.internal:2020"
             )
             caddy_client = CaddyAPIClient(caddy_api_url)
             caddy_success = caddy_client.remove_domain(domain)

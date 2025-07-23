@@ -138,15 +138,16 @@ export default function DashboardPage() {
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   
-  // Domain readiness modal states
-  const [domainModalOpen, setDomainModalOpen] = useState(false);
-  const [selectedJobForDomain, setSelectedJobForDomain] = useState<Job | null>(null);
-  
   // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
   const [clusterStats, setClusterStats] = useState<ClusterStats | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+  
+  // Domain readiness modal states
+  const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
+  const [domainModalJobId, setDomainModalJobId] = useState<number | null>(null);
+  const [domainModalJobName, setDomainModalJobName] = useState<string>("");
 
   // Create a map of active jobs for efficient lookup
   const activeJobsMap = useMemo(() => {
@@ -471,53 +472,24 @@ export default function DashboardPage() {
     }
   }, [jobToDelete]);
 
-  // Open Code Server with loading state and domain readiness check
+  // Open Code Server with loading state
   const openCodeServer = useCallback(async (job: Job) => {
-    // Set processing state for this job
-    setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
-    
     try {
-      const toastId = toast.loading("Checking domain readiness...", {
-        closeButton: true
-      });
-      
-      // First check if domain is ready
-      try {
-        const domainResponse = await jobsApi.checkDomainStatus(job.id);
-        if (domainResponse.data.domain_ready && domainResponse.data.url) {
-          // Domain is ready, open it directly
-          toast.dismiss(toastId);
-          window.open(domainResponse.data.url, '_blank');
-          toast.success("Opening Code Server via domain...", {
-            duration: 3000,
-            closeButton: true
-          });
-          return;
-        }
-      } catch (domainError) {
-        console.log("Domain not ready, falling back to tunnel");
-      }
-      
-      // Domain not ready, show modal for domain readiness
-      toast.dismiss(toastId);
-      toast.info("Domain not ready yet. Opening domain readiness modal...", {
-        duration: 3000
-      });
-      
-      // Open domain readiness modal
-      setSelectedJobForDomain(job);
-      setDomainModalOpen(true);
-      
+      // Open domain readiness modal instead of direct API call
+      setDomainModalJobId(job.id);
+      setDomainModalJobName(job.job_name);
+      setIsDomainModalOpen(true);
+      // Set processing state for this job
+      setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, "Could not access Code Server");
+      const errorMessage = getErrorMessage(error, "Could not open Code Server");
       console.error('Error opening Code Server:', error);
       toast.error(errorMessage, {
         duration: 5000,
         closeButton: true
       });
       console.error(`Code Server error for job ${job.id}:`, error);
-    } finally {
-      // Clear processing state
+      // Clear processing state on error
       setProcessingJobs(prev => ({ ...prev, [job.id]: false }));
     }
   }, []);
@@ -526,6 +498,24 @@ export default function DashboardPage() {
   const handleJobDetails = useCallback((jobId: number) => {
     router.push(`/dashboard/jobs/${jobId}`);
   }, [router]);
+
+  // Handle domain modal close
+  const handleDomainModalClose = useCallback(() => {
+    setIsDomainModalOpen(false);
+    setDomainModalJobId(null);
+    setDomainModalJobName("");
+    // Clear processing state when modal closes
+    if (domainModalJobId) {
+      setProcessingJobs(prev => ({ ...prev, [domainModalJobId]: false }));
+    }
+  }, [domainModalJobId]);
+
+  // Handle URL ready from domain modal
+  const handleUrlReady = useCallback((url: string) => {
+    // This callback is no longer used - opening is handled in the modal itself
+    // Modal stays open for user to manually close
+    console.log('Domain ready:', url);
+  }, []);
 
   // Memoize filtered job lists for better performance and animation stability
   const activeJobsList = useMemo(() => {
@@ -558,18 +548,6 @@ export default function DashboardPage() {
 
   // Determine if any data is loading
   const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
-
-  // Open Domain Readiness Modal
-  const openDomainModal = useCallback((job: Job) => {
-    setSelectedJobForDomain(job);
-    setDomainModalOpen(true);
-  }, []);
-
-  // Close Domain Modal
-  const closeDomainModal = useCallback(() => {
-    setDomainModalOpen(false);
-    setSelectedJobForDomain(null);
-  }, []);
 
   return (
     <div className="space-y-6 ">
@@ -1157,16 +1135,18 @@ export default function DashboardPage() {
         onConfirm={confirmDelete}
         isLoading={jobToDelete ? (processingJobs[jobToDelete.id] || false) : false}
       />
-      
+
       {/* Domain Readiness Modal */}
-      {selectedJobForDomain && (
+      {domainModalJobId && (
         <DomainReadinessModal
-          jobId={selectedJobForDomain.id}
-          jobName={selectedJobForDomain.job_name}
-          isOpen={domainModalOpen}
-          onClose={closeDomainModal}
+          jobId={domainModalJobId}
+          jobName={domainModalJobName}
+          isOpen={isDomainModalOpen}
+          onClose={handleDomainModalClose}
+          onUrlReady={handleUrlReady}
         />
       )}
+      
     </div>
   );
 }

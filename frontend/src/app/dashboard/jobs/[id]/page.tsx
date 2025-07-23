@@ -3,7 +3,6 @@
 import { useState, useEffect, useCallback, use } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { DomainReadinessModal } from '@/components/domain-readiness-modal';
 import { RefreshCcw, ArrowLeft, Link2, ExternalLink } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -95,7 +94,6 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
   const [isLoading, setIsLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
   const [codeServerURL, setCodeServerURL] = useState<string | null>(null);
-  const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
   
   // Confirmation dialog states
   const [tunnelToClose, setTunnelToClose] = useState<SSHTunnel | null>(null);
@@ -221,21 +219,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
     }
   };
 
-  // Start domain setup process instead of direct URL generation
-  const startDomainSetup = () => {
-    setIsDomainModalOpen(true);
-  };
-
-  // Handle when domain URL is ready
-  const handleDomainReady = (url: string) => {
-    setCodeServerURL(url);
-    toast.success("Domain jest gotowy!", {
-      duration: 5000,
-      closeButton: true
-    });
-  };
-
-  // Pobierz URL do Code Server (legacy - keep for backwards compatibility)
+  // Pobierz URL do Code Server
   const getCodeServerURL = async () => {
     try {
       const response = await jobsApi.getCodeServerUrl(jobId);
@@ -774,10 +758,10 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                     variant="outline" 
                     size="sm"
                     disabled={tunnels.length === 0 || !tunnelStatus?.tunnel?.internal_accessible}
-                    onClick={startDomainSetup}
+                    onClick={getCodeServerURL}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Setup Domain
+                    Generuj URL
                   </Button>
                 </div>
                 
@@ -794,7 +778,7 @@ export default function JobDetailPage({ params }: { params: Promise<{ id: string
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground mt-2">
-                    Kliknij &quot;Setup Domain&quot;, aby utworzyć bezpieczny adres dostępowy z monitoringiem gotowości.
+                    Kliknij &quot;Generuj URL&quot;, aby utworzyć bezpieczny adres dostępowy.
                   </p>
                 )}
               </div>

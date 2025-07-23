@@ -13,6 +13,7 @@ import debugpy
 
 # Import cluster monitoring
 from app.services.cluster_monitoring_task import cluster_monitoring_task
+from app.services.domain_monitor import domain_monitor
 
 # Debug mode only for development
 
@@ -66,24 +67,6 @@ async def startup_event():
     logger.info(
         f"  [cyan]Container Output Directory:[/cyan] {settings.CONTAINER_OUTPUT_DIR}"
     )
-
-    # Reset domain flags - after restart, all domains are invalid
-    logger.info("Resetting domain readiness flags after restart")
-    try:
-        db = next(get_db())
-        from app.db.models import Job
-        from sqlalchemy import update
-        
-        # Reset all domain_ready flags to False
-        result = db.execute(
-            update(Job)
-            .values(domain_ready=False)
-            .where(Job.domain_ready.is_(True))
-        )
-        db.commit()
-        logger.info(f"Reset {result.rowcount} domain readiness flags to False")
-    except Exception as e:
-        logger.error(f"Failed to reset domain flags: {str(e)}")
 
     # Start the task queue processor
     logger.info("Starting task queue processor")
@@ -139,6 +122,10 @@ async def startup_event():
     # Start cluster monitoring
     await cluster_monitoring_task.start()
     logger.info("Background cluster monitoring started")
+
+    # Start domain monitoring
+    await domain_monitor.start()
+    logger.info("Background domain monitoring started")
 
 
 @app.get("/")

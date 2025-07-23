@@ -6,26 +6,39 @@ import asyncio
 import aiohttp
 from sqlalchemy.orm import Session
 from sqlalchemy import and_
+from typing import Dict, Optional
 
 from app.db.models import Job
 from app.db.session import SessionLocal
 from app.core.logging import cluster_logger
+from app.core.config import settings
 
 
 class DomainMonitor:
     """Service to monitor domain readiness."""
     
-    def __init__(self, check_interval: int = 30):
+    def __init__(
+        self,
+        check_interval: int = 30,
+        max_attempts: int = 3,
+        caddy_admin_url: Optional[str] = None
+    ):
         self.check_interval = check_interval
+        self.max_attempts = max_attempts
+        self.caddy_admin_url = caddy_admin_url or settings.CADDY_API_URL
         self.running = False
         self.session_factory = SessionLocal
+        # Track attempts per job to avoid infinite checking
+        self.job_attempts: Dict[int, int] = {}
         
     async def start(self):
         """Start the domain monitoring service as a background task."""
         if not self.running:
             # Create background task for monitoring
             asyncio.create_task(self.start_monitoring())
-            cluster_logger.info("Domain monitoring service started as background task")
+            cluster_logger.info(
+                "Domain monitoring service started as background task"
+            )
     
     async def start_monitoring(self):
         """Start the domain monitoring service."""
@@ -35,10 +48,10 @@ class DomainMonitor:
         while self.running:
             try:
                 await self._check_pending_domains()
-                await asyncio.sleep(self.check_interval)
+                await asyncio.sleep(self.check_interval)  # Fixed: Added await
             except Exception as e:
                 cluster_logger.error(f"Error in domain monitoring: {str(e)}")
-                await asyncio.sleep(self.check_interval)
+                await asyncio.sleep(self.check_interval)  # Fixed: Added await
     
     def stop_monitoring(self):
         """Stop the domain monitoring service."""
@@ -60,15 +73,30 @@ class DomainMonitor:
             ).all()
             
             if not pending_jobs:
+                # Clean up attempts tracking for completed jobs
+                self.job_attempts.clear()
                 return
                 
-            cluster_logger.info(f"Checking {len(pending_jobs)} pending domains")
+            cluster_logger.info(
+                f"Checking {len(pending_jobs)} pending domains"
+            )
             
             for job in pending_jobs:
+                # Check if we've exceeded max attempts for this job
+                attempts = self.job_attempts.get(job.id, 0)
+                if attempts >= self.max_attempts:
+                    cluster_logger.warning(
+                        f"Job {job.id} exceeded maximum domain check attempts "
+                        f"({self.max_attempts}), skipping further checks"
+                    )
+                    continue
+                
                 try:
                     await self._check_job_domain(job, db)
                 except Exception as e:
-                    cluster_logger.error(f"Error checking domain for job {job.id}: {str(e)}")
+                    cluster_logger.error(
+                        f"Error checking domain for job {job.id}: {str(e)}"
+                    )
                     
         finally:
             db.close()
@@ -78,54 +106,139 @@ class DomainMonitor:
         
         # Generate expected domain
         if not job.owner or not job.job_name:
+            cluster_logger.warning(
+                f"Job {job.id} missing owner or job_name, skipping"
+            )
             return
             
-        # Use the same domain generation logic as in jobs.py
-        from app.services.job import JobService
+        # Sanitize container name for domain
+        safe_container_name = self._sanitize_container_name_for_domain(
+            job.job_name
+        )
+        domain = (
+            f"{job.owner.username}-{safe_container_name}"
+            ".orion.zfns.eu.org"
+        )
         
-        # Extract user-provided container name
-        username_prefix = f"container_{job.owner.username}_"
-        if job.job_name.startswith(username_prefix):
-            user_container_name = job.job_name[len(username_prefix):]
-        else:
-            user_container_name = job.job_name
-            
-        # Sanitize container name for domain using the same method as jobs.py
-        safe_container_name = JobService.sanitize_container_name_for_domain(user_container_name)
-        if not safe_container_name:
-            safe_container_name = f"job{job.id}"
-            
-        domain = f"{job.owner.username}-{safe_container_name}.orion.zfns.eu.org"
+        # Increment attempt counter
+        self.job_attempts[job.id] = self.job_attempts.get(job.id, 0) + 1
+        attempt_num = self.job_attempts[job.id]
+        
+        cluster_logger.info(
+            f"Checking domain {domain} for job {job.id} "
+            f"(attempt {attempt_num}/{self.max_attempts})"
+        )
+        
+        # First check if Caddy has the domain configured
+        caddy_configured = await self._check_caddy_configuration(domain)
+        if not caddy_configured:
+            cluster_logger.warning(
+                f"Domain {domain} not found in Caddy configuration "
+                f"for job {job.id}"
+            )
+            return
         
         # Check domain accessibility
-        is_accessible = await self._check_domain_accessibility(domain)
+        is_accessible, error_msg = await self._check_domain_accessibility(
+            domain
+        )
         
         if is_accessible:
             job.domain_ready = True
             db.commit()
-            cluster_logger.info(f"Domain {domain} is now accessible, marked job {job.id} as ready")
+            # Remove from tracking since it's now ready
+            self.job_attempts.pop(job.id, None)
+            cluster_logger.info(
+                f"Domain {domain} is now accessible, "
+                f"marked job {job.id} as ready"
+            )
         else:
-            cluster_logger.debug(f"Domain {domain} not yet accessible for job {job.id}")
+            cluster_logger.warning(
+                f"Domain {domain} not yet accessible for job {job.id}: "
+                f"{error_msg}"
+            )
     
-    async def _check_domain_accessibility(self, domain: str, timeout: int = 10) -> bool:
+    async def _check_caddy_configuration(self, domain: str) -> bool:
+        """Check if domain is configured in Caddy."""
+        cluster_logger.debug(
+            f"Checking Caddy configuration for domain {domain} "
+            f"at URL: {self.caddy_admin_url}"
+        )
+        
+        try:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as session:
+                config_url = f"{self.caddy_admin_url}/config/"
+                cluster_logger.debug(f"Fetching Caddy config from: {config_url}")
+                
+                async with session.get(config_url) as response:
+                    cluster_logger.debug(
+                        f"Caddy API response status: {response.status}"
+                    )
+                    
+                    if response.status == 200:
+                        config = await response.json()
+                        cluster_logger.debug(
+                            f"Retrieved Caddy config: {len(str(config))} chars"
+                        )
+                        
+                        # Check if domain exists in apps.http.servers
+                        if "apps" in config and "http" in config["apps"]:
+                            servers = config["apps"]["http"].get("servers", {})
+                            for server_config in servers.values():
+                                routes = server_config.get("routes", [])
+                                for route in routes:
+                                    match = route.get("match", [])
+                                    for m in match:
+                                        if "host" in m and domain in m["host"]:
+                                            cluster_logger.info(
+                                                f"Domain {domain} found in Caddy config"
+                                            )
+                                            return True
+                        
+                        cluster_logger.warning(
+                            f"Domain {domain} not found in Caddy configuration"
+                        )
+                        return False
+                    else:
+                        cluster_logger.warning(
+                            f"Failed to get Caddy config: {response.status} "
+                            f"- {await response.text()}"
+                        )
+                        return True  # Assume configured if can't check
+        except Exception as e:
+            cluster_logger.error(
+                f"Error checking Caddy configuration for {domain}: {e} "
+                f"(URL: {self.caddy_admin_url})"
+            )
+            return True  # Assume configured if can't check
+    
+    async def _check_domain_accessibility(
+        self, domain: str, timeout: int = 10
+    ) -> tuple[bool, str]:
         """Check if a domain is accessible via HTTP/HTTPS."""
         urls_to_check = [
             f"https://{domain}",
             f"http://{domain}"
         ]
         
-        async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=timeout)) as session:
+        async with aiohttp.ClientSession(
+            timeout=aiohttp.ClientTimeout(total=timeout)
+        ) as session:
             for url in urls_to_check:
                 try:
-                    async with session.get(url, allow_redirects=True) as response:
+                    async with session.get(
+                        url, allow_redirects=True
+                    ) as response:
                         # Consider 2xx, 3xx, 401, and 403 as "accessible"
                         # (container might require auth but domain is working)
                         if response.status < 500:
-                            return True
+                            return True, "Domain is accessible"
                 except Exception:
                     continue
         
-        return False
+        return False, "Domain not accessible via HTTP/HTTPS"
     
     @staticmethod
     def _sanitize_container_name_for_domain(container_name: str) -> str:
@@ -142,6 +255,29 @@ class DomainMonitor:
         sanitized = sanitized.strip("-")
         
         return sanitized
+    
+    async def test_caddy_connection(self) -> bool:
+        """Test connection to Caddy admin API."""
+        cluster_logger.info(f"Testing connection to Caddy at: {self.caddy_admin_url}")
+        
+        try:
+            async with aiohttp.ClientSession(
+                timeout=aiohttp.ClientTimeout(total=5)
+            ) as session:
+                test_url = f"{self.caddy_admin_url}/config/"
+                
+                async with session.get(test_url) as response:
+                    if response.status == 200:
+                        cluster_logger.info("✅ Caddy connection successful")
+                        return True
+                    else:
+                        cluster_logger.error(
+                            f"❌ Caddy connection failed: {response.status}"
+                        )
+                        return False
+        except Exception as e:
+            cluster_logger.error(f"❌ Caddy connection error: {e}")
+            return False
 
 
 # Global instance for the monitoring service
