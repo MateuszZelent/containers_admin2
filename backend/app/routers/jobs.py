@@ -19,7 +19,7 @@ from app.schemas.job import (
 )
 from app.schemas.job import Job as JobSchema
 from app.services.job import JobService
-from app.services.ssh_tunnel import SSHTunnelService
+from app.services.ssh_tunnel import SSHTunnelService, TunnelStatus
 from app.db.models import User, Job, SSHTunnel
 from app.core.config import settings
 
@@ -794,7 +794,7 @@ async def check_tunnel_status(
         }
     else:
         # Tunel jest nieaktywny, oznacz jako zamknięty w bazie danych
-        active_tunnel.status = "CLOSED"
+        active_tunnel.status = TunnelStatus.CLOSED.value
         db.commit()
         return {
             "status": "INACTIVE",
