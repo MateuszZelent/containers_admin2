@@ -1,15 +1,11 @@
 "use client";
 
-import Image from "next/image";
-import { redirect } from "next/navigation";
-import { useEffect, useState } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { authApi } from "@/lib/api-client";
 import { Toaster } from "@/components/ui/sonner";
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(true);
 
   // Add logic to check for redirect after successful login
   const handleLoginSuccess = () => {
