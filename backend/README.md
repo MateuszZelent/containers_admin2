@@ -56,8 +56,15 @@ API Documentation will be available at http://localhost:8000/docs.
 ## API Endpoints
 
 ### Authentication
-- `POST /api/v1/auth/login` - Login to get a JWT token
-- `POST /api/v1/auth/logout` - Clear authentication cookies and logout
+- `POST /api/v1/auth/login` - Login to get a JWT token (accepts optional `remember_me` boolean)
+
+#### Example
+
+```bash
+curl -X POST http://localhost:8000/api/v1/auth/login \
+     -d "username=myuser&password=mypass&remember_me=true" \
+     -H "Content-Type: application/x-www-form-urlencoded"
+```
 
 ### Users
 - `POST /api/v1/users/` - Register a new user

@@ -1,15 +1,11 @@
 "use client";
 
-import Image from "next/image";
-import { redirect } from "next/navigation";
-import { useEffect, useState } from "react";
 import { LoginForm } from "@/components/auth/login-form";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { authApi } from "@/lib/api-client";
+import { authApi, userApi } from "@/lib/api-client";
 import { Toaster } from "@/components/ui/sonner";
 
 export default function LoginPage() {
-  const [isLoading, setIsLoading] = useState(true);
 
   // Add logic to check for redirect after successful login
   const handleLoginSuccess = () => {
@@ -30,29 +26,29 @@ export default function LoginPage() {
   // Handle login form submission
   const handleLogin = async (values: { username: string; password: string }) => {
     try {
-      const response = await authApi.login(values.username, values.password);
-      
-      // After successful login, save user data
-      if (response && response.data) {
-        const userData = response.data;
-        
+      // Authenticate user and store token
+      await authApi.login(values.username, values.password);
+
+      // Fetch user info after successful login
+      const userResponse = await userApi.getCurrentUser();
+
+      if (userResponse && userResponse.data) {
+        const userData = userResponse.data as any;
+
         // Add full name if we have first/last name data
         if (!userData.full_name && (userData.first_name || userData.last_name)) {
           const firstName = userData.first_name || '';
           const lastName = userData.last_name || '';
           userData.full_name = `${firstName} ${lastName}`.trim();
         }
-        
-        // Save token
-        localStorage.setItem('auth_token', userData.token || userData.access_token);
-        
+
         // Save user data
         localStorage.setItem('user_data', JSON.stringify(userData));
         localStorage.setItem('user_data_timestamp', Date.now().toString());
-        
-        // Use the success handler to redirect
-        handleLoginSuccess();
       }
+
+      // Use the success handler to redirect
+      handleLoginSuccess();
     } catch (error) {
       console.error('Login error:', error);
       throw error;

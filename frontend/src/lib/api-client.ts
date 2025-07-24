@@ -157,10 +157,13 @@ apiClient.interceptors.response.use(
 
 // Auth API
 export const authApi = {
-  login: async (username: string, password: string) => {
+  login: async (username: string, password: string, rememberMe?: boolean) => {
     const params = new URLSearchParams();
     params.append("username", username);
     params.append("password", password);
+    if (rememberMe !== undefined) {
+      params.append("remember_me", String(rememberMe));
+    }
     
     try {
       const response = await apiClient.post(`/auth/login`, params, {
