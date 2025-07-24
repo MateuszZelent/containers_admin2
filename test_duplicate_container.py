@@ -7,6 +7,9 @@ This script will test the backend API directly.
 import asyncio
 import sys
 import requests
+import pytest
+
+pytest.skip("Manual integration test", allow_module_level=True)
 
 # Add the backend directory to Python path
 sys.path.insert(0, '/home/kkingstoun/git/containers_admin2/backend')

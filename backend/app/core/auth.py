@@ -162,3 +162,38 @@ def get_current_superuser_with_cli_support(
             detail="The user doesn't have enough privileges",
         )
     return current_user
+
+
+async def get_current_user_websocket(token: Optional[str], db: Session) -> Optional[User]:
+    """Retrieve the current user for a WebSocket connection."""
+    # Allow anonymous access when auth is disabled and no token is provided
+    if settings.DISABLE_AUTH and not token:
+        return UserService.get_by_username(db, username="admin")
+
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Missing credentials",
+        )
+
+    # Try JWT authentication first
+    try:
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
+        token_data = TokenPayload(**payload)
+        if token_data.sub:
+            user = UserService.get_by_username(db, username=token_data.sub)
+            if user:
+                return user
+    except (JWTError, ValidationError):
+        pass
+
+    # Fall back to CLI token authentication
+    cli_token_service = CLITokenService(db)
+    cli_token = cli_token_service.verify_token(token)
+    if cli_token and cli_token.owner:
+        return cli_token.owner
+
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="Could not validate credentials",
+    )
