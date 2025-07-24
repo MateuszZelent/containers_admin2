@@ -44,6 +44,7 @@ import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
+import { useJobStatus } from "@/hooks/useJobStatus";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -143,6 +144,9 @@ export default function DashboardPage() {
   const [clusterStats, setClusterStats] = useState<ClusterStats | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+
+  // WebSocket connection state
+  const { isJobStatusConnected, verificationCode } = useJobStatus({ enabled: true });
   
   // Domain readiness modal states
   const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
@@ -654,6 +658,19 @@ export default function DashboardPage() {
                     Połączenie SSH: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}
                   </p>
                 </div>
+                <div className="flex items-center">
+                  <div className={`h-3 w-3 rounded-full mr-2 ${isJobStatusConnected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
+                  <p className={isJobStatusConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
+                    Połączenie WebSocket: {isJobStatusConnected ? 'Aktywne' : 'Nieaktywne'}
+                  </p>
+                </div>
+                {verificationCode && (
+                  <div className="flex items-center">
+                    <p className="text-emerald-700 dark:text-emerald-400">
+                      Weryfikacja WebSocket: {verificationCode}
+                    </p>
+                  </div>
+                )}
                 {/* <div className="flex items-center">
                   <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.slurm_running ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
                   <p className={clusterStatus.slurm_running ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>

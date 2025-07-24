@@ -33,6 +33,7 @@ interface UseJobStatusReturn {
   isNotificationsConnected: boolean;
   subscribeToJob: (jobId: number) => void;
   subscribeToTunnel: (tunnelId: number) => void;
+  verificationCode: string | null;
   reconnectCounts: {
     jobStatus: number;
     tunnelHealth: number;
@@ -50,11 +51,16 @@ export const useJobStatus = ({
   // Check if user is authenticated
   const isAuthenticated = typeof window !== "undefined" && localStorage.getItem("auth_token") !== null;
 
+  const [verificationCode, setVerificationCode] = useState<string | null>(null);
+
   // Job Status WebSocket
   const handleJobMessage = useCallback((message: WebSocketMessage) => {
     console.log('Job status message:', message);
     
     switch (message.type) {
+      case 'verification':
+        setVerificationCode(message.code ?? null);
+        break;
       case 'job_status_update':
       case 'job_created':
       case 'job_deleted':
@@ -90,6 +96,9 @@ export const useJobStatus = ({
     console.log('Tunnel health message:', message);
     
     switch (message.type) {
+      case 'verification':
+        setVerificationCode(message.code ?? null);
+        break;
       case 'tunnel_created':
       case 'tunnel_active':
       case 'tunnel_failed':
@@ -132,6 +141,9 @@ export const useJobStatus = ({
     console.log('Notification message:', message);
     
     switch (message.type) {
+      case 'verification':
+        setVerificationCode(message.code ?? null);
+        break;
       case 'notification':
       case 'alert':
       case 'warning':
@@ -191,6 +203,7 @@ export const useJobStatus = ({
     isNotificationsConnected,
     subscribeToJob,
     subscribeToTunnel,
+    verificationCode,
     reconnectCounts: {
       jobStatus: jobStatusReconnectCount,
       tunnelHealth: tunnelHealthReconnectCount,
