@@ -80,6 +80,22 @@ services:
     depends_on:
       - backend
 
+  caddy:
+    image: caddy:2
+    container_name: containers_admin_caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./caddy:/etc/caddy
+    command: ["caddy", "run", "--config", "/etc/caddy/Caddyfile-fixed"]
+    networks:
+      - app_network
+    restart: unless-stopped
+    depends_on:
+      - backend
+      - frontend
+
 volumes:
   postgres_data2:
     name: containers_admin_postgres_data2
