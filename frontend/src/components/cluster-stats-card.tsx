@@ -19,6 +19,7 @@ import {
   Monitor
 } from "lucide-react";
 import { toast } from "sonner";
+import { showToast } from "@/lib/toast-helpers";
 
 interface ClusterStatsCardProps {
   onRefresh?: () => void;
@@ -42,7 +43,10 @@ export function ClusterStatsCard({ onRefresh }: ClusterStatsCardProps) {
       setSummary(summaryResponse.data);
     } catch (error) {
       console.error("Error fetching cluster stats:", error);
-      toast.error("Failed to fetch cluster statistics");
+      showToast.error(
+        "Nie udało się pobrać statystyk klastra",
+        "Sprawdź połączenie z systemem PCSS i spróbuj ponownie."
+      );
     } finally {
       setIsLoading(false);
     }
@@ -53,7 +57,10 @@ export function ClusterStatsCard({ onRefresh }: ClusterStatsCardProps) {
     try {
       const response = await clusterApi.updateStats();
       setStats(response.data);
-      toast.success("Cluster statistics updated successfully");
+      showToast.success(
+        "Statystyki klastra zaktualizowane",
+        "Dane zostały pomyślnie odświeżone z systemu PCSS."
+      );
       
       // Refresh summary after update
       const summaryResponse = await clusterApi.getSummary();
@@ -64,7 +71,14 @@ export function ClusterStatsCard({ onRefresh }: ClusterStatsCardProps) {
       }
     } catch (error) {
       console.error("Error updating cluster stats:", error);
-      toast.error("Failed to update cluster statistics");
+      showToast.error(
+        "Błąd aktualizacji statystyk",
+        "Nie udało się zaktualizować danych. Spróbuj ponownie za chwilę.",
+        {
+          label: "Spróbuj ponownie",
+          onClick: () => handleForceUpdate()
+        }
+      );
     } finally {
       setIsUpdating(false);
     }
