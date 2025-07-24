@@ -44,6 +44,7 @@ backend/alembic/*
 test.py
 ENV/
 test_*
+!tests/test_websocket_connection.py
 .pytest_cache/
 *.pyc
 *.sh

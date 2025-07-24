@@ -8,6 +8,9 @@ import asyncio
 import sys
 import os
 from pathlib import Path
+import pytest
+
+pytest.skip("Manual integration test", allow_module_level=True)
 
 # Add the backend directory to Python path
 backend_dir = Path(__file__).parent
