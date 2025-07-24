@@ -185,11 +185,8 @@ export const authApi = {
   
   async logout() {
     try {
-      // Najpierw próbujemy wywołać endpoint wylogowania po stronie serwera
-      await fetch('/auth/logout', {
-        method: 'POST',
-        credentials: 'include', // ważne aby wysłać cookies
-      });
+      // Call backend logout to clear any cookie based tokens
+      await apiClient.post('/auth/logout');
     } catch (error) {
       console.error('Backend logout failed:', error);
     }

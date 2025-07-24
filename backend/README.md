@@ -65,6 +65,7 @@ curl -X POST http://localhost:8000/api/v1/auth/login \
      -d "username=myuser&password=mypass&remember_me=true" \
      -H "Content-Type: application/x-www-form-urlencoded"
 ```
+- `POST /api/v1/auth/logout` - Clear authentication cookies and logout
 
 ### Users
 - `POST /api/v1/users/` - Register a new user
