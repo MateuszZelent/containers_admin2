@@ -43,7 +43,7 @@ export function LoginForm() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsLoading(true);
     try {
-      await authApi.login(values.username, values.password);
+      await authApi.login(values.username, values.password, values.rememberMe);
       
       // Jeśli użytkownik wybrał "Zapamiętaj mnie", ustaw dłuższą sesję
       if (values.rememberMe) {
