@@ -6,6 +6,8 @@ from app.db.session import get_db
 from sqlalchemy.orm import Session
 from typing import Optional
 import json
+import random
+import string
 
 router = APIRouter(prefix="/ws", tags=["websockets"])
 
@@ -64,6 +66,15 @@ async def job_status_websocket(
             "type": "connection_established",
             "channel": "job_status",
             "message": "Connected to job status updates"
+        }))
+
+        # Send verification code
+        verification_code = ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
+        await websocket.send_text(json.dumps({
+            "type": "verification",
+            "code": verification_code
         }))
         
         # Keep connection alive and handle incoming messages
@@ -161,6 +172,14 @@ async def tunnel_health_websocket(
             "channel": "tunnel_health",
             "message": "Connected to tunnel health updates"
         }))
+
+        verification_code = ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
+        await websocket.send_text(json.dumps({
+            "type": "verification",
+            "code": verification_code
+        }))
         
         # Keep connection alive
         while True:
@@ -245,6 +264,14 @@ async def notifications_websocket(
             "channel": "notifications",
             "message": "Connected to system notifications"
         }))
+
+        verification_code = ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
+        await websocket.send_text(json.dumps({
+            "type": "verification",
+            "code": verification_code
+        }))
         
         # Keep connection alive
         while True:
@@ -316,6 +343,14 @@ async def admin_stats_websocket(
             "user_stats": websocket_manager.get_user_stats()
         }
         await websocket.send_text(json.dumps(stats))
+
+        verification_code = ''.join(
+            random.choices(string.ascii_uppercase + string.digits, k=6)
+        )
+        await websocket.send_text(json.dumps({
+            "type": "verification",
+            "code": verification_code
+        }))
         
         # Keep connection alive
         while True:
