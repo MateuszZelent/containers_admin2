@@ -9,6 +9,7 @@ from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
 from app.routers import auth, users, jobs, task_queue, cli_tokens, cluster
+import app.websocket.router as websocket
 import debugpy
 
 # Import cluster monitoring
@@ -52,6 +53,8 @@ app.include_router(
 app.include_router(
     cluster.router, prefix=f"{settings.API_V1_STR}/cluster", tags=["cluster"]
 )
+
+app.include_router(websocket.router)
 
 
 @app.on_event("startup")
