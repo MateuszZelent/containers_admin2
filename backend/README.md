@@ -57,6 +57,7 @@ API Documentation will be available at http://localhost:8000/docs.
 
 ### Authentication
 - `POST /api/v1/auth/login` - Login to get a JWT token
+- `POST /api/v1/auth/logout` - Clear authentication cookies and logout
 
 ### Users
 - `POST /api/v1/users/` - Register a new user
