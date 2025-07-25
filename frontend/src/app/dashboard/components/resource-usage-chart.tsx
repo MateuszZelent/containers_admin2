@@ -106,7 +106,7 @@ export function ResourceUsageChart() {
 
   const CustomLegend = () => {
     const legendItems = [
-      { key: 'logged_in_users', name: 'Zalogowani użytkownicy', icon: Users, color: '#3b82f6', yAxis: 'left' },
+      { key: 'logged_in_users', name: 'Aktywne sesje', icon: Users, color: '#3b82f6', yAxis: 'left' },
       { key: 'active_containers', name: 'Aktywne kontenery', icon: Server, color: '#10b981', yAxis: 'left' },
       { key: 'used_gpus', name: 'Używane GPU', icon: Zap, color: '#f59e0b', yAxis: 'left' },
       { key: 'reserved_ram_gb', name: 'RAM (GB)', icon: HardDrive, color: '#8b5cf6', yAxis: 'right' },
@@ -146,14 +146,14 @@ export function ResourceUsageChart() {
 
   if (isLoading) {
     return (
-      <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/40">
+      <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/40 mb-8">
         <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
           <div>
             <CardTitle className="text-lg font-semibold text-slate-900 dark:text-slate-100">
               Wykorzystanie zasobów klastra
             </CardTitle>
             <CardDescription className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-              Monitoring użytkowników, kontenerów, GPU, RAM i CPU
+            Monitoring aktywnych sesji, kontenerów, GPU, RAM i CPU
             </CardDescription>
           </div>
           <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-full">
@@ -183,14 +183,14 @@ export function ResourceUsageChart() {
   } : null;
 
   return (
-    <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/40 hover:bg-white/70 hover:border-slate-300/70 dark:hover:bg-slate-800/70 dark:hover:border-slate-600/50 transition-all duration-300">
+    <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60 border-slate-200/60 dark:border-slate-700/40 hover:bg-white/70 hover:border-slate-300/70 dark:hover:bg-slate-800/70 dark:hover:border-slate-600/50 transition-all duration-300 mb-8">
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-4">
         <div>
           <CardTitle className="text-lg font-semibold text-slate-900 dark:text-slate-100">
             Wykorzystanie zasobów klastra
           </CardTitle>
           <CardDescription className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-            Monitoring użytkowników, kontenerów, GPU, RAM i CPU • {data.length} pomiarów
+            Monitoring aktywnych sesji, kontenerów, GPU, RAM i CPU • {data.length} pomiarów
           </CardDescription>
         </div>
         <div className="flex items-center gap-2 px-3 py-1 bg-emerald-50 dark:bg-emerald-950/30 rounded-full">
@@ -299,7 +299,7 @@ export function ResourceUsageChart() {
                     stroke="#3b82f6"
                     strokeWidth={2}
                     fill="url(#usersGradient)"
-                    name="Zalogowani użytkownicy"
+                    name="Aktywne sesje"
                     connectNulls={false}
                   />
                 )}

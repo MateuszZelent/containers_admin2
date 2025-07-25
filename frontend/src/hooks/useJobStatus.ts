@@ -59,6 +59,7 @@ export const useJobStatus = ({
     
     switch (message.type) {
       case 'verification':
+      case 'periodic_code':
         setVerificationCode(message.code ?? null);
         break;
       case 'job_status_update':

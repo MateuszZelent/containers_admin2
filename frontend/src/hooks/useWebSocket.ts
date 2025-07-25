@@ -50,12 +50,30 @@ export const useWebSocket = ({
   const shouldConnect = useRef(enabled);
 
   const getWebSocketUrl = useCallback(() => {
-    // Force ws:// for development environment
-    const protocol = process.env.NODE_ENV === 'development' ? 'ws:' : 
-                    (window.location.protocol === 'https:' ? 'wss:' : 'ws:');
-    const host = process.env.NODE_ENV === 'development' 
-      ? 'localhost:8000' 
-      : window.location.host;
+    // Determine protocol based on current page protocol
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // Determine host and port
+    let host: string;
+    const currentHost = window.location.hostname;
+    const currentPort = window.location.port;
+    
+    // Check if we're running locally (development) or on production domain
+    const isLocalDevelopment = currentHost === 'localhost' || currentHost === '127.0.0.1';
+    const isProductionDomain = currentHost.includes('amucontainers.orion.zfns.eu.org');
+    
+    if (isLocalDevelopment) {
+      // Local development - connect directly to backend port
+      host = 'localhost:8000';
+    } else if (isProductionDomain) {
+      // Production domain - use same host without explicit port (Caddy handles routing)
+      // Frontend is served on 443 (HTTPS), Caddy routes /ws/* to backend:8000 internally
+      host = currentHost; // No port - use default HTTPS port 443
+    } else {
+      // Network development (IP address or other hostname)
+      // Try to connect directly to port 8000
+      host = `${currentHost}:8000`;
+    }
     
     // Get auth token from localStorage
     const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;

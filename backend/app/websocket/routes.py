@@ -5,6 +5,7 @@ from app.core.auth import get_current_user_websocket
 from app.db.session import get_db
 from sqlalchemy.orm import Session
 from typing import Optional
+from datetime import datetime
 import json
 import random
 import string
@@ -30,6 +31,10 @@ async def job_status_websocket(
     - Job creation/deletion events
     - Error notifications
     """
+    print(f"DEBUG: WebSocket connection attempt to /jobs/status with token: {token[:20] if token else 'None'}...")
+    print(f"DEBUG: User agent: {websocket.headers.get('user-agent', 'Unknown')}")
+    print(f"DEBUG: Origin: {websocket.headers.get('origin', 'Unknown')}")
+    
     # Get database session
     db = next(get_db())
     
@@ -38,9 +43,11 @@ async def job_status_websocket(
         user = await get_current_user_websocket(token, db)
         user_id = str(user.id) if user else None
         
+        print(f"DEBUG: Authentication successful for user: {user.username if user else 'anonymous'} (id: {user_id})")
         cluster_logger.info(f"WebSocket job_status connection attempt by user: {user.username if user else 'anonymous'}")
         
     except Exception as e:
+        print(f"DEBUG: WebSocket authentication failed: {e}")
         cluster_logger.warning(f"WebSocket authentication failed: {e}")
         await websocket.close(code=1008, reason="Authentication failed")
         return

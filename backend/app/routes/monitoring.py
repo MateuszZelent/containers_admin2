@@ -5,6 +5,7 @@ from typing import Literal, Optional
 from app.core.auth import get_current_superuser
 from app.db.models import User
 from app.services.resource_usage_task import resource_usage_task
+from app.websocket.manager import websocket_manager
 
 router = APIRouter()
 
@@ -93,3 +94,17 @@ async def restart_monitoring(
             status_code=500,
             detail=f"Failed to restart monitoring: {str(e)}"
         )
+
+
+@router.get("/monitoring/active-sessions")
+async def get_active_sessions(
+    current_user: User = Depends(get_current_superuser)
+):
+    """Get information about active WebSocket sessions."""
+    stats = websocket_manager.get_connection_stats()
+    return {
+        "active_users": stats["active_users"],
+        "total_connections": stats["total_connections"],
+        "connections_by_channel": stats["connections_by_channel"],
+        "user_stats": stats["user_stats"]
+    }

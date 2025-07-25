@@ -28,12 +28,15 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, channel: str, user_id: Optional[str] = None):
         """Connect a WebSocket to a specific channel."""
         try:
+            print(f"DEBUG: Attempting to connect WebSocket to channel '{channel}' for user '{user_id}'")
             await websocket.accept()
+            print(f"DEBUG: WebSocket accepted successfully")
             
             # Add to channel connections
             if channel not in self.active_connections:
                 self.active_connections[channel] = []
             self.active_connections[channel].append(websocket)
+            print(f"DEBUG: Added to channel '{channel}', now has {len(self.active_connections[channel])} connections")
             
             # Add to user connections if user_id provided
             if user_id:
@@ -42,6 +45,7 @@ class ConnectionManager:
                 if channel not in self.user_connections[user_id]:
                     self.user_connections[user_id][channel] = []
                 self.user_connections[user_id][channel].append(websocket)
+                print(f"DEBUG: Added to user '{user_id}' channel '{channel}', user now has {len(self.user_connections[user_id][channel])} connections in this channel")
             
             # Store metadata
             self.connection_metadata[websocket] = {
@@ -50,6 +54,13 @@ class ConnectionManager:
                 "connected_at": datetime.utcnow(),
                 "last_ping": datetime.utcnow()
             }
+            
+            # Print current state after adding connection
+            total_connections = sum(len(conns) for conns in self.active_connections.values())
+            print(f"DEBUG: Connection registered successfully!")
+            print(f"DEBUG: Total connections: {total_connections}")
+            print(f"DEBUG: Total users: {len(self.user_connections)}")
+            print(f"DEBUG: All channels: {list(self.active_connections.keys())}")
             
             cluster_logger.info(f"WebSocket connected to channel '{channel}' (user: {user_id})")
             return True
@@ -61,43 +72,54 @@ class ConnectionManager:
     def disconnect(self, websocket: WebSocket):
         """Disconnect a WebSocket from all channels."""
         try:
+            print(f"DEBUG: Starting disconnect for WebSocket {id(websocket)}")
             metadata = self.connection_metadata.get(websocket)
             if not metadata:
+                print(f"DEBUG: No metadata found for WebSocket {id(websocket)}, already disconnected?")
                 return
                 
             channel = metadata["channel"]
             user_id = metadata["user_id"]
+            print(f"DEBUG: Disconnecting WebSocket from channel '{channel}' (user: {user_id})")
             
             # Remove from channel connections
             if channel in self.active_connections:
                 if websocket in self.active_connections[channel]:
                     self.active_connections[channel].remove(websocket)
+                    print(f"DEBUG: Removed from channel '{channel}', remaining: {len(self.active_connections[channel])}")
                     
                 # Clean up empty channels
                 if not self.active_connections[channel]:
                     del self.active_connections[channel]
+                    print(f"DEBUG: Cleaned up empty channel '{channel}'")
             
             # Remove from user connections
             if user_id and user_id in self.user_connections:
                 if channel in self.user_connections[user_id]:
                     if websocket in self.user_connections[user_id][channel]:
                         self.user_connections[user_id][channel].remove(websocket)
+                        print(f"DEBUG: Removed from user '{user_id}' channel '{channel}', remaining: {len(self.user_connections[user_id][channel])}")
                     
                     # Clean up empty user channels
                     if not self.user_connections[user_id][channel]:
                         del self.user_connections[user_id][channel]
+                        print(f"DEBUG: Cleaned up empty user channel '{user_id}':'{channel}'")
                         
                 # Clean up empty user entries
                 if not self.user_connections[user_id]:
                     del self.user_connections[user_id]
+                    print(f"DEBUG: Cleaned up empty user entry '{user_id}'")
             
             # Remove metadata
             if websocket in self.connection_metadata:
                 del self.connection_metadata[websocket]
+                print(f"DEBUG: Removed metadata for WebSocket {id(websocket)}")
                 
+            print(f"DEBUG: Disconnect completed. Total connections: {sum(len(conns) for conns in self.active_connections.values())}, Total users: {len(self.user_connections)}")
             cluster_logger.info(f"WebSocket disconnected from channel '{channel}' (user: {user_id})")
             
         except Exception as e:
+            print(f"DEBUG: Error during disconnect: {e}")
             cluster_logger.error(f"Error disconnecting WebSocket: {e}")
     
     async def broadcast_to_channel(self, channel: str, data: dict):

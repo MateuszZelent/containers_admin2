@@ -2,6 +2,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from app.db.models import Job, ResourceUsageSnapshot
+from app.websocket.manager import websocket_manager
 
 
 class ResourceUsageService:
@@ -15,7 +16,9 @@ class ResourceUsageService:
             .all()
         )
 
-        logged_in_users = len({job.owner_id for job in active_jobs})
+        # Get real active sessions from WebSocket manager
+        # Counts users with active WebSocket connections (truly logged in)
+        logged_in_users = len(websocket_manager.user_connections)
         active_containers = len(active_jobs)
         used_gpus = sum(job.num_gpus for job in active_jobs)
         reserved_ram_gb = sum(job.memory_gb for job in active_jobs)
