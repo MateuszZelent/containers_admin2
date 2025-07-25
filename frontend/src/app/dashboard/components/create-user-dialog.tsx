@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -16,7 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
-import { adminApi } from "@/lib/api-client";
+import { adminApi, jobsApi } from "@/lib/api-client";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -25,6 +25,7 @@ interface CreateUserDialogProps {
 export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
   const [open, setOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     username: "",
     email: "",
@@ -35,7 +36,24 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
     is_superuser: false,
     max_containers: 6,
     max_gpus: 24,
+    max_gpus_per_job: 0,
+    max_time_limit_hours: 0,
+    allowed_templates: [] as string[],
   });
+
+  // Load available templates when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    const load = async () => {
+      try {
+        const res = await jobsApi.getTemplates();
+        setAvailableTemplates(res.data);
+      } catch (e) {
+        console.error("Failed to load templates", e);
+      }
+    };
+    load();
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -59,7 +77,10 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
         is_active: true,
         is_superuser: false,
         max_containers: 6,
-        max_gpus: 24,  
+        max_gpus: 24,
+        max_gpus_per_job: 0,
+        max_time_limit_hours: 0,
+        allowed_templates: [],
       });
       onUserCreated?.();
     } catch (error: any) {
@@ -146,6 +167,92 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
                 required
               />
             </div>
+
+            {/* Resource limits */}
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_containers" className="text-right">
+                Maks. kontenerów
+              </Label>
+              <Input
+                id="max_containers"
+                type="number"
+                value={formData.max_containers}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_containers: Number(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_gpus" className="text-right">
+                Maks. GPU łącznie
+              </Label>
+              <Input
+                id="max_gpus"
+                type="number"
+                value={formData.max_gpus}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_gpus: Number(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_gpus_per_job" className="text-right">
+                Maks. GPU na kontener
+              </Label>
+              <Input
+                id="max_gpus_per_job"
+                type="number"
+                value={formData.max_gpus_per_job}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_gpus_per_job: Number(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_time_limit_hours" className="text-right">
+                Maks. czas pracy [h]
+              </Label>
+              <Input
+                id="max_time_limit_hours"
+                type="number"
+                value={formData.max_time_limit_hours}
+                onChange={(e) =>
+                  setFormData({ ...formData, max_time_limit_hours: Number(e.target.value) })
+                }
+                className="col-span-3"
+              />
+            </div>
+
+            {/* Template permissions */}
+            {availableTemplates.length > 0 && (
+              <div className="grid grid-cols-4 gap-4">
+                <Label className="text-right mt-1">Szablony</Label>
+                <div className="col-span-3 space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                  {availableTemplates.map((tpl) => (
+                    <div key={tpl} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tpl_${tpl}`}
+                        checked={formData.allowed_templates.includes(tpl)}
+                        onCheckedChange={(checked) => {
+                          setFormData((prev) => {
+                            const allowed = new Set(prev.allowed_templates)
+                            if (checked) allowed.add(tpl)
+                            else allowed.delete(tpl)
+                            return { ...prev, allowed_templates: Array.from(allowed) }
+                          })
+                        }}
+                      />
+                      <Label htmlFor={`tpl_${tpl}`} className="text-sm">
+                        {tpl}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Opcje</Label>
               <div className="col-span-3 space-y-3">

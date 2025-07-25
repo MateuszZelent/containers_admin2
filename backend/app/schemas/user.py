@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional
+from typing import Optional, List
 
 
 class UserBase(BaseModel):
@@ -9,6 +9,9 @@ class UserBase(BaseModel):
     last_name: Optional[str] = None
     max_containers: Optional[int] = 6
     max_gpus: Optional[int] = 24
+    max_gpus_per_job: Optional[int] = None
+    max_time_limit_hours: Optional[int] = None
+    allowed_templates: Optional[List[str]] = None
 
 
 class UserCreate(UserBase):
@@ -28,6 +31,9 @@ class UserUpdate(BaseModel):
     code_server_password: Optional[str] = None
     max_containers: Optional[int] = None
     max_gpus: Optional[int] = None
+    max_gpus_per_job: Optional[int] = None
+    max_time_limit_hours: Optional[int] = None
+    allowed_templates: Optional[List[str]] = None
 
 
 class UserInDBBase(UserBase):
@@ -37,6 +43,9 @@ class UserInDBBase(UserBase):
     code_server_password: Optional[str] = None
     max_containers: int = 6
     max_gpus: int = 24
+    max_gpus_per_job: Optional[int] = None
+    max_time_limit_hours: Optional[int] = None
+    allowed_templates: Optional[List[str]] = None
 
     class Config:
         from_attributes = True

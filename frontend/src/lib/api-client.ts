@@ -259,6 +259,11 @@ export const adminApi = {
     password: string;
     is_active?: boolean;
     is_superuser?: boolean;
+    max_containers?: number;
+    max_gpus?: number;
+    max_gpus_per_job?: number;
+    max_time_limit_hours?: number;
+    allowed_templates?: string[];
   }) => apiClient.post('/users/admin', userData),
   
   // Update user (admin only)
@@ -270,8 +275,11 @@ export const adminApi = {
     password?: string;
     is_active?: boolean;
     is_superuser?: boolean;
-    max_containers?: number; // Nowa opcja do aktualizacji
-    max_gpus?: number; // Nowa opcja do aktualizacji
+    max_containers?: number;
+    max_gpus?: number;
+    max_gpus_per_job?: number;
+    max_time_limit_hours?: number;
+    allowed_templates?: string[];
   }) => apiClient.put(`/users/${userId}`, userData),
   
   // Delete user (admin only)

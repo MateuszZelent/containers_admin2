@@ -186,8 +186,11 @@ async def get_templates(
     templates = []
 
     for filename in os.listdir(template_dir):
-        if filename.endswith(".template"):
-            templates.append(filename)
+        if not filename.endswith(".template"):
+            continue
+        if current_user.allowed_templates is not None and filename not in current_user.allowed_templates:
+            continue
+        templates.append(filename)
 
     return templates
 
@@ -197,6 +200,13 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
     Check if user can create new job based on their limits.
     Raises HTTPException if limits are exceeded.
     """
+    # Check template permissions
+    if user.allowed_templates is not None and job_in.template_name not in user.allowed_templates:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="User not allowed to use this template",
+        )
+
     # Get all user's active jobs
     active_jobs = (
         db.query(Job)
@@ -220,6 +230,17 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
                        f"💡 Usuń nieużywane kontenery, aby zwolnić miejsce."
             )
     
+    # Check per-job GPU limit
+    if user.max_gpus_per_job is not None and job_in.num_gpus > user.max_gpus_per_job:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"❌ Limit GPU na jeden kontener przekroczony!\n"
+                f"🔸 Dozwolone GPU na kontener: {user.max_gpus_per_job}\n"
+                f"🔸 Żądane GPU: {job_in.num_gpus}"
+            ),
+        )
+
     # Check max GPUs limit
     if user.max_gpus is not None and job_in.num_gpus > 0:
         total_gpus_used = sum([job.num_gpus or 0 for job in active_jobs])
@@ -234,6 +255,24 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
                        f"🔸 Po utworzeniu wykorzystanie: "
                        f"{total_gpus_used + job_in.num_gpus}\n"
                        f"💡 Usuń kontenery używające GPU lub zmniejsz liczbę GPU."
+            )
+
+    # Check max job time limit
+    if user.max_time_limit_hours is not None:
+        try:
+            hours, minutes, seconds = [int(part) for part in job_in.time_limit.split(":")]
+            requested_hours = hours + minutes / 60 + seconds / 3600
+        except Exception:
+            requested_hours = 0
+
+        if requested_hours > user.max_time_limit_hours:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=(
+                    f"❌ Przekroczono maksymalny czas życia kontenera!\n"
+                    f"🔸 Dozwolone godzin: {user.max_time_limit_hours}\n"
+                    f"🔸 Żądane: {requested_hours:.2f}"
+                ),
             )
     
     # Check max CPU cores limit (if exists)
@@ -301,9 +340,8 @@ async def create_job(
     Create new job by submitting a template-based job to SLURM.
     If preview=True, returns the filled template without submitting the job.
     """
-    # Check user limits before creating job
-    if not job_in.preview:
-        await _check_user_limits(db, current_user, job_in)
+    # Check user limits and permissions
+    await _check_user_limits(db, current_user, job_in)
     
     from app.services.slurm import SlurmSSHService
     slurm_service = SlurmSSHService()

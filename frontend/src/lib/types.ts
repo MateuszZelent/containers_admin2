@@ -10,6 +10,9 @@ export interface User {
   updated_at?: string;
   max_containers?: number;
   max_gpus?: number;
+  max_gpus_per_job?: number;
+  max_time_limit_hours?: number;
+  allowed_templates?: string[];
 }
 
 export interface SSHTunnel {
