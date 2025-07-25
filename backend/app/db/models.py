@@ -370,3 +370,27 @@ class ClusterStats(Base):
             f"gpus=free:{self.free_gpus}/busy:{self.busy_gpus}/"
             f"total:{self.total_gpus})>"
         )
+
+
+class ResourceUsageSnapshot(Base):
+    """Aggregated resource usage metrics for all users."""
+
+    __tablename__ = "resource_usage_snapshots"
+
+    id = Column(Integer, primary_key=True, index=True)
+    timestamp = Column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
+    )
+
+    logged_in_users = Column(Integer, nullable=False, default=0)
+    active_containers = Column(Integer, nullable=False, default=0)
+    used_gpus = Column(Integer, nullable=False, default=0)
+    reserved_ram_gb = Column(Integer, nullable=False, default=0)
+    used_cpu_threads = Column(Integer, nullable=False, default=0)
+
+    def __repr__(self):
+        return (
+            f"<ResourceUsageSnapshot(users={self.logged_in_users}, "
+            f"containers={self.active_containers}, gpus={self.used_gpus}, "
+            f"ram_gb={self.reserved_ram_gb}, cpu_threads={self.used_cpu_threads})>"
+        )

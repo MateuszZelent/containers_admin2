@@ -528,8 +528,12 @@ export const clusterApi = {
   getSummary: () => apiClient.get('/cluster/stats/summary'),
   
   // Get historical cluster statistics
-  getStatsHistory: (limit?: number) => 
+  getStatsHistory: (limit?: number) =>
     apiClient.get(`/cluster/stats/history${limit ? `?limit=${limit}` : ''}`),
+
+  // Get resource usage history
+  getUsageHistory: (limit?: number) =>
+    apiClient.get(`/cluster/usage/history${limit ? `?limit=${limit}` : ''}`),
   
   // Test cluster stats script execution (admin only)
   testScript: () => apiClient.get('/cluster/stats/test-script'),

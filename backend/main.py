@@ -15,6 +15,7 @@ import debugpy
 # Import cluster monitoring
 from app.services.cluster_monitoring_task import cluster_monitoring_task
 from app.services.domain_monitor import domain_monitor
+from app.services.resource_usage_task import resource_usage_task
 
 # Debug mode only for development
 
@@ -126,6 +127,10 @@ async def startup_event():
     await cluster_monitoring_task.start()
     logger.info("Background cluster monitoring started")
 
+    # Start resource usage monitoring
+    await resource_usage_task.start()
+    logger.info("Resource usage monitoring started")
+
     # Start domain monitoring
     await domain_monitor.start()
     logger.info("Background domain monitoring started")
@@ -196,6 +201,7 @@ async def shutdown_event():
 
     # Stop background services
     # await cluster_monitoring_task.stop()
+    # await resource_usage_task.stop()
     logger.info("Background cluster monitoring stopped")
 
 

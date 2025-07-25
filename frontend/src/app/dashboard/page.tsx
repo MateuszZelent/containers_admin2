@@ -41,6 +41,7 @@ import { AnimatePresence } from "framer-motion";
 import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
+import { ResourceUsageChart } from "./components/resource-usage-chart";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
@@ -790,6 +791,8 @@ export default function DashboardPage() {
 
             {/* PCSS Cluster Stats Card */}
             <ClusterStatsCard onRefresh={fetchClusterStats} />
+            {/* Resource usage chart */}
+            <ResourceUsageChart />
           </div>
           
           {/* Loading state with skeleton cards only when there are no jobs yet */}

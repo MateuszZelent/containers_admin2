@@ -4,7 +4,9 @@ from typing import List
 
 from app.db.session import get_db
 from app.schemas.cluster_stats import ClusterStats, ClusterStatsCreate
+from app.schemas.resource_usage import ResourceUsage
 from app.services.cluster_stats import ClusterStatsService
+from app.services.resource_usage import ResourceUsageService
 from app.core.auth import (
     get_current_active_user_with_cli_support,
     get_current_superuser_with_cli_support,
@@ -109,3 +111,13 @@ async def test_cluster_stats_script(
         "message": "Script executed successfully",
         "data": stats_data,
     }
+
+
+@router.get("/usage/history", response_model=List[ResourceUsage])
+async def get_resource_usage_history(
+    limit: int = 2016,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user_with_cli_support),
+):
+    """Get historical resource usage snapshots."""
+    return ResourceUsageService.get_history(db, limit=limit)
