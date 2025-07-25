@@ -114,3 +114,13 @@ export interface ClusterStats {
   timestamp: string;
   source?: string;
 }
+
+export interface ResourceUsage {
+  id: number;
+  timestamp: string;
+  logged_in_users: number;
+  active_containers: number;
+  used_gpus: number;
+  reserved_ram_gb: number;
+  used_cpu_threads: number;
+}
