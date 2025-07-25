@@ -17,6 +17,7 @@ import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi, jobsApi } from "@/lib/api-client";
 import { User } from "@/lib/types";
+import { handleApiError } from "@/lib/error-utils";
 
 interface EditUserDialogProps {
   user: User | null;
@@ -34,7 +35,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
     first_name: user?.first_name || "",
     last_name: user?.last_name || "",
     password: "",
-    is_active: user?.is_active || true,
+    is_active: user?.is_active ?? true,
     max_containers: user?.max_containers || 0,
     is_superuser: user?.is_superuser || false,
     max_gpus: user?.max_gpus || 0,
@@ -112,7 +113,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
       onOpenChange(false);
       onUserUpdated?.();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Nie udało się zaktualizować użytkownika";
+      const errorMessage = handleApiError(error, "Nie udało się zaktualizować użytkownika");
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);

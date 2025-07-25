@@ -1,5 +1,3 @@
--- Active: 1749070702655@@127.0.0.1@5432
--- Active: 1749070703297@@127.0.0.1@5433@containers_admin
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from app.websocket.manager import websocket_manager
 from app.core.logging import cluster_logger

@@ -43,7 +43,6 @@ import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { ResourceUsageChart } from "./components/resource-usage-chart";
-import { ResourceMonitoringSettings } from "./components/resource-monitoring-settings";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
@@ -1134,22 +1133,6 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
-                </CardContent>
-              </Card>
-
-              {/* Resource Monitoring Settings */}
-              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <Activity className="h-5 w-5" />
-                    Ustawienia monitoringu zasobów
-                  </CardTitle>
-                  <CardDescription>
-                    Konfiguracja częstotliwości zbierania danych o wykorzystaniu zasobów klastra
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <ResourceMonitoringSettings />
                 </CardContent>
               </Card>
             </div>

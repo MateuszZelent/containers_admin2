@@ -12,6 +12,7 @@ import { userApi, adminApi } from "@/lib/api-client";
 import { User } from "@/lib/types";
 import { CreateUserDialog } from "../../components/create-user-dialog";
 import { EditUserDialog } from "../../components/edit-user-dialog";
+import { handleApiError } from "@/lib/error-utils";
 
 export default function AdminUsersPage() {
   const router = useRouter();
@@ -87,7 +88,7 @@ export default function AdminUsersPage() {
       toast.success(`Użytkownik "${username}" został usunięty pomyślnie`);
       fetchUsers(); // Refresh users list
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Nie udało się usunąć użytkownika";
+      const errorMessage = handleApiError(error, "Nie udało się usunąć użytkownika");
       toast.error(errorMessage);
     }
   };

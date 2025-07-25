@@ -39,6 +39,7 @@ import {
   CheckCircle2,
   XCircle,
   AlertCircle,
+  AlertTriangle,
   Loader2,
   Server,
   Cpu,
@@ -49,9 +50,12 @@ import {
   Play,
   Monitor,
   Package,
+  Shield,
+  Zap,
 } from "lucide-react";
 import { toast } from "sonner";
-import { jobsApi } from "@/lib/api-client";
+import { jobsApi, userApi } from "@/lib/api-client";
+import { User } from "@/lib/types";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
@@ -136,6 +140,8 @@ export default function CreateContainerJobPage() {
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateValidation, setTemplateValidation] = useState<ValidationStep[]>([]);
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [isLoadingUser, setIsLoadingUser] = useState(true);
   const router = useRouter();
 
   const form = useForm<ContainerJobFormData>({
@@ -154,10 +160,26 @@ export default function CreateContainerJobPage() {
     },
   });
 
-  // Load templates on component mount
+  // Load templates and user data on component mount
   useEffect(() => {
-    loadTemplates();
+    Promise.all([loadCurrentUser(), loadTemplates()]);
   }, []);
+
+  // Watch form values for dynamic updates
+  const watchedValues = form.watch();
+
+  const loadCurrentUser = async () => {
+    setIsLoadingUser(true);
+    try {
+      const response = await userApi.getCurrentUser();
+      setCurrentUser(response.data);
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      toast.error("Nie można załadować danych użytkownika");
+    } finally {
+      setIsLoadingUser(false);
+    }
+  };
 
   const loadTemplates = async () => {
     setIsLoadingTemplates(true);
@@ -194,7 +216,136 @@ export default function CreateContainerJobPage() {
     }
   };
 
+  // Dynamic option generators based on user limits
+  const getAvailableGpuOptions = () => {
+    if (!currentUser) return GPU_OPTIONS;
+    
+    const maxGpus = currentUser.max_gpus_per_job;
+    if (maxGpus === undefined || maxGpus === null) return GPU_OPTIONS;
+    
+    return GPU_OPTIONS.filter(option => option.value <= maxGpus);
+  };
+
+  const getAvailableTimeOptions = () => {
+    if (!currentUser) return TIME_LIMIT_OPTIONS;
+    
+    const maxHours = currentUser.max_time_limit_hours;
+    if (maxHours === undefined || maxHours === null) return TIME_LIMIT_OPTIONS;
+    
+    return TIME_LIMIT_OPTIONS.filter(option => {
+      const [hours] = option.value.split(':').map(Number);
+      return hours <= maxHours;
+    });
+  };
+
+  const getValidationStatus = (fieldName: string, value: any) => {
+    if (!currentUser) return { isValid: true, message: "" };
+
+    switch (fieldName) {
+      case 'num_gpus':
+        if (currentUser.max_gpus_per_job !== undefined && 
+            currentUser.max_gpus_per_job !== null && 
+            value > currentUser.max_gpus_per_job) {
+          return {
+            isValid: false,
+            message: `Maksymalnie ${currentUser.max_gpus_per_job} GPU dla Twojego konta`
+          };
+        }
+        break;
+        
+      case 'time_limit':
+        if (currentUser.max_time_limit_hours !== undefined && 
+            currentUser.max_time_limit_hours !== null) {
+          try {
+            const [hours] = value.split(':').map(Number);
+            if (hours > currentUser.max_time_limit_hours) {
+              return {
+                isValid: false,
+                message: `Maksymalnie ${currentUser.max_time_limit_hours}h dla Twojego konta`
+              };
+            }
+          } catch (e) {
+            return { isValid: false, message: "Nieprawidłowy format czasu" };
+          }
+        }
+        break;
+        
+      case 'template_name':
+        if (currentUser.allowed_templates && 
+            currentUser.allowed_templates.length > 0 && 
+            !currentUser.allowed_templates.includes(value)) {
+          return {
+            isValid: false,
+            message: "Nie masz uprawnień do tego szablonu"
+          };
+        }
+        break;
+    }
+
+    return { isValid: true, message: "" };
+  };
+
+  // Validation functions for user limits
+  const validateUserLimits = (data: ContainerJobFormData): string[] => {
+    const warnings: string[] = [];
+    
+    if (!currentUser) return warnings;
+
+    // Check if template is allowed
+    if (currentUser.allowed_templates && 
+        currentUser.allowed_templates.length > 0 && 
+        !currentUser.allowed_templates.includes(data.template_name)) {
+      warnings.push(`❌ Nie masz uprawnień do używania szablonu: ${data.template_name}`);
+    }
+
+    // Check GPU per job limit
+    if (currentUser.max_gpus_per_job !== undefined && 
+        currentUser.max_gpus_per_job !== null && 
+        data.num_gpus > currentUser.max_gpus_per_job) {
+      warnings.push(`❌ Przekraczasz limit GPU na kontener (${currentUser.max_gpus_per_job}). Żądane: ${data.num_gpus}`);
+    }
+
+    // Check time limit
+    if (currentUser.max_time_limit_hours !== undefined && 
+        currentUser.max_time_limit_hours !== null) {
+      try {
+        const [hours, minutes, seconds] = data.time_limit.split(':').map(Number);
+        const requestedHours = hours + minutes / 60 + seconds / 3600;
+        
+        if (requestedHours > currentUser.max_time_limit_hours) {
+          warnings.push(`❌ Przekraczasz limit czasu życia kontenera (${currentUser.max_time_limit_hours}h). Żądane: ${requestedHours.toFixed(2)}h`);
+        }
+      } catch (e) {
+        warnings.push("⚠️ Nieprawidłowy format czasu życia kontenera");
+      }
+    }
+
+    return warnings;
+  };
+
+  const getUserLimitInfo = () => {
+    if (!currentUser) return null;
+
+    return {
+      maxContainers: currentUser.max_containers,
+      maxGpus: currentUser.max_gpus,
+      maxGpusPerJob: currentUser.max_gpus_per_job,
+      maxTimeHours: currentUser.max_time_limit_hours,
+      allowedTemplates: currentUser.allowed_templates
+    };
+  };
+
   const onSubmit = async (data: ContainerJobFormData) => {
+    // Validate user limits before submission
+    const limitWarnings = validateUserLimits(data);
+    if (limitWarnings.length > 0) {
+      toast.error("Nie można utworzyć kontenera", {
+        description: limitWarnings.join("\n"),
+        duration: 8000,
+      });
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
@@ -342,29 +493,69 @@ export default function CreateContainerJobPage() {
                         <FormField
                           control={form.control}
                           name="template_name"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel className="text-base font-medium text-slate-700 dark:text-slate-300">Szablon kontenera</FormLabel>
-                              <Select onValueChange={field.onChange} value={field.value}>
-                                <FormControl>
-                                  <SelectTrigger className="h-12 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-slate-200 dark:border-slate-600 focus:border-purple-500 dark:focus:border-purple-400 transition-colors">
-                                    <SelectValue placeholder="Wybierz szablon kontenera" />
-                                  </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                  {templates.map((template) => (
-                                    <SelectItem key={template.name} value={template.name}>
-                                      <div className="font-medium">{template.name}</div>
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                              <FormDescription className="text-slate-600 dark:text-slate-400">
-                                Wybierz szablon określający środowisko kontenerowe
-                              </FormDescription>
-                              <FormMessage />
-                            </FormItem>
-                          )}
+                          render={({ field }) => {
+                            const validation = getValidationStatus("template_name", field.value);
+                            
+                            return (
+                              <FormItem>
+                                <FormLabel className="text-base font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                  Szablon kontenera
+                                  {currentUser?.allowed_templates && currentUser.allowed_templates.length > 0 && (
+                                    <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                      {currentUser.allowed_templates.length} dostępnych
+                                    </span>
+                                  )}
+                                </FormLabel>
+                                <Select onValueChange={field.onChange} value={field.value}>
+                                  <FormControl>
+                                    <SelectTrigger className={`h-12 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border transition-colors ${
+                                      !validation.isValid 
+                                        ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
+                                        : 'border-slate-200 dark:border-slate-600 focus:border-purple-500 dark:focus:border-purple-400'
+                                    }`}>
+                                      <SelectValue placeholder={
+                                        templates.length === 0 
+                                          ? "Ładowanie szablonów..." 
+                                          : "Wybierz szablon kontenera"
+                                      } />
+                                    </SelectTrigger>
+                                  </FormControl>
+                                  <SelectContent>
+                                    {templates.length === 0 && !isLoadingTemplates ? (
+                                      <div className="p-4 text-center text-slate-500 dark:text-slate-400">
+                                        <AlertCircle className="h-4 w-4 mx-auto mb-2" />
+                                        <p className="text-sm">Brak dostępnych szablonów</p>
+                                      </div>
+                                    ) : (
+                                      templates.map((template) => (
+                                        <SelectItem key={template.name} value={template.name}>
+                                          <div className="flex items-center gap-2">
+                                            <Package className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                            <span className="font-medium">{template.name}</span>
+                                          </div>
+                                        </SelectItem>
+                                      ))
+                                    )}
+                                  </SelectContent>
+                                </Select>
+                                <div className="flex items-center justify-between">
+                                  <FormDescription className="text-slate-600 dark:text-slate-400">
+                                    {templates.length > 0 
+                                      ? `${templates.length} szablonów dostępnych dla Twojego konta`
+                                      : "Ładowanie dostępnych szablonów..."
+                                    }
+                                  </FormDescription>
+                                  {!validation.isValid && (
+                                    <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                      <AlertCircle className="h-4 w-4" />
+                                      <span className="text-xs font-medium">{validation.message}</span>
+                                    </div>
+                                  )}
+                                </div>
+                                <FormMessage />
+                              </FormItem>
+                            );
+                          }}
                         />
 
                       {/* Template Validation Results */}
@@ -477,34 +668,54 @@ export default function CreateContainerJobPage() {
                           <FormField
                             control={form.control}
                             name="time_limit"
-                            render={({ field }) => (
-                              <FormItem className="space-y-3">
-                                <FormLabel className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-3">
-                                  <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg shadow-sm">
-                                    <Clock className="h-4 w-4 text-white" />
-                                  </div>
-                                  Limit czasu
-                                </FormLabel>
-                                <Select onValueChange={field.onChange} value={field.value}>
-                                  <FormControl>
-                                    <SelectTrigger className="h-14 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-600 focus:border-amber-500 dark:focus:border-amber-400 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md">
-                                      <SelectValue placeholder="Wybierz maksymalny czas działania" />
-                                    </SelectTrigger>
-                                  </FormControl>
-                                  <SelectContent className="rounded-xl border-2 shadow-xl">
-                                    {TIME_LIMIT_OPTIONS.map((option) => (
-                                      <SelectItem key={option.value} value={option.value} className="py-3 px-4 focus:bg-amber-50 dark:focus:bg-slate-700">
-                                        <div className="flex items-center gap-2">
-                                          <Clock className="h-4 w-4 text-amber-600" />
-                                          <span className="font-medium">{option.label}</span>
-                                        </div>
-                                      </SelectItem>
-                                    ))}
-                                  </SelectContent>
-                                </Select>
-                                <FormMessage />
-                              </FormItem>
-                            )}
+                            render={({ field }) => {
+                              const availableTimeOptions = getAvailableTimeOptions();
+                              const validation = getValidationStatus("time_limit", field.value);
+                              
+                              return (
+                                <FormItem className="space-y-3">
+                                  <FormLabel className="text-lg font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-3">
+                                    <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg shadow-sm">
+                                      <Clock className="h-4 w-4 text-white" />
+                                    </div>
+                                    Limit czasu
+                                    {currentUser?.max_time_limit_hours !== undefined && currentUser?.max_time_limit_hours !== null && (
+                                      <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                        max: {currentUser.max_time_limit_hours}h
+                                      </span>
+                                    )}
+                                  </FormLabel>
+                                  <Select onValueChange={field.onChange} value={field.value}>
+                                    <FormControl>
+                                      <SelectTrigger className={`h-14 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md ${
+                                        !validation.isValid 
+                                          ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
+                                          : 'border-slate-200 dark:border-slate-600 focus:border-amber-500 dark:focus:border-amber-400'
+                                      }`}>
+                                        <SelectValue placeholder="Wybierz maksymalny czas działania" />
+                                      </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent className="rounded-xl border-2 shadow-xl">
+                                      {availableTimeOptions.map((option) => (
+                                        <SelectItem key={option.value} value={option.value} className="py-3 px-4 focus:bg-amber-50 dark:focus:bg-slate-700">
+                                          <div className="flex items-center gap-2">
+                                            <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                                            <span className="font-medium">{option.label}</span>
+                                          </div>
+                                        </SelectItem>
+                                      ))}
+                                    </SelectContent>
+                                  </Select>
+                                  {!validation.isValid && (
+                                    <div className="flex items-center gap-2 text-red-600 dark:text-red-400 mt-2">
+                                      <AlertCircle className="h-4 w-4" />
+                                      <span className="text-sm font-medium">{validation.message}</span>
+                                    </div>
+                                  )}
+                                  <FormMessage />
+                                </FormItem>
+                              );
+                            }}
                           />
                         </div>
 
@@ -597,38 +808,67 @@ export default function CreateContainerJobPage() {
                             <FormField
                               control={form.control}
                               name="num_gpus"
-                              render={({ field }) => (
-                                <FormItem className="space-y-4">
-                                  <FormLabel className="text-base font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                    <div className="p-1.5 bg-gradient-to-r from-purple-500 to-violet-600 rounded-lg">
-                                      <Monitor className="h-4 w-4 text-white" />
+                              render={({ field }) => {
+                                const availableGpuOptions = getAvailableGpuOptions();
+                                const validation = getValidationStatus("num_gpus", field.value);
+                                
+                                return (
+                                  <FormItem className="space-y-4">
+                                    <FormLabel className="text-base font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                                      <div className="p-1.5 bg-gradient-to-r from-purple-500 to-violet-600 rounded-lg">
+                                        <Monitor className="h-4 w-4 text-white" />
+                                      </div>
+                                      GPU
+                                      {currentUser?.max_gpus_per_job !== undefined && currentUser?.max_gpus_per_job !== null && (
+                                        <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
+                                          max: {currentUser.max_gpus_per_job}
+                                        </span>
+                                      )}
+                                    </FormLabel>
+                                    <Select 
+                                      onValueChange={(value) => field.onChange(parseInt(value))} 
+                                      value={field.value.toString()}
+                                    >
+                                      <FormControl>
+                                        <SelectTrigger className={`h-12 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md ${
+                                          !validation.isValid 
+                                            ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
+                                            : 'border-slate-200 dark:border-slate-600 focus:border-purple-500 dark:focus:border-purple-400'
+                                        }`}>
+                                          <SelectValue placeholder="Wybierz liczbę GPU" />
+                                        </SelectTrigger>
+                                      </FormControl>
+                                      <SelectContent className="rounded-xl border-2 shadow-xl">
+                                        {availableGpuOptions.map((option) => (
+                                          <SelectItem 
+                                            key={option.value} 
+                                            value={option.value.toString()} 
+                                            className="py-3 px-4 focus:bg-purple-50 dark:focus:bg-slate-700"
+                                          >
+                                            <div className="flex items-center gap-2">
+                                              <Monitor className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                                              <span className="font-medium">{option.label}</span>
+                                            </div>
+                                          </SelectItem>
+                                        ))}
+                                      </SelectContent>
+                                    </Select>
+                                    <div className="flex items-center justify-between">
+                                      <FormDescription className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
+                                        <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
+                                        {availableGpuOptions.length > 0 ? `0-${Math.max(...availableGpuOptions.map(o => o.value))} dostępnych` : 'Brak dostępnych GPU'}
+                                      </FormDescription>
+                                      {!validation.isValid && (
+                                        <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                                          <AlertCircle className="h-4 w-4" />
+                                          <span className="text-xs font-medium">{validation.message}</span>
+                                        </div>
+                                      )}
                                     </div>
-                                    GPU
-                                  </FormLabel>
-                                  <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
-                                    <FormControl>
-                                      <SelectTrigger className="h-12 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-600 focus:border-purple-500 dark:focus:border-purple-400 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md">
-                                        <SelectValue placeholder="Wybierz GPU" />
-                                      </SelectTrigger>
-                                    </FormControl>
-                                    <SelectContent className="rounded-xl border-2 shadow-xl">
-                                      {GPU_OPTIONS.map((option) => (
-                                        <SelectItem key={option.value} value={option.value.toString()} className="py-3 px-4 focus:bg-purple-50 dark:focus:bg-slate-700">
-                                          <div className="flex items-center gap-2">
-                                            <Monitor className="h-4 w-4 text-purple-600" />
-                                            <span className="font-medium">{option.label}</span>
-                                          </div>
-                                        </SelectItem>
-                                      ))}
-                                    </SelectContent>
-                                  </Select>
-                                  <FormDescription className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
-                                    <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                                    0-4 karty graficzne
-                                  </FormDescription>
-                                  <FormMessage />
-                                </FormItem>
-                              )}
+                                    <FormMessage />
+                                  </FormItem>
+                                );
+                              }}
                             />
                           </div>
                         </div>
@@ -640,27 +880,79 @@ export default function CreateContainerJobPage() {
                         whileHover={{ scale: 1.01 }}
                         whileTap={{ scale: 0.99 }}
                       >
-                        <Button 
-                          type="submit" 
-                          disabled={
-                            isSubmitting || 
-                            isLoadingTemplates ||
-                            !form.watch("template_name")
-                          }
-                          className="w-full h-14 text-base font-semibold bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 hover:from-blue-700 hover:via-purple-700 hover:to-emerald-700 text-white shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 rounded-xl"
-                        >
-                          {isSubmitting ? (
-                            <>
-                              <Loader2 className="h-5 w-5 mr-3 animate-spin" />
-                              Tworzenie kontenera...
-                            </>
-                          ) : (
-                            <>
-                              <Play className="h-5 w-5 mr-3" />
-                              Utwórz kontener
-                            </>
-                          )}
-                        </Button>
+                        {(() => {
+                          const currentFormData = form.getValues();
+                          const formWarnings = validateUserLimits(currentFormData);
+                          const hasValidationErrors = formWarnings.length > 0;
+                          const isFormIncomplete = !currentFormData.template_name || !currentFormData.job_name;
+                          
+                          return (
+                            <div className="space-y-4">
+                              {hasValidationErrors && (
+                                <motion.div
+                                  initial={{ opacity: 0, height: 0 }}
+                                  animate={{ opacity: 1, height: "auto" }}
+                                  className="p-4 bg-gradient-to-r from-red-50/80 to-orange-50/80 dark:from-red-900/20 dark:to-orange-900/20 rounded-xl border border-red-200/60 dark:border-red-700/40"
+                                >
+                                  <div className="flex items-start gap-3">
+                                    <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
+                                    <div>
+                                      <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
+                                        Wykryto problemy z konfiguracją:
+                                      </p>
+                                      <ul className="space-y-1">
+                                        {formWarnings.map((warning, index) => (
+                                          <li key={index} className="text-xs text-red-700 dark:text-red-300 flex items-center gap-2">
+                                            <span className="w-1 h-1 bg-red-500 rounded-full"></span>
+                                            {warning.replace(/^❌\s*/, '')}
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    </div>
+                                  </div>
+                                </motion.div>
+                              )}
+                              
+                              <Button 
+                                type="submit" 
+                                disabled={
+                                  isSubmitting || 
+                                  isLoadingTemplates ||
+                                  isLoadingUser ||
+                                  hasValidationErrors ||
+                                  isFormIncomplete
+                                }
+                                className={`w-full h-14 text-base font-semibold shadow-xl hover:shadow-2xl transition-all duration-300 disabled:opacity-50 rounded-xl ${
+                                  hasValidationErrors || isFormIncomplete
+                                    ? 'bg-gradient-to-r from-slate-400 to-slate-500 cursor-not-allowed'
+                                    : 'bg-gradient-to-r from-blue-600 via-purple-600 to-emerald-600 hover:from-blue-700 hover:via-purple-700 hover:to-emerald-700 text-white'
+                                }`}
+                              >
+                                {isSubmitting ? (
+                                  <>
+                                    <Loader2 className="h-5 w-5 mr-3 animate-spin" />
+                                    Tworzenie kontenera...
+                                  </>
+                                ) : hasValidationErrors ? (
+                                  <>
+                                    <XCircle className="h-5 w-5 mr-3" />
+                                    Popraw błędy konfiguracji
+                                  </>
+                                ) : isFormIncomplete ? (
+                                  <>
+                                    <AlertCircle className="h-5 w-5 mr-3" />
+                                    Uzupełnij wymagane pola
+                                  </>
+                                ) : (
+                                  <>
+                                    <CheckCircle2 className="h-5 w-5 mr-3" />
+                                    Utwórz kontener
+                                  </>
+                                )}
+                              </Button>
+                            </div>
+                          );
+                        })()}
                       </motion.div>
                     </form>
                   </Form>
@@ -676,6 +968,94 @@ export default function CreateContainerJobPage() {
             transition={{ delay: 0.2 }}
             className="space-y-6"
           >
+            {/* User Limits Card - Beautiful Expanded Version */}
+            {currentUser && !isLoadingUser && (
+              <Card className="border-0 shadow-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden">
+                <div className="relative">
+                  <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 via-purple-500/5 to-emerald-500/5"></div>
+                  <CardHeader className="relative border-b border-slate-200/60 dark:border-slate-700/60 pb-6">
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl blur-md opacity-30"></div>
+                        <div className="relative p-3 bg-gradient-to-r from-blue-500 to-purple-600 rounded-xl shadow-lg">
+                          <Shield className="h-5 w-5 text-white" />
+                        </div>
+                      </div>
+                      <div>
+                        <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
+                          Twoje uprawnienia
+                        </CardTitle>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
+                          Przegląd dostępnych limitów i szablonów
+                        </p>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  <CardContent className="relative pt-6 space-y-4">
+                    {/* Max GPUs per job */}
+                    {currentUser.max_gpus_per_job !== undefined && currentUser.max_gpus_per_job !== null && (
+                      <div className="p-4 bg-gradient-to-r from-purple-50/80 to-indigo-50/80 dark:from-purple-900/20 dark:to-indigo-900/20 rounded-xl border border-purple-200/40 dark:border-purple-700/40 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-purple-100 dark:bg-purple-900/50 rounded-lg">
+                              <Zap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">GPU na kontener</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">Maksymalna liczba</p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200">
+                            {currentUser.max_gpus_per_job}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Max time limit */}
+                    {currentUser.max_time_limit_hours !== undefined && currentUser.max_time_limit_hours !== null && (
+                      <div className="p-4 bg-gradient-to-r from-emerald-50/80 to-green-50/80 dark:from-emerald-900/20 dark:to-green-900/20 rounded-xl border border-emerald-200/40 dark:border-emerald-700/40 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-emerald-100 dark:bg-emerald-900/50 rounded-lg">
+                              <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">Maksymalny czas</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">Życie kontenera</p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
+                            {currentUser.max_time_limit_hours}h
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Allowed templates count */}
+                    {currentUser.allowed_templates && currentUser.allowed_templates.length > 0 && (
+                      <div className="p-4 bg-gradient-to-r from-blue-50/80 to-cyan-50/80 dark:from-blue-900/20 dark:to-cyan-900/20 rounded-xl border border-blue-200/40 dark:border-blue-700/40 shadow-sm">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-blue-100 dark:bg-blue-900/50 rounded-lg">
+                              <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">Dostępne szablony</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">Dozwolone środowiska</p>
+                            </div>
+                          </div>
+                          <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
+                            {currentUser.allowed_templates.length}
+                          </Badge>
+                        </div>
+                      </div>
+                    )}
+                  </CardContent>
+                </div>
+              </Card>
+            )}
+
             {/* Resource Summary - Enhanced */}
             <Card className="border-0 shadow-xl bg-white/95 dark:bg-slate-900/95 backdrop-blur-xl overflow-hidden">
               <div className="relative">

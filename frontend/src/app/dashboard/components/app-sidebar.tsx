@@ -75,6 +75,10 @@ const data = {
           title: "Zarządzanie użytkownikami",  
           url: "/dashboard/admin/users",
         },
+        {
+          title: "Ustawienia główne",
+          url: "/dashboard/admin/settings",
+        },
       ],
     },
     {

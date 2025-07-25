@@ -17,6 +17,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2, Plus } from "lucide-react";
 import { toast } from "sonner";
 import { adminApi, jobsApi } from "@/lib/api-client";
+import { handleApiError } from "@/lib/error-utils";
 
 interface CreateUserDialogProps {
   onUserCreated?: () => void;
@@ -84,7 +85,7 @@ export function CreateUserDialog({ onUserCreated }: CreateUserDialogProps) {
       });
       onUserCreated?.();
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Nie udało się utworzyć użytkownika";
+      const errorMessage = handleApiError(error, "Nie udało się utworzyć użytkownika");
       toast.error(errorMessage);
     } finally {
       setIsLoading(false);
