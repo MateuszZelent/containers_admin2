@@ -23,7 +23,6 @@ import { toast } from "sonner";
 
 interface User {
   username: string;
-  is_admin: boolean;
   is_superuser: boolean;
 }
 
@@ -39,7 +38,7 @@ export default function AMUflowPage() {
         setCurrentUser(response.data);
         
         // Sprawdź czy użytkownik ma uprawnienia administratora
-        if (!response.data.is_admin && !response.data.is_superuser) {
+        if (!response.data.is_superuser) {
           toast.error("Brak uprawnień do tej sekcji");
           router.push("/dashboard");
           return;
@@ -67,7 +66,7 @@ export default function AMUflowPage() {
     );
   }
 
-  if (!currentUser?.is_admin && !currentUser?.is_superuser) {
+  if (!currentUser?.is_superuser) {
     return (
       <div className="text-center py-8">
         <h1 className="text-2xl font-bold text-red-600 mb-4">Brak dostępu</h1>

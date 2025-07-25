@@ -73,13 +73,13 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.error('--- Axios Error Interceptor Start ---');
-    console.error('Error Message:', error.message);
-    console.error('Error Name:', error.name);
-    console.error('Error Code:', error.code);
+    console.log('--- Axios Error Interceptor Start ---');
+    console.log('Error Message:', error.message);
+    console.log('Error Name:', error.name);
+    console.log('Error Code:', error.code);
 
     if (error.config) {
-      console.error('Axios Request Config:', {
+      console.log('Axios Request Config:', {
         url: error.config.url,
         method: error.config.method,
         headers: error.config.headers,
@@ -88,11 +88,11 @@ apiClient.interceptors.response.use(
         baseURL: error.config.baseURL,
       });
     } else {
-      console.error('Axios Request Config: IS UNDEFINED OR NULL');
+      console.log('Axios Request Config: IS UNDEFINED OR NULL');
     }
 
     if (error.response) {
-      console.error('Axios Response:', {
+      console.log('Axios Response:', {
         status: error.response.status,
         statusText: error.response.statusText,
         headers: error.response.headers,
@@ -103,7 +103,7 @@ apiClient.interceptors.response.use(
         // Sprawdź czy komunikat błędu zawiera "Could not validate credentials"
         const errorDetail = error.response.data?.detail;
         if (typeof errorDetail === 'string' && errorDetail.includes("Could not validate credentials")) {
-          console.error('Authentication error: Token invalid or expired');
+          console.log('Authentication error: Token invalid or expired');
           
           // Wyloguj użytkownika - wyczyść localStorage
           localStorage.removeItem('auth_token');
@@ -132,7 +132,7 @@ apiClient.interceptors.response.use(
         }
       } else if (error.response.status === 500) {
         // Specjalna obsługa dla błędu 500
-        console.error('INTERNAL SERVER ERROR (500). Response data:', error.response.data);
+        console.log('INTERNAL SERVER ERROR (500). Response data:', error.response.data);
         // Tutaj możesz wyświetlić użytkownikowi generyczny komunikat
         if (typeof window !== "undefined") {
           toast.error("Wystąpił wewnętrzny błąd serwera. Spróbuj ponownie później.", {
@@ -141,15 +141,15 @@ apiClient.interceptors.response.use(
           });
         }
       } else {
-        console.error('Other API error response. Status:', error.response.status, 'Data:', error.response.data);
+        console.log('Other API error response. Status:', error.response.status, 'Data:', error.response.data);
       }
     } else if (error.request) {
-      console.error('No response received. Request object:', error.request);
+      console.log('No response received. Request object:', error.request);
     } else {
-      console.error('Request setup error (no response, no request).');
+      console.log('Request setup error (no response, no request).');
     }
-    console.error('Error Stack:', error.stack);
-    console.error('--- Axios Error Interceptor End ---');
+    console.log('Error Stack:', error.stack);
+    console.log('--- Axios Error Interceptor End ---');
 
     return Promise.reject(error);
   }
@@ -279,6 +279,14 @@ export const adminApi = {
   
   // Get all jobs from all users (admin only)
   getAllJobs: () => apiClient.get('/jobs/admin/all'),
+  
+  // Resource monitoring endpoints (admin only)
+  getMonitoringSettings: () => apiClient.get('/admin/monitoring/status'),
+  
+  updateMonitoringInterval: (intervalMinutes: number) => 
+    apiClient.put('/admin/monitoring/interval', { interval_minutes: intervalMinutes }),
+  
+  restartMonitoring: () => apiClient.post('/admin/monitoring/restart'),
 }
 
 // Jobs API (Containers)

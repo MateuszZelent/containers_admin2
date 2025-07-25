@@ -30,7 +30,8 @@ import {
   HardDrive,
   Monitor,
   Network,
-  Zap
+  Zap,
+  Users
 } from "lucide-react";
 import Link from "next/link";
 import { toast } from "sonner";
@@ -42,6 +43,7 @@ import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { ResourceUsageChart } from "./components/resource-usage-chart";
+import { ResourceMonitoringSettings } from "./components/resource-monitoring-settings";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
@@ -791,7 +793,10 @@ export default function DashboardPage() {
 
             {/* PCSS Cluster Stats Card */}
             <ClusterStatsCard onRefresh={fetchClusterStats} />
-            {/* Resource usage chart */}
+          </div>
+          
+          {/* Resource usage chart - full width with proper spacing */}
+          <div className="mt-6">
             <ResourceUsageChart />
           </div>
           
@@ -846,7 +851,7 @@ export default function DashboardPage() {
               </CardContent>
             </Card>          ) : (
             <AnimatePresence mode="popLayout">
-              <div className="flex flex-wrap justify-start gap-6">
+              <div className="flex flex-wrap justify-start gap-6 mt-6">
                 {getActiveJobs().map((job) => (
                   <JobCard 
                     key={job.id}
@@ -884,7 +889,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  <div className="flex flex-wrap justify-center gap-6">
+                  <div className="flex flex-wrap justify-center gap-6 mt-6">
                     {getActiveJobs().map((job) => (
                       <JobCard 
                         key={job.id}
@@ -927,7 +932,7 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 <AnimatePresence mode="popLayout">
-                  <div className="flex flex-wrap justify-center gap-6">
+                  <div className="flex flex-wrap justify-center gap-6 mt-6">
                     {getCompletedJobs().map((job) => (
                       <JobCard 
                         key={job.id}
@@ -1129,6 +1134,22 @@ export default function DashboardPage() {
                       </div>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+
+              {/* Resource Monitoring Settings */}
+              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center gap-2">
+                    <Activity className="h-5 w-5" />
+                    Ustawienia monitoringu zasobów
+                  </CardTitle>
+                  <CardDescription>
+                    Konfiguracja częstotliwości zbierania danych o wykorzystaniu zasobów klastra
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ResourceMonitoringSettings />
                 </CardContent>
               </Card>
             </div>

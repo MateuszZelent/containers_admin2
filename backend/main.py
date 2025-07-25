@@ -9,6 +9,7 @@ from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
 from app.routers import auth, users, jobs, task_queue, cli_tokens, cluster
+from app.routes import monitoring
 import app.websocket.routes as websocket
 import debugpy
 
@@ -18,9 +19,8 @@ from app.services.domain_monitor import domain_monitor
 from app.services.resource_usage_task import resource_usage_task
 
 # Debug mode only for development
-
-debugpy.listen(("0.0.0.0", 5678))  # Port 5678
-print("Debugger is active. Waiting for client to attach...")
+# debugpy.listen(("0.0.0.0", 5678))  # Port 5678
+# print("Debugger is active. Waiting for client to attach...")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -53,6 +53,10 @@ app.include_router(
 
 app.include_router(
     cluster.router, prefix=f"{settings.API_V1_STR}/cluster", tags=["cluster"]
+)
+
+app.include_router(
+    monitoring.router, prefix=f"{settings.API_V1_STR}/admin", tags=["admin"]
 )
 
 app.include_router(websocket.router)

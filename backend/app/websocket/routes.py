@@ -1,3 +1,5 @@
+-- Active: 1749070702655@@127.0.0.1@5432
+-- Active: 1749070703297@@127.0.0.1@5433@containers_admin
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, Query
 from app.websocket.manager import websocket_manager
 from app.core.logging import cluster_logger
@@ -76,21 +78,33 @@ async def job_status_websocket(
             "type": "verification",
             "code": verification_code
         }))
-        
-        # Keep connection alive and handle incoming messages
+
+        # Now: co 10 sekund wysyłaj nowy losowy kod do klienta
+        import asyncio
+        async def periodic_code_sender():
+            while True:
+                await asyncio.sleep(10)
+                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+                await websocket.send_text(json.dumps({
+                    "type": "periodic_code",
+                    "code": code
+                }))
+
+        periodic_task = asyncio.create_task(periodic_code_sender())
+
+        # Obsługa wiadomości od klienta
         while True:
             try:
-                # Receive messages (ping/pong, subscriptions, etc.)
                 message = await websocket.receive_text()
                 data = json.loads(message)
-                
+
                 # Handle ping/pong
                 if data.get("type") == "ping":
                     await websocket.send_text(json.dumps({
                         "type": "pong",
                         "timestamp": data.get("timestamp")
                     }))
-                
+
                 # Handle subscription to specific job
                 elif data.get("type") == "subscribe_job":
                     job_id = data.get("job_id")
@@ -106,7 +120,7 @@ async def job_status_websocket(
                             "job_id": job_id,
                             "message": f"Subscribed to job {job_id} updates"
                         }))
-                
+
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({
                     "type": "error",
@@ -115,7 +129,10 @@ async def job_status_websocket(
             except Exception as e:
                 cluster_logger.error(f"Error handling WebSocket message: {e}")
                 break
-                
+
+        # Po wyjściu z pętli zatrzymaj task
+        periodic_task.cancel()
+
     except WebSocketDisconnect:
         cluster_logger.info("Job status WebSocket disconnected")
     except Exception as e:
