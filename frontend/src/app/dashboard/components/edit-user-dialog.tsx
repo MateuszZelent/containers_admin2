@@ -15,7 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
-import { adminApi } from "@/lib/api-client";
+import { adminApi, jobsApi } from "@/lib/api-client";
 import { User } from "@/lib/types";
 
 interface EditUserDialogProps {
@@ -27,6 +27,7 @@ interface EditUserDialogProps {
 
 export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: EditUserDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<string[]>([]);
   const [formData, setFormData] = useState({
     username: user?.username || "",
     email: user?.email || "",
@@ -36,6 +37,10 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
     is_active: user?.is_active || true,
     max_containers: user?.max_containers || 0,
     is_superuser: user?.is_superuser || false,
+    max_gpus: user?.max_gpus || 0,
+    max_gpus_per_job: user?.max_gpus_per_job || 0,
+    max_time_limit_hours: user?.max_time_limit_hours || 0,
+    allowed_templates: user?.allowed_templates || [] as string[],
   });
 
   // Update form data when user changes
@@ -50,9 +55,27 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
         is_active: user.is_active,
         max_containers: user.max_containers || 0,
         is_superuser: user.is_superuser,
+        max_gpus: user.max_gpus || 0,
+        max_gpus_per_job: user.max_gpus_per_job || 0,
+        max_time_limit_hours: user.max_time_limit_hours || 0,
+        allowed_templates: user.allowed_templates || [],
       });
     }
   }, [user]);
+
+  // Load templates when dialog opens
+  useEffect(() => {
+    if (!open) return;
+    const load = async () => {
+      try {
+        const res = await jobsApi.getTemplates();
+        setAvailableTemplates(res.data);
+      } catch (e) {
+        console.error("Failed to load templates", e);
+      }
+    };
+    load();
+  }, [open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -77,6 +100,12 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
       if (formData.is_active !== user.is_active) updateData.is_active = formData.is_active;
       if (formData.max_containers !== user.max_containers) updateData.max_containers = formData.max_containers;
       if (formData.is_superuser !== user.is_superuser) updateData.is_superuser = formData.is_superuser;
+      if (formData.max_gpus !== user.max_gpus) updateData.max_gpus = formData.max_gpus;
+      if (formData.max_gpus_per_job !== user.max_gpus_per_job) updateData.max_gpus_per_job = formData.max_gpus_per_job;
+      if (formData.max_time_limit_hours !== user.max_time_limit_hours) updateData.max_time_limit_hours = formData.max_time_limit_hours;
+      if (JSON.stringify(formData.allowed_templates || []) !== JSON.stringify(user.allowed_templates || [])) {
+        updateData.allowed_templates = formData.allowed_templates;
+      }
 
       await adminApi.updateUser(user.id, updateData);
       toast.success("Użytkownik został zaktualizowany pomyślnie");
@@ -162,19 +191,83 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
                 placeholder="Pozostaw puste, aby nie zmieniać"
               />
             </div>
+            {/* Resource limits */}
             <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="max_nodes" className="text-right">
-                Maksymalna ilość węzłów
+              <Label htmlFor="max_containers" className="text-right">
+                Maks. kontenerów
               </Label>
               <Input
-                id="max_nodes"
-                type="max_nodes"
-                value={formData.password}
-                onChange={(e) => setFormData({ ...formData, max_containers: e.target.value })}
+                id="max_containers"
+                type="number"
+                value={formData.max_containers}
+                onChange={(e) => setFormData({ ...formData, max_containers: Number(e.target.value) })}
                 className="col-span-3"
-                placeholder="Pozostaw puste, aby nie zmieniać"
               />
             </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_gpus" className="text-right">
+                Maks. GPU łącznie
+              </Label>
+              <Input
+                id="max_gpus"
+                type="number"
+                value={formData.max_gpus}
+                onChange={(e) => setFormData({ ...formData, max_gpus: Number(e.target.value) })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_gpus_per_job" className="text-right">
+                Maks. GPU na kontener
+              </Label>
+              <Input
+                id="max_gpus_per_job"
+                type="number"
+                value={formData.max_gpus_per_job}
+                onChange={(e) => setFormData({ ...formData, max_gpus_per_job: Number(e.target.value) })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="max_time_limit_hours" className="text-right">
+                Maks. czas pracy [h]
+              </Label>
+              <Input
+                id="max_time_limit_hours"
+                type="number"
+                value={formData.max_time_limit_hours}
+                onChange={(e) => setFormData({ ...formData, max_time_limit_hours: Number(e.target.value) })}
+                className="col-span-3"
+              />
+            </div>
+
+            {/* Template permissions */}
+            {availableTemplates.length > 0 && (
+              <div className="grid grid-cols-4 gap-4">
+                <Label className="text-right mt-1">Szablony</Label>
+                <div className="col-span-3 space-y-2 max-h-32 overflow-y-auto border rounded-md p-2">
+                  {availableTemplates.map((tpl) => (
+                    <div key={tpl} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`tpl_${tpl}`}
+                        checked={formData.allowed_templates.includes(tpl)}
+                        onCheckedChange={(checked) => {
+                          setFormData((prev) => {
+                            const allowed = new Set(prev.allowed_templates);
+                            if (checked) allowed.add(tpl);
+                            else allowed.delete(tpl);
+                            return { ...prev, allowed_templates: Array.from(allowed) };
+                          });
+                        }}
+                      />
+                      <Label htmlFor={`tpl_${tpl}`} className="text-sm">
+                        {tpl}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="grid grid-cols-4 items-center gap-4">
               <Label className="text-right">Opcje</Label>
               <div className="col-span-3 space-y-3">
