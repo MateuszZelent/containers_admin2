@@ -41,6 +41,11 @@ class User(Base):
     # Resource limits
     max_containers = Column(Integer, default=6)  # Max containers user can run
     max_gpus = Column(Integer, default=24)  # Max GPUs user can use total
+    max_gpus_per_job = Column(Integer, nullable=True)  # Limit GPUs in single job
+    max_time_limit_hours = Column(Integer, nullable=True)  # Max allowed job time
+
+    # Template permissions
+    allowed_templates = Column(JSONEncodedDict, nullable=True)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)
