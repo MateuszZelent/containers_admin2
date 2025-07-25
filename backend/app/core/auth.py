@@ -164,17 +164,18 @@ def get_current_superuser_with_cli_support(
     return current_user
 
 
-async def get_current_user_websocket(token: Optional[str], db: Session) -> Optional[User]:
-    """Retrieve the current user for a WebSocket connection."""
-    # Allow anonymous access when auth is disabled and no token is provided
-    if settings.DISABLE_AUTH and not token:
-        return UserService.get_by_username(db, username="admin")
+async def get_current_user_websocket(token: Optional[str], db: Session) -> User:
+    """Authenticate websocket connections using JWT or CLI tokens."""
+
+    # Allow anonymous access if auth disabled
+    if settings.DISABLE_AUTH:
+        admin_user = UserService.get_by_username(db, username="admin")
+        if admin_user:
+            return admin_user
+        raise HTTPException(status_code=404, detail="Default admin user not found")
 
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Missing credentials",
-        )
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
     # Try JWT authentication first
     try:

@@ -9,7 +9,7 @@ from app.core.logging import logger, console
 from app.db.session import get_db, engine
 from app.db.models import Base
 from app.routers import auth, users, jobs, task_queue, cli_tokens, cluster
-import app.websocket.router as websocket
+import app.websocket.routes as websocket
 import debugpy
 
 # Import cluster monitoring

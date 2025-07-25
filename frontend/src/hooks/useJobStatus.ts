@@ -1,4 +1,4 @@
-import { useCallback } from 'react';
+import { useCallback, useState } from 'react';
 import { useWebSocket, WebSocketMessage } from './useWebSocket';
 
 export interface JobStatusUpdate {
