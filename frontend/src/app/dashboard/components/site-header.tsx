@@ -1,6 +1,7 @@
 import { Separator } from "@/registry/new-york-v4/ui/separator"
 import { SidebarTrigger } from "@/registry/new-york-v4/ui/sidebar"
 import { ModeToggle } from "@/app/dashboard/components/mode-toggle"
+import { ActiveUsersPanel } from "@/app/dashboard/components/active-users-panel"
 
 export function SiteHeader() {
   return (
@@ -15,6 +16,7 @@ export function SiteHeader() {
           PCSS containers v 0.4 (08.06.2025)
         </h1>
         <div className="ml-auto flex items-center gap-2">
+          <ActiveUsersPanel />
           <ModeToggle />
           {/* <ThemeSelector /> */}
         </div>

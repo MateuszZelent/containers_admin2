@@ -236,6 +236,8 @@ export const authApi = {
 export const userApi = {
   // Pobiera dane bieżącego użytkownika
   getCurrentUser: () => apiClient.get('/users/me'),
+  // Pobiera listę aktywnych użytkowników
+  getActiveUsers: () => apiClient.get('/users/active'),
   // Aktualizuje dane bieżącego użytkownika, w tym hasło code_server
   updateCurrentUser: (userData: { code_server_password?: string }) => {
     return apiClient.put('/users/me', userData)

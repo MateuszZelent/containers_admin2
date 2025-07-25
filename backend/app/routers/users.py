@@ -8,6 +8,7 @@ from app.db.session import get_db
 from app.schemas.user import User, UserCreate, UserUpdate
 from app.services.user import UserService
 from app.db.models import User as UserModel
+from app.websocket.manager import websocket_manager
 
 router = APIRouter()
 
@@ -59,6 +60,22 @@ def update_user_me(
     """
     user = UserService.update(db, user=current_user, user_in=user_in)
     return user
+
+
+@router.get("/active", response_model=List[User])
+def get_active_users(db: Session = Depends(get_db)) -> Any:
+    """Return list of currently active users based on websocket connections."""
+    user_ids = list(websocket_manager.user_connections.keys())
+    active_users = []
+    for user_id in user_ids:
+        try:
+            uid = int(user_id)
+        except (TypeError, ValueError):
+            continue
+        user = UserService.get(db, user_id=uid)
+        if user:
+            active_users.append(user)
+    return active_users
 
 
 # Admin-only endpoints
