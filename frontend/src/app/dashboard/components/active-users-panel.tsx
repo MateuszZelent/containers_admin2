@@ -1,3 +1,5 @@
+"use client"
+
 import { useEffect, useState } from "react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/registry/new-york-v4/ui/avatar";
 import { userApi } from "@/lib/api-client";
