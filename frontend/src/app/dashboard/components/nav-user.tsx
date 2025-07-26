@@ -90,9 +90,9 @@ export function NavUser({ user }: { user: UserData }) {
           <DropdownMenuTrigger asChild>
             <SidebarMenuButton
               size="lg"
-              className="data-[state=open]: data-[state=open]:text-sidebar-accent-foreground"
+              className="data-[state=open]:bg-slate-100/50 dark:data-[state=open]:bg-slate-800/50 hover:bg-slate-100/30 dark:hover:bg-slate-800/30 transition-all duration-300 backdrop-blur-sm rounded-xl group"
             >
-              <div className="grayscale">
+              <div className="group-hover:scale-105 transition-transform duration-300">
                 <UserAvatar
                   id={userState.id || 0}
                   username={userState.username || ''}
@@ -101,19 +101,23 @@ export function NavUser({ user }: { user: UserData }) {
                   avatarUrl={userState.avatar_url || userState.avatar}
                   size="md"
                   showTooltip={false}
-                  className="rounded-lg"
+                  className="rounded-xl shadow-sm"
                 />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-medium">{displayName}</span>
-                <span className="truncate text-xs">{userState.email}</span>
+                <span className="truncate font-medium text-slate-900 dark:text-slate-100">{displayName}</span>
+                <span className="truncate text-xs text-slate-500 dark:text-slate-400">{userState.email}</span>
               </div>
-              {!isMobile && <IconDotsVertical size={16} />}
+              {!isMobile && (
+                <div className="opacity-60 group-hover:opacity-100 transition-opacity duration-300">
+                  <IconDotsVertical size={16} className="text-slate-400 dark:text-slate-500" />
+                </div>
+              )}
             </SidebarMenuButton>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="start" className="w-60 rounded-lg p-1.5">
-            <DropdownMenuLabel>
-              <div className="flex items-center gap-3">
+          <DropdownMenuContent align="start" className="w-60 rounded-xl p-2 backdrop-blur-md bg-white/95 dark:bg-slate-900/95 border border-slate-200/50 dark:border-slate-700/50 shadow-xl">
+            <DropdownMenuLabel className="p-0">
+              <div className="flex items-center gap-3 p-2 rounded-lg bg-slate-50/50 dark:bg-slate-800/50">
                 <UserAvatar
                   id={userState.id || 0}
                   username={userState.username || ''}
@@ -122,25 +126,31 @@ export function NavUser({ user }: { user: UserData }) {
                   avatarUrl={userState.avatar_url || userState.avatar}
                   size="lg"
                   showTooltip={false}
-                  className="rounded-lg"
+                  className="rounded-xl shadow-md"
                 />
-                <div className="grid flex-1 gap-0.5">
-                  <span className="truncate font-medium">{displayName}</span>
-                  <span className="truncate text-xs">{userState.email}</span>
+                <div className="grid flex-1 gap-1">
+                  <span className="truncate font-medium text-slate-900 dark:text-slate-100">{displayName}</span>
+                  <span className="truncate text-xs text-slate-500 dark:text-slate-400">{userState.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-slate-200/50 dark:bg-slate-700/50" />
             <DropdownMenuGroup>
-              <DropdownMenuItem onClick={handleGoToSettings}> {/* Dodano onClick */}
-                <IconCreditCard className="mr-2 h-4 w-4" />
-                Ustawienia
+              <DropdownMenuItem 
+                onClick={handleGoToSettings}
+                className="rounded-lg hover:bg-slate-100/80 dark:hover:bg-slate-800/80 transition-colors duration-200"
+              >
+                <IconCreditCard className="mr-3 h-4 w-4 text-slate-500 dark:text-slate-400" />
+                <span className="text-slate-700 dark:text-slate-300">Ustawienia</span>
               </DropdownMenuItem>
             </DropdownMenuGroup>
-            <DropdownMenuSeparator />
-            <DropdownMenuItem onClick={handleLogout}>
-              <IconLogout className="mr-2 h-4 w-4" />
-              Wyloguj
+            <DropdownMenuSeparator className="bg-slate-200/50 dark:bg-slate-700/50" />
+            <DropdownMenuItem 
+              onClick={handleLogout}
+              className="rounded-lg hover:bg-red-50 dark:hover:bg-red-950/50 transition-colors duration-200"
+            >
+              <IconLogout className="mr-3 h-4 w-4 text-red-500 dark:text-red-400" />
+              <span className="text-red-600 dark:text-red-400">Wyloguj</span>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

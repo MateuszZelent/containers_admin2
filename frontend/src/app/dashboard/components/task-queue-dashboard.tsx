@@ -504,59 +504,71 @@ export function TaskQueueDashboard() {
 
       {/* Overview Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Tasks</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
+        <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-blue-500/10 via-cyan-600/5 to-indigo-700/10 dark:from-blue-400/20 dark:via-cyan-500/10 dark:to-indigo-600/20 border border-blue-200/30 dark:border-blue-700/30 hover:border-blue-300/50 dark:hover:border-blue-600/50 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Total Tasks</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center shadow-md">
+              <Activity className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{tasks.length}</div>
-            <p className="text-xs text-muted-foreground">
+          <CardContent className="relative">
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{tasks.length}</div>
+            <p className="text-xs text-blue-600 dark:text-blue-400">
               All tasks in queue
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Running</CardTitle>
-            <Play className="h-4 w-4 text-green-600" />
+        <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-green-500/10 via-emerald-600/5 to-teal-700/10 dark:from-green-400/20 dark:via-emerald-500/10 dark:to-teal-600/20 border border-green-200/30 dark:border-green-700/30 hover:border-green-300/50 dark:hover:border-green-600/50 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-green-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-sm font-medium text-green-900 dark:text-green-100">Running</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-green-400 to-emerald-600 flex items-center justify-center shadow-md">
+              <Play className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-green-600">
+          <CardContent className="relative">
+            <div className="text-2xl font-bold text-green-900 dark:text-green-100">
               {statusStats.RUNNING || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-green-600 dark:text-green-400">
               Currently executing
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Pending</CardTitle>
-            <Clock className="h-4 w-4 text-yellow-600" />
+        <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-yellow-500/10 via-amber-600/5 to-orange-700/10 dark:from-yellow-400/20 dark:via-amber-500/10 dark:to-orange-600/20 border border-yellow-200/30 dark:border-yellow-700/30 hover:border-yellow-300/50 dark:hover:border-yellow-600/50 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-yellow-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-sm font-medium text-yellow-900 dark:text-yellow-100">Pending</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center shadow-md">
+              <Clock className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-yellow-600">
+          <CardContent className="relative">
+            <div className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">
               {statusStats.PENDING || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-yellow-600 dark:text-yellow-400">
               Waiting in queue
             </p>
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Failed</CardTitle>
-            <XCircle className="h-4 w-4 text-red-600" />
+        <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-red-500/10 via-rose-600/5 to-pink-700/10 dark:from-red-400/20 dark:via-rose-500/10 dark:to-pink-600/20 border border-red-200/30 dark:border-red-700/30 hover:border-red-300/50 dark:hover:border-red-600/50 transition-all duration-300">
+          <div className="absolute inset-0 bg-gradient-to-br from-red-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
+            <CardTitle className="text-sm font-medium text-red-900 dark:text-red-100">Failed</CardTitle>
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-red-400 to-rose-600 flex items-center justify-center shadow-md">
+              <XCircle className="h-4 w-4 text-white" />
+            </div>
           </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold text-red-600">
+          <CardContent className="relative">
+            <div className="text-2xl font-bold text-red-900 dark:text-red-100">
               {statusStats.ERROR || 0}
             </div>
-            <p className="text-xs text-muted-foreground">
+            <p className="text-xs text-red-600 dark:text-red-400">
               Needs attention
             </p>
           </CardContent>
@@ -564,11 +576,12 @@ export function TaskQueueDashboard() {
       </div>
 
       {/* Filters and Search */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-lg">Filters</CardTitle>
+      <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30 hover:border-slate-300/50 dark:hover:border-slate-600/50 transition-all duration-300">
+        <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+        <CardHeader className="relative">
+          <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Filters</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="relative">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -685,11 +698,14 @@ export function TaskQueueDashboard() {
         </AnimatePresence>
 
         {filteredTasks.length === 0 && (
-          <Card>
-            <CardContent className="flex flex-col items-center justify-center py-12">
-              <Activity className="h-12 w-12 text-muted-foreground mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No tasks found</h3>
-              <p className="text-muted-foreground text-center max-w-md">
+          <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardContent className="flex flex-col items-center justify-center py-12 relative">
+              <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-slate-400 to-gray-600 flex items-center justify-center shadow-lg mb-4">
+                <Activity className="h-8 w-8 text-white" />
+              </div>
+              <h3 className="text-lg font-semibold mb-2 text-slate-900 dark:text-slate-100">No tasks found</h3>
+              <p className="text-slate-600 dark:text-slate-400 text-center max-w-md">
                 {searchTerm || statusFilter !== "all" || categoryFilter !== "all"
                   ? "Try adjusting your filters or search terms."
                   : "Get started by creating your first simulation task."}
@@ -888,8 +904,9 @@ function TaskList({
   };
 
   return (
-    <Card>
-      <CardContent className="p-0">
+    <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30 hover:border-slate-300/50 dark:hover:border-slate-600/50 transition-all duration-300">
+      <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <CardContent className="p-0 relative">
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead className="border-b">

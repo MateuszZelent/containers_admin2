@@ -152,6 +152,8 @@ interface UserData {
   first_name?: string;
   last_name?: string;
   username?: string;
+  avatar_url?: string;
+  id?: number;
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -159,7 +161,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const [userData, setUserData] = useState<UserData>({
     email: "",
     name: "",
-    avatar: "/avatars/shadcn.jpg", // Domyślny awatar
+    avatar: "", // Będzie ustawiony dynamicznie
   });
   const [isLoading, setIsLoading] = useState(true);
   const [currentUser, setCurrentUser] = useState<any>(null);
@@ -238,10 +240,24 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
     const lastName = String(userData.last_name || '');
     const fullName = userData.full_name ? String(userData.full_name) : `${firstName} ${lastName}`.trim();
     
+    // Generate proper avatar URL
+    let avatarUrl = '';
+    if (userData.avatar_url) {
+      avatarUrl = String(userData.avatar_url);
+    } else if (userData.avatar) {
+      avatarUrl = String(userData.avatar);
+    } else if (userData.username) {
+      // Generate avatar URL based on username
+      const username = String(userData.username);
+      avatarUrl = `/static/avatars/${username}.jpg`;
+    }
+    
     return {
+      id: userData.id ? Number(userData.id) : 0,
       email: String(userData.email || ''),
       name: fullName || String(userData.username || 'User'),
-      avatar: "/avatars/shadcn.jpg",
+      avatar: avatarUrl,
+      avatar_url: avatarUrl,
       full_name: fullName,
       first_name: firstName,
       last_name: lastName,
@@ -280,33 +296,38 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   }, []);
 
   return (
-    <Sidebar collapsible="offcanvas" {...props}>
-      <SidebarHeader className="bg-gradient-to-b from-white/10 to-transparent dark:from-slate-700/20 dark:to-transparent backdrop-blur-sm border-b border-white/10 dark:border-slate-700/30">
+    <Sidebar collapsible="offcanvas" className="border-r border-slate-200/20 dark:border-slate-800/20" {...props}>
+      <SidebarHeader className="backdrop-blur-sm bg-gradient-to-b from-slate-100/10 via-white/5 to-transparent dark:from-slate-800/10 dark:via-slate-900/5 dark:to-transparent border-b border-slate-200/10 dark:border-slate-800/10">
         <SidebarMenu>
           <SidebarMenuItem>
             <SidebarMenuButton
               asChild
-              className="data-[slot=sidebar-menu-button]:!p-1.5 hover:bg-white/20 dark:hover:bg-slate-700/30 transition-all duration-200 backdrop-blur-sm"
+              className="data-[slot=sidebar-menu-button]:!p-3 hover:bg-slate-100/30 dark:hover:bg-slate-800/30 transition-all duration-300 backdrop-blur-sm rounded-xl group"
             >
-              <a href="#" className="flex items-center gap-2">
-                <div className="p-1 rounded-lg bg-gradient-to-br from-blue-500 to-blue-600 shadow-sm">
-                  <IconInnerShadowTop className="!size-4 text-white" />
+              <a href="#" className="flex items-center gap-3">
+                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/80 to-purple-600/80 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
+                  <IconInnerShadowTop className="!size-5 text-white" />
                 </div>
-                <span className="text-base font-semibold bg-gradient-to-r from-slate-800 to-slate-600 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
-                  AMUcontainers
-                </span>
+                <div className="flex flex-col">
+                  <span className="text-base font-semibold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">
+                    AMUcontainers
+                  </span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
+                    v0.4
+                  </span>
+                </div>
               </a>
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
       </SidebarHeader>
-      <SidebarContent>
+      <SidebarContent className="bg-gradient-to-b from-transparent via-slate-50/5 to-transparent dark:via-slate-900/5">
         <NavMain items={data.navMain} />
         {currentUser?.is_superuser && (
           <NavAdmin items={data.adminNavigation} />
         )}
       </SidebarContent>
-      <SidebarFooter>
+      <SidebarFooter className="backdrop-blur-sm bg-gradient-to-t from-slate-100/10 via-white/5 to-transparent dark:from-slate-800/10 dark:via-slate-900/5 dark:to-transparent border-t border-slate-200/10 dark:border-slate-800/10">
         {!isLoading && <NavUser user={userData} />}
       </SidebarFooter>
     </Sidebar>

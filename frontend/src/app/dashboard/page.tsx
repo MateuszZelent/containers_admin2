@@ -617,8 +617,8 @@ export default function DashboardPage() {
       <Card 
         className={`backdrop-blur-sm transition-colors duration-300
           ${(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) 
-            ? 'bg-red-50/70 dark:bg-red-950/30 border-red-200 dark:border-red-800/50' 
-            : 'bg-white/60 dark:bg-slate-800/60'
+            ? 'bg-gradient-to-br from-red-500/20 via-red-600/10 to-red-700/20 dark:from-red-400/30 dark:via-red-500/20 dark:to-red-600/30 border-red-300/50 dark:border-red-700/50' 
+            : 'backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border-slate-200/30 dark:border-slate-700/30'
           }
         `}
       >
@@ -690,7 +690,7 @@ export default function DashboardPage() {
 
       {/* Zadania */}
       <Tabs defaultValue="all" className="w-full">
-        <TabsList className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+        <TabsList className="backdrop-blur-sm bg-gradient-to-r from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/15 dark:via-slate-500/10 dark:to-gray-600/15 border border-slate-200/20 dark:border-slate-700/20">
           <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
           {/* <TabsTrigger value="active">Lista zadań</TabsTrigger> */}
           <TabsTrigger value="task-queue">Task Queue</TabsTrigger>
@@ -702,82 +702,123 @@ export default function DashboardPage() {
         
         {/* Active jobs tab (renamed from All jobs) */}
         <TabsContent value="all" className="mt-4">
-          <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-            <CardHeader className="pb-2">
-              <CardTitle>Aktywne zadania</CardTitle>
-              <CardDescription>
+          <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-slate-500/5 via-slate-600/3 to-gray-700/5 dark:from-slate-400/10 dark:via-slate-500/5 dark:to-gray-600/10 border border-slate-200/20 dark:border-slate-700/20 hover:border-slate-300/30 dark:hover:border-slate-600/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-slate-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-slate-900 dark:text-slate-100">Aktywne zadania</CardTitle>
+              <CardDescription className="text-slate-600 dark:text-slate-400">
                 Przegląd aktywnych kontenerów i statystyki klastra
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
               {/* Header section with stats */}
-              <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-6">
-            <Card className="bg-white/60 backdrop-blur-sm border-emerald-200/60 hover:bg-white/70 hover:border-emerald-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-emerald-700/40 dark:hover:bg-slate-800/70 dark:hover:border-emerald-600/50">
-              <CardContent className="p-4">
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 mb-8">
+            {/* Aktywne */}
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-emerald-500/5 via-emerald-600/3 to-emerald-700/5 dark:from-emerald-400/10 dark:via-emerald-500/5 dark:to-emerald-600/10 border border-emerald-200/20 dark:border-emerald-700/20 hover:border-emerald-300/30 dark:hover:border-emerald-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-emerald-500/5 dark:hover:shadow-emerald-400/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Aktywne</p>
-                    <p className="text-2xl font-bold text-emerald-900 dark:text-emerald-100">
+                    <p className="text-3xl font-bold text-emerald-900 dark:text-emerald-100 tracking-tight">
                       {getActiveJobs().filter(job => job.status === "RUNNING").length}
                     </p>
                   </div>
-                  <Activity className="h-8 w-8 text-emerald-600 dark:text-emerald-400" />
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-emerald-400/80 to-emerald-600/80 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                    <Activity className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-xs text-emerald-600 dark:text-emerald-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
+                  W trakcie wykonania
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/60 backdrop-blur-sm border-amber-200/60 hover:bg-white/70 hover:border-amber-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-amber-700/40 dark:hover:bg-slate-800/70 dark:hover:border-amber-600/50">
-              <CardContent className="p-4">
+            {/* Oczekujące */}
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-amber-500/5 via-amber-600/3 to-orange-700/5 dark:from-amber-400/10 dark:via-amber-500/5 dark:to-orange-600/10 border border-amber-200/20 dark:border-amber-700/20 hover:border-amber-300/30 dark:hover:border-amber-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-amber-500/5 dark:hover:shadow-amber-400/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-amber-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Oczekujące</p>
-                    <p className="text-2xl font-bold text-amber-900 dark:text-amber-100">
+                    <p className="text-3xl font-bold text-amber-900 dark:text-amber-100 tracking-tight">
                       {getActiveJobs().filter(job => job.status === "PENDING" || job.status === "CONFIGURING").length}
                     </p>
                   </div>
-                  <Clock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-400/80 to-orange-600/80 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                    <Clock className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-xs text-amber-600 dark:text-amber-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mr-2 animate-pulse" />
+                  Oczekuje na uruchomienie
                 </div>
               </CardContent>
             </Card>
             
-            <Card className="bg-white/60 backdrop-blur-sm border-blue-200/60 hover:bg-white/70 hover:border-blue-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-blue-700/40 dark:hover:bg-slate-800/70 dark:hover:border-blue-600/50">
-              <CardContent className="p-4">
+            {/* Łącznie */}
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-blue-500/5 via-blue-600/3 to-indigo-700/5 dark:from-blue-400/10 dark:via-blue-500/5 dark:to-indigo-600/10 border border-blue-200/20 dark:border-blue-700/20 hover:border-blue-300/30 dark:hover:border-blue-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-blue-500/5 dark:hover:shadow-blue-400/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-blue-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-blue-700 dark:text-blue-300">Łącznie</p>
-                    <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">
+                    <p className="text-3xl font-bold text-blue-900 dark:text-blue-100 tracking-tight">
                       {getActiveJobs().length}
                     </p>
                   </div>
-                  <Server className="h-8 w-8 text-blue-600 dark:text-blue-400" />
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-blue-400/80 to-indigo-600/80 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                    <Server className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-xs text-blue-600 dark:text-blue-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-blue-500 mr-2" />
+                  Wszystkie zadania
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white/60 backdrop-blur-sm border-purple-200/60 hover:bg-white/70 hover:border-purple-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-purple-700/40 dark:hover:bg-slate-800/70 dark:hover:border-purple-600/50">
-              <CardContent className="p-4">
+            {/* Używane węzły */}
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-purple-500/5 via-purple-600/3 to-violet-700/5 dark:from-purple-400/10 dark:via-purple-500/5 dark:to-violet-600/10 border border-purple-200/20 dark:border-purple-700/20 hover:border-purple-300/30 dark:hover:border-purple-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-purple-500/5 dark:hover:shadow-purple-400/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-purple-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-purple-700 dark:text-purple-300">Używane węzły</p>
-                    <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">
+                    <p className="text-3xl font-bold text-purple-900 dark:text-purple-100 tracking-tight">
                       {currentUser ? `${getUsedContainers()}/${currentUser.max_containers || 6}` : "–"}
                     </p>
                   </div>
-                  <Cpu className="h-8 w-8 text-purple-600 dark:text-purple-400" />
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-purple-400/80 to-violet-600/80 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                    <Cpu className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-xs text-purple-600 dark:text-purple-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-purple-500 mr-2" />
+                  Limit wykorzystania
                 </div>
               </CardContent>
             </Card>
 
-            <Card className="bg-white/60 backdrop-blur-sm border-orange-200/60 hover:bg-white/70 hover:border-orange-300/70 transition-all duration-300 dark:bg-slate-800/60 dark:border-orange-700/40 dark:hover:bg-slate-800/70 dark:hover:border-orange-600/50">
-              <CardContent className="p-4">
+            {/* Używane GPU */}
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-orange-500/5 via-red-500/3 to-pink-600/5 dark:from-orange-400/10 dark:via-red-500/5 dark:to-pink-600/10 border border-orange-200/20 dark:border-orange-700/20 hover:border-orange-300/30 dark:hover:border-orange-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-orange-500/5 dark:hover:shadow-orange-400/5">
+              <div className="absolute inset-0 bg-gradient-to-br from-orange-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
-                  <div>
+                  <div className="space-y-1">
                     <p className="text-sm font-medium text-orange-700 dark:text-orange-300">Używane GPU</p>
-                    <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">
+                    <p className="text-3xl font-bold text-orange-900 dark:text-orange-100 tracking-tight">
                       {currentUser ? `${getUsedGPUs()}/${currentUser.max_gpus || 24}` : "–"}
                     </p>
                   </div>
-                  <Zap className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+                  <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-orange-400/80 to-red-600/80 flex items-center justify-center shadow-md group-hover:scale-110 transition-transform duration-300">
+                    <Zap className="h-6 w-6 text-white" />
+                  </div>
+                </div>
+                <div className="mt-3 flex items-center text-xs text-orange-600 dark:text-orange-400">
+                  <div className="h-1.5 w-1.5 rounded-full bg-orange-500 mr-2" />
+                  Karty graficzne
                 </div>
               </CardContent>
             </Card>
@@ -799,21 +840,21 @@ export default function DashboardPage() {
           {isJobsLoading && jobs.length === 0 ? (              
             <div className="grid gap-6 auto-rows-max grid-cols-1 min-[720px]:grid-cols-2 min-[1080px]:grid-cols-3 min-[1440px]:grid-cols-4 min-[1800px]:grid-cols-5">
               {Array(3).fill(0).map((_, i) => (
-                <Card key={i} className="relative overflow-hidden bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-                  <div className="animate-pulse bg-gradient-to-br from-slate-100/50 to-slate-200/50 dark:from-slate-700/50 dark:to-slate-600/50 absolute inset-0" />
-                  <CardHeader className="pb-3">
+                <Card key={i} className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30">
+                  <div className="animate-pulse bg-gradient-to-br from-slate-200/30 to-slate-300/30 dark:from-slate-600/30 dark:to-slate-700/30 absolute inset-0" />
+                  <CardHeader className="pb-3 relative">
                     <div className="flex items-center justify-between">
-                      <div className="h-6 w-32 bg-slate-300/60 dark:bg-slate-600/60 rounded" />
-                      <div className="h-5 w-20 bg-slate-300/60 dark:bg-slate-600/60 rounded-full" />
+                      <div className="h-6 w-32 bg-slate-400/40 dark:bg-slate-500/40 rounded-lg" />
+                      <div className="h-5 w-20 bg-slate-400/40 dark:bg-slate-500/40 rounded-full" />
                     </div>
-                    <div className="h-4 w-24 bg-slate-200/60 dark:bg-slate-700/60 rounded mt-2" />
+                    <div className="h-4 w-24 bg-slate-300/40 dark:bg-slate-600/40 rounded-lg mt-2" />
                   </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="bg-white/40 backdrop-blur-sm dark:bg-slate-900/40 rounded-lg p-3 space-y-2 border border-slate-200/50 dark:border-slate-700/50">
-                      <div className="h-4 w-16 bg-slate-200/60 dark:bg-slate-700/60 rounded" />
+                  <CardContent className="space-y-4 relative">
+                    <div className="bg-gradient-to-br from-slate-200/20 to-slate-300/20 dark:from-slate-700/20 dark:to-slate-800/20 backdrop-blur-sm rounded-xl p-3 space-y-2 border border-slate-300/20 dark:border-slate-600/20">
+                      <div className="h-4 w-16 bg-slate-400/40 dark:bg-slate-500/40 rounded-lg" />
                       <div className="grid grid-cols-2 gap-3">
                         {Array(4).fill(0).map((_, j) => (
-                          <div key={j} className="h-3 w-full bg-slate-200/60 dark:bg-slate-700/60 rounded" />
+                          <div key={j} className="h-3 w-full bg-slate-300/40 dark:bg-slate-600/40 rounded-lg" />
                         ))}
                       </div>
                     </div>
@@ -822,11 +863,12 @@ export default function DashboardPage() {
               ))}
             </div>
           ) : getActiveJobs().length === 0 ? (
-            <Card className="text-center py-12 bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-              <CardContent>
+            <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-slate-500/5 via-slate-600/3 to-gray-700/5 dark:from-slate-400/10 dark:via-slate-500/5 dark:to-gray-600/10 border border-slate-200/20 dark:border-slate-700/20 hover:border-slate-300/30 dark:hover:border-slate-600/30 transition-all duration-300 text-center py-12">
+              <div className="absolute inset-0 bg-gradient-to-br from-slate-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+              <CardContent className="relative">
                 <div className="flex flex-col items-center space-y-4">
-                  <div className="rounded-full bg-slate-100/80 dark:bg-slate-700/80 p-6">
-                    <Server className="h-12 w-12 text-slate-400 dark:text-slate-500" />
+                  <div className="h-16 w-16 rounded-2xl bg-gradient-to-br from-slate-400/80 to-gray-600/80 flex items-center justify-center shadow-md">
+                    <Server className="h-8 w-8 text-white" />
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -870,14 +912,15 @@ export default function DashboardPage() {
         
         {/* Active jobs tab */}
         <TabsContent value="active" className="mt-4">
-          <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-            <CardHeader className="pb-2">
-              <CardTitle>Zadania aktywne</CardTitle>
-              <CardDescription>
+          <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-blue-500/5 via-blue-600/3 to-cyan-700/5 dark:from-blue-400/10 dark:via-blue-500/5 dark:to-cyan-600/10 border border-blue-200/20 dark:border-blue-700/20 hover:border-blue-300/30 dark:hover:border-blue-600/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-blue-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-blue-900 dark:text-blue-100">Zadania aktywne</CardTitle>
+              <CardDescription className="text-blue-600 dark:text-blue-400">
                 Zadania aktualnie wykonywane lub oczekujące na klastrze
               </CardDescription>
             </CardHeader>
-            <CardContent>              
+            <CardContent className="relative">              
               {getActiveJobs().length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Brak aktywnych zadań.</p>
@@ -913,14 +956,15 @@ export default function DashboardPage() {
         
         {/* Completed jobs tab */}
         <TabsContent value="completed" className="mt-4">
-          <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-            <CardHeader className="pb-2">
-              <CardTitle>Zadania zakończone</CardTitle>
-              <CardDescription>
+          <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-green-500/5 via-emerald-600/3 to-teal-700/5 dark:from-green-400/10 dark:via-emerald-500/5 dark:to-teal-600/10 border border-green-200/20 dark:border-green-700/20 hover:border-green-300/30 dark:hover:border-green-600/30 transition-all duration-300">
+            <div className="absolute inset-0 bg-gradient-to-br from-green-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+            <CardHeader className="pb-2 relative">
+              <CardTitle className="text-green-900 dark:text-green-100">Zadania zakończone</CardTitle>
+              <CardDescription className="text-green-600 dark:text-green-400">
                 Zadania zakończone, anulowane lub zakończone błędem
               </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="relative">
               {getCompletedJobs().length === 0 && !isRefreshing ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <p>Brak zakończonych zadań.</p>
@@ -954,17 +998,20 @@ export default function DashboardPage() {
           <TabsContent value="admin" className="mt-4">
             <div className="space-y-6">
               {/* Users Management */}
-              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <Settings className="h-5 w-5" />
+              <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-indigo-500/5 via-purple-600/3 to-violet-700/5 dark:from-indigo-400/10 dark:via-purple-500/5 dark:to-violet-600/10 border border-indigo-200/20 dark:border-indigo-700/20 hover:border-indigo-300/30 dark:hover:border-indigo-600/30 transition-all duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <CardHeader className="pb-4 relative">
+                  <CardTitle className="flex items-center gap-2 text-indigo-900 dark:text-indigo-100">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-400/80 to-purple-600/80 flex items-center justify-center shadow-md">
+                      <Settings className="h-4 w-4 text-white" />
+                    </div>
                     Zarządzanie użytkownikami
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-indigo-600 dark:text-indigo-400">
                     Lista wszystkich użytkowników systemu
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="relative">
                   {isLoadingAdminData ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -979,8 +1026,9 @@ export default function DashboardPage() {
                       
                       <div className="grid gap-4">
                         {allUsers.map((user) => (
-                          <Card key={user.id} className="bg-white/40 dark:bg-slate-900/40">
-                            <CardContent className="p-4">
+                          <Card key={user.id} className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-indigo-500/10 via-purple-500/5 to-violet-600/10 dark:from-indigo-400/20 dark:via-purple-500/10 dark:to-violet-600/20 border border-indigo-200/30 dark:border-indigo-700/30 hover:border-indigo-300/50 dark:hover:border-indigo-600/50 transition-all duration-300">
+                            <div className="absolute inset-0 bg-gradient-to-br from-indigo-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <CardContent className="p-4 relative">
                               <div className="flex justify-between items-start">
                                 <div className="space-y-1">
                                   <div className="flex items-center gap-2">
@@ -1035,17 +1083,20 @@ export default function DashboardPage() {
               </Card>
 
               {/* All Jobs Management */}
-              <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
-                <CardHeader className="pb-4">
-                  <CardTitle className="flex items-center gap-2">
-                    <Server className="h-5 w-5" />
+              <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-amber-500/5 via-orange-600/3 to-red-700/5 dark:from-amber-400/10 dark:via-orange-500/5 dark:to-red-600/10 border border-amber-200/20 dark:border-amber-700/20 hover:border-amber-300/30 dark:hover:border-amber-600/30 transition-all duration-300">
+                <div className="absolute inset-0 bg-gradient-to-br from-amber-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                <CardHeader className="pb-4 relative">
+                  <CardTitle className="flex items-center gap-2 text-amber-900 dark:text-amber-100">
+                    <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-400/80 to-orange-600/80 flex items-center justify-center shadow-md">
+                      <Server className="h-4 w-4 text-white" />
+                    </div>
                     Wszystkie kontenery
                   </CardTitle>
-                  <CardDescription>
+                  <CardDescription className="text-amber-600 dark:text-amber-400">
                     Przegląd wszystkich kontenerów w systemie
                   </CardDescription>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="relative">
                   {isLoadingAdminData ? (
                     <div className="flex items-center justify-center py-8">
                       <Loader2 className="h-6 w-6 animate-spin mr-2" />
@@ -1067,8 +1118,9 @@ export default function DashboardPage() {
                       
                       <div className="grid gap-4">
                         {allJobs.map((job) => (
-                          <Card key={job.id} className="bg-white/40 dark:bg-slate-900/40">
-                            <CardContent className="p-4">
+                          <Card key={job.id} className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-amber-500/10 via-orange-500/5 to-red-600/10 dark:from-amber-400/20 dark:via-orange-500/10 dark:to-red-600/20 border border-amber-200/30 dark:border-amber-700/30 hover:border-amber-300/50 dark:hover:border-amber-600/50 transition-all duration-300">
+                            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            <CardContent className="p-4 relative">
                               <div className="flex justify-between items-start">
                                 <div className="space-y-2">
                                   <div className="flex items-center gap-2">

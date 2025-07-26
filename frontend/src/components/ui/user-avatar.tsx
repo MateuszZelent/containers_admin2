@@ -25,13 +25,13 @@ export function UserAvatar({
   className
 }: UserAvatarProps) {
   const [imageError, setImageError] = useState(false);
-  const [imageKey, setImageKey] = useState(0); // Force re-render of image
+  const [lastAvatarUrl, setLastAvatarUrl] = useState(avatarUrl);
   
   const initials = generateInitials(firstName, lastName, username);
   const colors = getUserAvatarColor(id);
   
-  // Use cache busting for uploaded images
-  const imageUrl = avatarUrl ? getAvatarUrl(avatarUrl, true) : undefined;
+  // Use cache busting only for uploaded images and only when avatarUrl changes
+  const imageUrl = avatarUrl ? getAvatarUrl(avatarUrl, false) : undefined;
   
   const sizeClasses = {
     sm: 'h-6 w-6 text-xs',
@@ -44,30 +44,18 @@ export function UserAvatar({
     ? `${firstName} ${lastName}` 
     : firstName || lastName || username;
 
-  // Listen for user data updates to refresh avatar
+  // Only reset error state when avatarUrl actually changes
   useEffect(() => {
-    const handleUserDataUpdate = () => {
+    if (avatarUrl !== lastAvatarUrl) {
       setImageError(false);
-      setImageKey(prev => prev + 1); // Force image reload
-    };
-
-    window.addEventListener('user-data-updated', handleUserDataUpdate);
-    return () => {
-      window.removeEventListener('user-data-updated', handleUserDataUpdate);
-    };
-  }, []);
-
-  // Reset error state when avatarUrl changes
-  useEffect(() => {
-    setImageError(false);
-    setImageKey(prev => prev + 1);
-  }, [avatarUrl]);
+      setLastAvatarUrl(avatarUrl);
+    }
+  }, [avatarUrl, lastAvatarUrl]);
 
   const avatarElement = (
     <Avatar className={cn(sizeClasses[size], 'shadow-sm', className)}>
       {imageUrl && !imageError ? (
         <AvatarImage 
-          key={imageKey} // Force re-render when key changes
           src={imageUrl} 
           alt={`${displayName}'s avatar`}
           className="object-cover"
