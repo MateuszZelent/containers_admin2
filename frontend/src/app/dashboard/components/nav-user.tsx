@@ -1,17 +1,14 @@
 "use client"
 
 import { useRouter } from "next/navigation"
+import { useEffect, useState } from "react"
 import {
   IconCreditCard,
   IconDotsVertical,
   IconLogout,
 } from "@tabler/icons-react"
 
-import {
-  Avatar,
-  AvatarFallback,
-  AvatarImage,
-} from "@/registry/new-york-v4/ui/avatar"
+import { UserAvatar } from "@/components/ui/user-avatar"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -38,12 +35,35 @@ interface UserData {
   name?: string
   full_name?: string
   avatar?: string
+  avatar_url?: string
   // ...pozostałe pola
 }
 
 export function NavUser({ user }: { user: UserData }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const [userState, setUserState] = useState(user)
+
+  // Listen for user data updates
+  useEffect(() => {
+    const handleUserDataUpdate = () => {
+      // Refresh user data from localStorage or state management
+      try {
+        const userData = localStorage.getItem('user_data');
+        if (userData) {
+          const parsedData = JSON.parse(userData);
+          setUserState(prev => ({ ...prev, ...parsedData }));
+        }
+      } catch (error) {
+        console.error('Error updating user data:', error);
+      }
+    };
+
+    window.addEventListener('user-data-updated', handleUserDataUpdate);
+    return () => {
+      window.removeEventListener('user-data-updated', handleUserDataUpdate);
+    };
+  }, []);
 
   const handleLogout = () => {
     // Usuwamy wszystkie dane użytkownika
@@ -55,33 +75,9 @@ export function NavUser({ user }: { user: UserData }) {
   }
 
   // Ustalamy nazwę do wyświetlenia
-  const displayName = user.full_name || user.name || 
-    (user.first_name && user.last_name ? `${user.first_name} ${user.last_name}` : 
-     user.first_name || user.last_name || user.username || "Użytkownik");
-  
-  // Generujemy inicjały
-  const getInitials = () => {
-    if (user.first_name && user.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`.toUpperCase();
-    }
-    if (user.full_name) {
-      const parts = user.full_name.split(' ');
-      if (parts.length > 1) {
-        return `${parts[0][0]}${parts[1][0]}`.toUpperCase();
-      }
-      return user.full_name.slice(0, 2).toUpperCase();
-    }
-    if (user.first_name) {
-      return user.first_name.slice(0, 2).toUpperCase();
-    }
-    if (user.username) {
-      return user.username.slice(0, 2).toUpperCase();
-    }
-    return "U";
-  };
-  
-  const initials = getInitials();
-  const avatarSrc = user.avatar;
+  const displayName = userState.full_name || userState.name || 
+    (userState.first_name && userState.last_name ? `${userState.first_name} ${userState.last_name}` : 
+     userState.first_name || userState.last_name || userState.username || "Użytkownik");
 
   const handleGoToSettings = () => {
     router.push("/dashboard/settings");
@@ -96,14 +92,21 @@ export function NavUser({ user }: { user: UserData }) {
               size="lg"
               className="data-[state=open]: data-[state=open]:text-sidebar-accent-foreground"
             >
-              <Avatar className="h-8 w-8 rounded-lg grayscale">
-                {/* AvatarImage spróbuje załadować avatarSrc; jeśli undefined, pokaże Fallback */}
-                <AvatarImage src={avatarSrc} alt={displayName} />
-                <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-              </Avatar>
+              <div className="grayscale">
+                <UserAvatar
+                  id={userState.id || 0}
+                  username={userState.username || ''}
+                  firstName={userState.first_name}
+                  lastName={userState.last_name}
+                  avatarUrl={userState.avatar_url || userState.avatar}
+                  size="md"
+                  showTooltip={false}
+                  className="rounded-lg"
+                />
+              </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-medium">{displayName}</span>
-                <span className="truncate text-xs">{user.email}</span>
+                <span className="truncate text-xs">{userState.email}</span>
               </div>
               {!isMobile && <IconDotsVertical size={16} />}
             </SidebarMenuButton>
@@ -111,13 +114,19 @@ export function NavUser({ user }: { user: UserData }) {
           <DropdownMenuContent align="start" className="w-60 rounded-lg p-1.5">
             <DropdownMenuLabel>
               <div className="flex items-center gap-3">
-                <Avatar className="h-10 w-10 rounded-lg">
-                  <AvatarImage src={avatarSrc} alt={displayName} />
-                  <AvatarFallback className="rounded-lg">{initials}</AvatarFallback>
-                </Avatar>
+                <UserAvatar
+                  id={userState.id || 0}
+                  username={userState.username || ''}
+                  firstName={userState.first_name}
+                  lastName={userState.last_name}
+                  avatarUrl={userState.avatar_url || userState.avatar}
+                  size="lg"
+                  showTooltip={false}
+                  className="rounded-lg"
+                />
                 <div className="grid flex-1 gap-0.5">
                   <span className="truncate font-medium">{displayName}</span>
-                  <span className="truncate text-xs">{user.email}</span>
+                  <span className="truncate text-xs">{userState.email}</span>
                 </div>
               </div>
             </DropdownMenuLabel>

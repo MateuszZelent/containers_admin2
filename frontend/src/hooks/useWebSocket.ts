@@ -50,12 +50,17 @@ export const useWebSocket = ({
   const shouldConnect = useRef(enabled);
 
   const getWebSocketUrl = useCallback(() => {
+    // Ensure we're in browser environment
+    if (typeof window === 'undefined') {
+      return null;
+    }
+    
     // Determine protocol based on current page protocol
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     
     // Determine host and port
     let host: string;
-    const currentHost = window.location.hostname;
+    const currentHost = window.location.hostname || 'localhost';
     const currentPort = window.location.port;
     
     // Check if we're running locally (development) or on production domain
@@ -79,8 +84,8 @@ export const useWebSocket = ({
     const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
     
     // Build URL with token as query parameter
-    const baseUrl = `${protocol}//${host}${url}`;
-    if (token) {
+    const baseUrl = `${protocol}//${host}${url || ''}`;
+    if (token && url) {
       const separator = url.includes('?') ? '&' : '?';
       return `${baseUrl}${separator}token=${encodeURIComponent(token)}`;
     }
@@ -115,6 +120,12 @@ export const useWebSocket = ({
       
       try {
         const wsUrl = getWebSocketUrl();
+        
+        if (!wsUrl) {
+          console.warn('Cannot create WebSocket URL - not in browser environment');
+          return;
+        }
+        
         console.log(`Connecting to WebSocket: ${wsUrl}`);
         
         ws.current = new WebSocket(wsUrl);

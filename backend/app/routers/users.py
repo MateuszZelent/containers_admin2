@@ -1,7 +1,11 @@
 from typing import Any, List
+import os
+import shutil
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
+from PIL import Image
 
 from app.core.auth import get_current_active_user, get_current_superuser
 from app.db.session import get_db
@@ -177,3 +181,98 @@ def delete_user(
         raise HTTPException(status_code=400, detail="Users cannot delete themselves")
     user = UserService.remove(db, user_id=user_id)
     return {"message": "User deleted successfully"}
+
+
+@router.post("/me/avatar")
+async def upload_avatar(
+    *,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_active_user),
+    file: UploadFile = File(...)
+) -> Any:
+    """
+    Upload avatar for current user.
+    """
+    # Validate file type
+    if not file.content_type or not file.content_type.startswith("image/"):
+        raise HTTPException(
+            status_code=400, 
+            detail="File must be an image (jpg, png, gif, etc.)"
+        )
+    
+    # Validate file size (max 2MB)
+    MAX_SIZE = 2 * 1024 * 1024  # 2MB
+    file_content = await file.read()
+    if len(file_content) > MAX_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail="File size must be less than 2MB"
+        )
+    
+    try:
+        # Reset file pointer
+        await file.seek(0)
+        
+        # Create avatars directory if it doesn't exist
+        avatars_dir = Path("static/avatars")
+        avatars_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Generate filename
+        file_extension = file.filename.split(".")[-1].lower() if file.filename else "jpg"
+        avatar_filename = f"{current_user.username}.{file_extension}"
+        avatar_path = avatars_dir / avatar_filename
+        
+        # Open and process image with PIL
+        image = Image.open(file.file)
+        
+        # Convert to RGB if necessary (for PNG with transparency)
+        if image.mode in ("RGBA", "P"):
+            image = image.convert("RGB")
+        
+        # Resize to 128x128 (square avatar)
+        image = image.resize((128, 128), Image.Resampling.LANCZOS)
+        
+        # Save processed image
+        image.save(avatar_path, "JPEG", quality=90)
+        
+        # Update user avatar_url in database
+        avatar_url = f"/static/avatars/{avatar_filename}"
+        user_update = UserUpdate(avatar_url=avatar_url)
+        UserService.update(db, user=current_user, user_in=user_update)
+        
+        return {"message": "Avatar uploaded successfully", "avatar_url": avatar_url}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to process avatar: {str(e)}"
+        )
+
+
+@router.delete("/me/avatar")
+def delete_avatar(
+    *,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_active_user),
+) -> Any:
+    """
+    Delete avatar for current user.
+    """
+    try:
+        # Remove file if it exists
+        if current_user.avatar_url:
+            avatar_path = Path(current_user.avatar_url.lstrip("/"))
+            if avatar_path.exists():
+                os.unlink(avatar_path)
+        
+        # Update user avatar_url in database
+        user_update = UserUpdate(avatar_url=None)
+        UserService.update(db, user=current_user, user_in=user_update)
+        
+        return {"message": "Avatar deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to delete avatar: {str(e)}"
+        )

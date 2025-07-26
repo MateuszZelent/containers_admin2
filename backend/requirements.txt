@@ -20,3 +20,4 @@ email-validator
 psycopg2-binary 
 psutil>=5.9.0  # For process monitoring and management
 tenacity>=8.2.0  # Add retry functionality
+Pillow>=9.0.0  # For image processing and avatar resizing

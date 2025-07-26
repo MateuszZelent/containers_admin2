@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw, Plus, Trash2, Copy, Calendar, Globe, Monitor } from "lucide-react"
+import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw, Plus, Trash2, Copy, Calendar, Globe, Monitor, Upload, X, ImageIcon } from "lucide-react"
 
 import {
   Card,
@@ -50,6 +50,7 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { userApi, cliTokensApi, CLIToken, CLITokenCreate } from "@/lib/api-client"
 import { Skeleton } from "@/app/dashboard/components/skeleton"
+import { UserAvatar } from "@/components/ui/user-avatar"
 
 // Schema for CLI token creation
 const cliTokenCreateSchema = z.object({
@@ -95,6 +96,12 @@ export default function SettingsPage() {
   const [isSubmittingCodeServer, setIsSubmittingCodeServer] = useState(false) // For code-server form submission
   const [showSuccessAccount, setShowSuccessAccount] = useState(false) // For success animation on account
   const [showSuccessCodeServer, setShowSuccessCodeServer] = useState(false) // For success animation on code server
+  
+  // Avatar states
+  const [isUploadingAvatar, setIsUploadingAvatar] = useState(false)
+  const [isDeletingAvatar, setIsDeletingAvatar] = useState(false)
+  const [showAvatarPreview, setShowAvatarPreview] = useState(false)
+  const [previewAvatarUrl, setPreviewAvatarUrl] = useState<string | null>(null)
   
   // CLI Tokens states
   const [cliTokens, setCliTokens] = useState<CLIToken[]>([])
@@ -490,6 +497,72 @@ export default function SettingsPage() {
     }
   }
 
+  // Handle avatar upload
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('image/')) {
+      toast.error("Plik musi być obrazem");
+      return;
+    }
+
+    // Validate file size (5MB max)
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Rozmiar pliku nie może przekraczać 5MB");
+      return;
+    }
+
+    setIsUploadingAvatar(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await userApi.uploadAvatar(formData);
+      
+      // Refresh user data from server to get the latest avatar_url
+      await fetchUserData();
+
+      toast.success("Avatar został pomyślnie zaktualizowany!");
+      
+      // Trigger refresh of active users panel and any other components
+      window.dispatchEvent(new Event('user-data-updated'));
+      
+    } catch (error: any) {
+      console.error("Avatar upload error:", error);
+      const errorMessage = error.response?.data?.detail || "Wystąpił błąd podczas przesyłania avatara";
+      toast.error(errorMessage);
+    } finally {
+      setIsUploadingAvatar(false);
+      // Reset file input
+      event.target.value = '';
+    }
+  };
+
+  // Handle avatar deletion
+  const handleAvatarDelete = async () => {
+    setIsDeletingAvatar(true);
+    try {
+      await userApi.deleteAvatar();
+      
+      // Refresh user data from server to get the latest state
+      await fetchUserData();
+
+      toast.success("Avatar został usunięty");
+      
+      // Trigger refresh of active users panel and any other components
+      window.dispatchEvent(new Event('user-data-updated'));
+      
+    } catch (error: any) {
+      console.error("Avatar delete error:", error);
+      const errorMessage = error.response?.data?.detail || "Wystąpił błąd podczas usuwania avatara";
+      toast.error(errorMessage);
+    } finally {
+      setIsDeletingAvatar(false);
+    }
+  };
+
   // If we're still loading data for the first time, show skeleton UI
   if (isInitialLoading) { // Use specific loading state for skeleton
     return (
@@ -554,8 +627,12 @@ export default function SettingsPage() {
 
       <Separator />
 
-      <Tabs defaultValue="account" className="w-full">
+      <Tabs defaultValue="avatar" className="w-full">
         <TabsList className="mb-6">
+          <TabsTrigger value="avatar" className="flex items-center gap-2">
+            <ImageIcon className="h-4 w-4" />
+            Avatar
+          </TabsTrigger>
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
             Ustawienia konta
@@ -570,6 +647,141 @@ export default function SettingsPage() {
           </TabsTrigger>
         </TabsList>
         
+        {/* Avatar Tab */}
+        <TabsContent value="avatar">
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>Avatar użytkownika</CardTitle>
+              <CardDescription>
+                Zarządzaj swoim zdjęciem profilowym wyświetlanym w systemie
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Current Avatar Display */}
+              <div className="flex items-center space-x-6">
+                <div className="flex-shrink-0">
+                  <UserAvatar
+                    id={userData?.id}
+                    username={userData?.username}
+                    firstName={userData?.first_name}
+                    lastName={userData?.last_name}
+                    avatarUrl={userData?.avatar_url}
+                    size="xl"
+                    showTooltip={false}
+                  />
+                </div>
+                <div className="flex-1 space-y-2">
+                  <h3 className="text-lg font-medium">
+                    {userData?.first_name && userData?.last_name
+                      ? `${userData.first_name} ${userData.last_name}`
+                      : userData?.username}
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    {userData?.avatar_url
+                      ? "Twój aktualny avatar"
+                      : "Używasz domyślnego avatara z inicjałami"}
+                  </p>
+                </div>
+              </div>
+
+              <Separator />
+
+              {/* Avatar Upload */}
+              <div className="space-y-4">
+                <div>
+                  <h4 className="text-sm font-medium mb-2">Prześlij nowy avatar</h4>
+                  <p className="text-sm text-muted-foreground mb-4">
+                    Wybierz obraz JPG, PNG lub GIF. Maksymalny rozmiar: 5MB. 
+                    Obraz zostanie automatycznie przycięty do kwadratu i przeskalowany.
+                  </p>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-3">
+                  <div className="relative inline-block">
+                    <input
+                      type="file"
+                      id="avatar-upload"
+                      accept="image/*"
+                      onChange={handleAvatarUpload}
+                      disabled={isUploadingAvatar}
+                      className="sr-only"
+                    />
+                    <label
+                      htmlFor="avatar-upload"
+                      className={`inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 cursor-pointer w-full sm:w-auto ${
+                        isUploadingAvatar ? 'pointer-events-none opacity-50' : ''
+                      }`}
+                    >
+                      {isUploadingAvatar ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Przesyłanie...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="mr-2 h-4 w-4" />
+                          Wybierz plik
+                        </>
+                      )}
+                    </label>
+                  </div>
+
+                  {userData?.avatar_url && (
+                    <AlertDialog>
+                      <AlertDialogTrigger asChild>
+                        <Button
+                          variant="outline"
+                          disabled={isDeletingAvatar || isUploadingAvatar}
+                          className="w-full sm:w-auto"
+                        >
+                          {isDeletingAvatar ? (
+                            <>
+                              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              Usuwanie...
+                            </>
+                          ) : (
+                            <>
+                              <X className="mr-2 h-4 w-4" />
+                              Usuń avatar
+                            </>
+                          )}
+                        </Button>
+                      </AlertDialogTrigger>
+                      <AlertDialogContent>
+                        <AlertDialogHeader>
+                          <AlertDialogTitle>Usuń avatar</AlertDialogTitle>
+                          <AlertDialogDescription>
+                            Czy na pewno chcesz usunąć swój avatar? Zostanie zastąpiony domyślnym avatarem z inicjałami.
+                          </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                          <AlertDialogCancel>Anuluj</AlertDialogCancel>
+                          <AlertDialogAction
+                            onClick={handleAvatarDelete}
+                            className="bg-red-600 hover:bg-red-700"
+                          >
+                            Usuń avatar
+                          </AlertDialogAction>
+                        </AlertDialogFooter>
+                      </AlertDialogContent>
+                    </AlertDialog>
+                  )}
+                </div>
+              </div>
+
+              <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                <h4 className="font-semibold mb-2">Wskazówki dotyczące avatara:</h4>
+                <ul className="space-y-1 list-disc list-inside">
+                  <li>Najlepsze rezultaty uzyskasz używając kwadratowych obrazów</li>
+                  <li>Obraz zostanie automatycznie przycięty i przeskalowany do 200x200 pikseli</li>
+                  <li>Avatar będzie widoczny dla wszystkich użytkowników systemu</li>
+                  <li>Obsługiwane formaty: JPG, PNG, GIF</li>
+                </ul>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Account Settings Tab */}
         <TabsContent value="account">
           <Card className="max-w-2xl">

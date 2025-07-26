@@ -1,6 +1,7 @@
 import os
 from fastapi import FastAPI, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -60,6 +61,9 @@ app.include_router(
 )
 
 app.include_router(websocket.router)
+
+# Mount static files for avatars
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 @app.on_event("startup")

@@ -409,3 +409,159 @@ async def admin_stats_websocket(
         cluster_logger.error(f"Admin stats WebSocket error: {e}")
     finally:
         websocket_manager.disconnect(websocket)
+
+
+@router.websocket("/cluster/status")
+async def cluster_status_websocket(
+    websocket: WebSocket,
+    token: Optional[str] = Query(None, description="JWT or CLI token for authentication")
+):
+    """
+    WebSocket endpoint for real-time cluster status updates.
+    
+    Authentication:
+    - Pass token as query parameter: /ws/cluster/status?token=your_jwt_token
+    - If no token provided and DISABLE_AUTH=True, allows anonymous access
+    - If auth enabled, requires valid JWT or CLI token
+    
+    Clients will receive:
+    - Cluster resource usage updates every 30 seconds
+    - Node status changes
+    - Queue statistics
+    - Active session counts
+    """
+    print(f"DEBUG: WebSocket connection attempt to /cluster/status with token: {token[:20] if token else 'None'}...")
+    
+    # Get database session
+    db = next(get_db())
+    
+    try:
+        # Authenticate user
+        user = await get_current_user_websocket(token, db)
+        user_id = str(user.id) if user else None
+        
+        print(f"DEBUG: Authentication successful for user: "
+              f"{user.username if user else 'anonymous'} (id: {user_id})")
+        cluster_logger.info(f"WebSocket cluster_status connection attempt "
+                          f"by user: {user.username if user else 'anonymous'}")
+        
+    except Exception as e:
+        print(f"DEBUG: WebSocket authentication failed: {e}")
+        cluster_logger.warning(f"WebSocket authentication failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+    # Note: Keep db session open for cluster service
+
+    connected = await websocket_manager.connect(
+        websocket, 
+        "cluster_status", 
+        user_id
+    )
+
+    if not connected:
+        db.close()
+        await websocket.close(code=1011, reason="Connection failed")
+        return
+
+    try:
+        # Send initial connection confirmation
+        await websocket.send_text(json.dumps({
+            "type": "connection_established",
+            "channel": "cluster_status",
+            "message": "Connected to cluster status updates"
+        }))
+
+        # Import cluster monitoring service with db session
+        from app.services.cluster_stats_monitor import (
+            ClusterStatsMonitorService
+        )
+        cluster_service = ClusterStatsMonitorService(db)
+        
+        # Send initial cluster status
+        try:
+            cluster_logger.info("DEBUG: Fetching initial cluster status...")
+            initial_status = await cluster_service.get_cluster_status_summary()
+            cluster_logger.info(f"DEBUG: Got initial status: {type(initial_status)}")
+            await websocket.send_text(json.dumps({
+                "type": "cluster_status",
+                "data": initial_status,
+                "timestamp": datetime.utcnow().isoformat()
+            }))
+            cluster_logger.info("DEBUG: Sent initial cluster status")
+        except Exception as e:
+            cluster_logger.error(f"Error getting initial cluster status: {e}")
+            import traceback
+            cluster_logger.error(f"Traceback: {traceback.format_exc()}")
+
+        # Start periodic status updates
+        import asyncio
+        
+        async def periodic_status_sender():
+            while True:
+                await asyncio.sleep(30)  # Update every 30 seconds
+                try:
+                    status = await cluster_service.get_cluster_status_summary()
+                    await websocket.send_text(json.dumps({
+                        "type": "cluster_status",
+                        "data": status,
+                        "timestamp": datetime.utcnow().isoformat()
+                    }))
+                except Exception as e:
+                    cluster_logger.error(f"Error sending periodic "
+                                       f"cluster status: {e}")
+                    break
+
+        # Start the periodic task
+        periodic_task = asyncio.create_task(periodic_status_sender())
+
+        # Listen for messages (for heartbeat/ping)
+        while True:
+            try:
+                message = await websocket.receive_text()
+                cluster_logger.debug(f"Received WebSocket message: {repr(message)}")
+                data = json.loads(message)
+                cluster_logger.debug(f"Parsed message data: {data}, type: {type(data)}")
+                
+                if data.get("type") == "ping":
+                    # Respond to ping with pong
+                    await websocket.send_text(json.dumps({
+                        "type": "pong",
+                        "timestamp": datetime.utcnow().isoformat()
+                    }))
+                elif data.get("type") == "request_status":
+                    # Send immediate status update
+                    try:
+                        status = await cluster_service.get_cluster_status_summary()
+                        await websocket.send_text(json.dumps({
+                            "type": "cluster_status",
+                            "data": status,
+                            "timestamp": datetime.utcnow().isoformat()
+                        }))
+                    except Exception as e:
+                        cluster_logger.error(f"Error sending requested "
+                                           f"cluster status: {e}")
+                        
+            except json.JSONDecodeError as e:
+                cluster_logger.error(f"JSON decode error: {e}, message was: {repr(message)}")
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Invalid JSON message"
+                }))
+            except Exception as e:
+                cluster_logger.error(f"Error handling cluster status WebSocket message: {e}")
+                cluster_logger.error(f"Message was: {repr(message) if 'message' in locals() else 'no message'}")
+                cluster_logger.error(f"Data was: {repr(data) if 'data' in locals() else 'no data'}")
+                import traceback
+                cluster_logger.error(f"Traceback: {traceback.format_exc()}")
+                break
+
+        # Cancel periodic task when loop exits
+        periodic_task.cancel()
+
+    except WebSocketDisconnect:
+        cluster_logger.info("Cluster status WebSocket disconnected")
+    except Exception as e:
+        cluster_logger.error(f"Cluster status WebSocket error: {e}")
+    finally:
+        websocket_manager.disconnect(websocket)
+        db.close()  # Close database session

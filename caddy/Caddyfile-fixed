@@ -1,11 +1,48 @@
+
 amucontainers.orion.zfns.eu.org {
     tls mateusz.zelent@amu.edu.pl
     
     # Enable proper response buffering and timeouts
     @static {
-        path /_next/static/* /static/* /favicon.ico /robots.txt /sitemap.xml *.woff2 *.woff *.ttf *.otf *.css *.js *.png *.jpg *.jpeg *.gif *.svg *.ico
+        path /_next/static/* /favicon.ico /robots.txt /sitemap.xml
+        file {
+            try_files {path}
+        }
     }
     
+    # Backend static files (avatars) to FastAPI
+    @backend_static {
+        path /static/*
+    }
+    reverse_proxy @backend_static localhost:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+    }
+    
+    # Handle static files with proper headers
+    @fonts {
+        path *.woff2 *.woff *.ttf *.otf
+    }
+
+    # WebSocket for FastAPI - MUST BE FIRST (before @api)
+    @api_ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /ws/*
+    }
+    reverse_proxy @api_ws localhost:8000 {
+        header_up Host {host}
+        header_up Connection "Upgrade"
+        header_up Upgrade "websocket"
+        header_up X-Real-IP {remote_host}
+        
+        # WebSocket specific settings
+        transport http {
+            dial_timeout 30s
+            response_header_timeout 60s
+        }
+    }
+
     # WebSocket for Next.js HMR - more specific matcher
     @nextjs_ws {
         header Connection *Upgrade*
@@ -14,78 +51,42 @@ amucontainers.orion.zfns.eu.org {
     }
     reverse_proxy @nextjs_ws localhost:3000 {
         header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
         header_up Connection "Upgrade"
-        header_up Upgrade "websocket"
-        
-        # WebSocket specific settings
-        transport http {
-            dial_timeout 10s
-            response_header_timeout 0
-            expect_continue_timeout 0
-        }
+        header_up Upgrade "websocket"   
     }
 
-    # WebSocket for FastAPI
-    @api_ws {
-        header Connection *Upgrade*
-        header Upgrade websocket
-        path /api/ws/* /ws/*
-    }
-    reverse_proxy @api_ws localhost:8000 {
-        header_up Host {host}
-        header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
-        header_up Connection "Upgrade"
-        header_up Upgrade "websocket"
-    }
-
-    # API requests to FastAPI backend
+    # API requests to FastAPI backend (AFTER WebSocket rules)
     @api {
         path /api/*
     }
     reverse_proxy @api localhost:8000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
         
-        # Add CORS headers for API requests
-        header Access-Control-Allow-Origin "*"
-        header Access-Control-Allow-Methods "GET, POST, PUT, DELETE, OPTIONS"
-        header Access-Control-Allow-Headers "Content-Type, Authorization"
+        # Standard HTTP timeouts
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
     }
 
     # All other requests to Next.js frontend with proper headers
     reverse_proxy localhost:3000 {
         header_up Host {host}
         header_up X-Real-IP {remote_host}
-        header_up X-Forwarded-For {remote_host}
-        header_up X-Forwarded-Proto {scheme}
-        header_up X-Forwarded-Host {host}
         
         # Increase timeouts for better reliability
         transport http {
             dial_timeout 10s
             response_header_timeout 30s
         }
-        
-        # Add security headers
-        header X-Frame-Options "SAMEORIGIN"
-        header X-Content-Type-Options "nosniff"
-        header Referrer-Policy "strict-origin-when-cross-origin"
     }
 
     # Enable logging for debugging
     log {
-        output file /var/log/caddy/access.log
+        output file /var/log/caddy/amucontainers.log
         format console
+        level INFO
     }
 
     # Handle errors gracefully
@@ -97,6 +98,30 @@ amucontainers.orion.zfns.eu.org {
             expression int({http.error.status_code}) >= 500
         }
         respond @404 "Page not found" 404
-        respond @5xx "Internal server error" 500
+        respond @5xx "Internal server error - please try again later" 500
+    }
+
+    # Security headers
+    header {
+        # Remove server info
+        -Server
+        
+        # Security headers
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        
+        # Cache control for static assets
+        @static_cache {
+            path /_next/static/* /static/*
+        }
+        Cache-Control @static_cache "public, max-age=31536000, immutable"
+        
+        # No cache for API and dynamic content
+        @no_cache {
+            path /api/* /ws/*
+        }
+        Cache-Control @no_cache "no-cache, no-store, must-revalidate"
     }
 }

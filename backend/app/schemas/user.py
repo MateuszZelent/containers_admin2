@@ -12,6 +12,7 @@ class UserBase(BaseModel):
     max_gpus_per_job: Optional[int] = None
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
+    avatar_url: Optional[str] = None
 
 
 class UserCreate(UserBase):
@@ -34,6 +35,7 @@ class UserUpdate(BaseModel):
     max_gpus_per_job: Optional[int] = None
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
+    avatar_url: Optional[str] = None
 
 
 class UserInDBBase(UserBase):
@@ -46,6 +48,7 @@ class UserInDBBase(UserBase):
     max_gpus_per_job: Optional[int] = None
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
+    avatar_url: Optional[str] = None
 
     class Config:
         from_attributes = True

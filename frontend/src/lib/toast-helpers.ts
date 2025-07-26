@@ -1,6 +1,20 @@
 import { toast } from 'sonner';
 import { CheckCircle2, AlertCircle, AlertTriangle, Info, Loader2 } from 'lucide-react';
 
+// Global debounce map to prevent duplicate toasts
+const toastDebounceMap = new Map<string, number>();
+
+// Helper function to debounce toasts by message
+const debounceToast = (key: string, fn: () => void, delay: number = 3000) => {
+  const now = Date.now();
+  const lastShown = toastDebounceMap.get(key) || 0;
+  
+  if (now - lastShown > delay) {
+    toastDebounceMap.set(key, now);
+    fn();
+  }
+};
+
 // Helper functions for different types of toast notifications
 export const showToast = {
   success: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
@@ -24,12 +38,15 @@ export const showToast = {
   },
 
   warning: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
-    return toast.warning(message, {
-      description,
-      action: action ? {
-        label: action.label,
-        onClick: action.onClick,
-      } : undefined,
+    const key = `warning:${message}`;
+    return debounceToast(key, () => {
+      toast.warning(message, {
+        description,
+        action: action ? {
+          label: action.label,
+          onClick: action.onClick,
+        } : undefined,
+      });
     });
   },
 

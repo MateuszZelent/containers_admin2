@@ -23,9 +23,15 @@ import { showToast } from "@/lib/toast-helpers";
 
 interface ClusterStatsCardProps {
   onRefresh?: () => void;
+  isWebSocketActive?: boolean;
+  lastUpdate?: Date | null;
 }
 
-export function ClusterStatsCard({ onRefresh }: ClusterStatsCardProps) {
+export function ClusterStatsCard({ 
+  onRefresh,
+  isWebSocketActive = false,
+  lastUpdate 
+}: ClusterStatsCardProps) {
   const [stats, setStats] = useState<ClusterStats | null>(null);
   const [summary, setSummary] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -131,7 +137,25 @@ export function ClusterStatsCard({ onRefresh }: ClusterStatsCardProps) {
       {/* Lewa kolumna: tytuł + statystyki */}
       <div className="flex-1">
         <div className="mb-2">
-          <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Klaster PCSS</p>
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Klaster PCSS</p>
+            {isWebSocketActive ? (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                <span className="text-xs text-green-600 dark:text-green-400">Live</span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
+                <span className="text-xs text-yellow-600 dark:text-yellow-400">API</span>
+              </div>
+            )}
+          </div>
+          {lastUpdate && (
+            <p className="text-xs text-cyan-500/70 dark:text-cyan-400/70">
+              Ostatnia aktualizacja: {lastUpdate.toLocaleTimeString()}
+            </p>
+          )}
         </div>
         <div className="text-lg font-bold text-cyan-900 dark:text-cyan-100">
           {isLoading ? (

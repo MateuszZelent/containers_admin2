@@ -37,6 +37,7 @@ class User(Base):
     is_active = Column(Boolean, default=True)
     is_superuser = Column(Boolean, default=False)
     code_server_password = Column(String(255), nullable=True)
+    avatar_url = Column(String(255), nullable=True)  # URL/path to user avatar
 
     # Resource limits
     max_containers = Column(Integer, default=6)  # Max containers user can run

@@ -229,9 +229,14 @@ class ClusterStatsMonitorService:
                 else 0
             )
 
+            timestamp_str = (
+                current_stats.timestamp.isoformat()
+                if current_stats.timestamp else None
+            )
+            
             return {
                 "status": "ok",
-                "timestamp": current_stats.timestamp,
+                "timestamp": timestamp_str,
                 "nodes": {
                     "free": current_stats.free_nodes,
                     "busy": current_stats.busy_nodes,

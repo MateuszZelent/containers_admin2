@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Avatar, AvatarFallback, AvatarImage } from "@/registry/new-york-v4/ui/avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 import { userApi } from "@/lib/api-client";
 
 interface ActiveUser {
@@ -8,24 +8,36 @@ interface ActiveUser {
   first_name?: string | null;
   last_name?: string | null;
   email?: string | null;
+  avatar_url?: string | null;
 }
 
 export function ActiveUsersPanel() {
   const [users, setUsers] = useState<ActiveUser[]>([]);
 
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const response = await userApi.getActiveUsers();
-        setUsers(response.data);
-      } catch (err) {
-        console.error("Failed to fetch active users", err);
-      }
-    };
+  const fetchUsers = async () => {
+    try {
+      const response = await userApi.getActiveUsers();
+      setUsers(response.data);
+    } catch (err) {
+      console.error("Failed to fetch active users", err);
+    }
+  };
 
+  useEffect(() => {
     fetchUsers();
     const interval = setInterval(fetchUsers, 30000);
-    return () => clearInterval(interval);
+    
+    // Listen for user data updates to refresh active users
+    const handleUserDataUpdate = () => {
+      fetchUsers();
+    };
+    
+    window.addEventListener('user-data-updated', handleUserDataUpdate);
+    
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('user-data-updated', handleUserDataUpdate);
+    };
   }, []);
 
   if (!users.length) return null;
@@ -33,28 +45,24 @@ export function ActiveUsersPanel() {
   const displayed = users.slice(0, 6);
   const extra = users.length - displayed.length;
 
-  const renderAvatar = (user: ActiveUser) => {
-    const initials = (user.first_name || user.last_name)
-      ? `${user.first_name?.[0] || ""}${user.last_name?.[0] || ""}`.toUpperCase()
-      : user.username.slice(0, 2).toUpperCase();
-
-    return (
-      <Avatar className="h-7 w-7">
-        <AvatarImage src={`/avatars/${user.username}.png`} />
-        <AvatarFallback className="bg-primary text-primary-foreground">
-          {initials}
-        </AvatarFallback>
-      </Avatar>
-    );
-  };
-
   return (
     <div className="flex items-center space-x-1">
-      {displayed.map((u) => (
-        <div key={u.id}>{renderAvatar(u)}</div>
+      {displayed.map((user) => (
+        <UserAvatar
+          key={user.id}
+          id={user.id}
+          username={user.username}
+          firstName={user.first_name}
+          lastName={user.last_name}
+          avatarUrl={user.avatar_url}
+          size="sm"
+          showTooltip={true}
+        />
       ))}
       {extra > 0 && (
-        <div className="text-xs text-muted-foreground">+{extra}</div>
+        <div className="text-xs text-muted-foreground font-medium ml-1">
+          +{extra}
+        </div>
       )}
     </div>
   );

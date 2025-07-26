@@ -111,3 +111,4 @@ backend/slurm_templates/comsol/docker/LMCOMSOL_Server_6.2_SSQ.lic
 backend/slurm_templates/comsol/docker/Dockerfile.new
 backend/slurm_templates/comsol/docker/Dockerfile.backup
 caddys
+caddy/Caddyfile-fixed

@@ -47,6 +47,7 @@ import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
 import { useJobStatus } from "@/hooks/useJobStatus";
+import { useClusterStatus } from "@/hooks/useClusterStatus";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -131,7 +132,6 @@ export default function DashboardPage() {
   const [isJobsLoading, setIsJobsLoading] = useState(false);
   const [isActiveJobsLoading, setIsActiveJobsLoading] = useState(false);
   const [isClusterStatusLoading, setIsClusterStatusLoading] = useState(false);
-  const [isClusterStatsLoading, setIsClusterStatsLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Operation states
@@ -143,9 +143,19 @@ export default function DashboardPage() {
   
   // Data states
   const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
-  const [clusterStats, setClusterStats] = useState<ClusterStats | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
+
+  // WebSocket-based cluster status
+  const {
+    clusterStatus: clusterStats,
+    loading: isClusterStatsLoading,
+    error: clusterStatsError,
+    lastUpdate: clusterLastUpdate,
+    isWebSocketActive,
+    requestStatusUpdate,
+    forceApiRefresh: fetchClusterStats
+  } = useClusterStatus();
 
   // WebSocket connection state
   const { isJobStatusConnected, verificationCode } = useJobStatus({ enabled: true });
@@ -244,22 +254,6 @@ export default function DashboardPage() {
       throw error;
     } finally {
       setIsClusterStatusLoading(false);
-    }
-  }, []);
-
-  // Fetch cluster stats
-  const fetchClusterStats = useCallback(async () => {
-    setIsClusterStatsLoading(true);
-    try {
-      const response = await clusterApi.getStats();
-      setClusterStats(response.data);
-      return response;
-    } catch (error: unknown) {
-      console.error("Error fetching cluster stats:", error);
-      setClusterStats(null);
-      throw error;
-    } finally {
-      setIsClusterStatsLoading(false);
     }
   }, []);
 
@@ -370,7 +364,6 @@ export default function DashboardPage() {
           fetchJobs(),
           fetchActiveJobs(),
           checkClusterStatus(),
-          fetchClusterStats(),
           fetchCurrentUser()
         ]);
       } catch (error) {
@@ -379,7 +372,7 @@ export default function DashboardPage() {
     };
     
     initialFetch();
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchClusterStats, fetchCurrentUser]);
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchCurrentUser]);
 
   // Fetch tunnels when jobs change
   useEffect(() => {
@@ -414,8 +407,7 @@ export default function DashboardPage() {
       await Promise.all([
         fetchJobs(), 
         fetchActiveJobs(), 
-        checkClusterStatus(),
-        fetchClusterStats()
+        checkClusterStatus()
       ]);
       
       if (showFeedback) {
@@ -433,7 +425,7 @@ export default function DashboardPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchClusterStats]);
+  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
 
   // Auto-refresh timer
   useEffect(() => {
@@ -791,7 +783,11 @@ export default function DashboardPage() {
             </Card>
 
             {/* PCSS Cluster Stats Card */}
-            <ClusterStatsCard onRefresh={fetchClusterStats} />
+            <ClusterStatsCard 
+              onRefresh={fetchClusterStats}
+              isWebSocketActive={isWebSocketActive}
+              lastUpdate={clusterLastUpdate}  
+            />
           </div>
           
           {/* Resource usage chart - full width with proper spacing */}

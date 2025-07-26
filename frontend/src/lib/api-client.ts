@@ -239,9 +239,25 @@ export const userApi = {
   // Pobiera listę aktywnych użytkowników
   getActiveUsers: () => apiClient.get('/users/active'),
   // Aktualizuje dane bieżącego użytkownika, w tym hasło code_server
-  updateCurrentUser: (userData: { code_server_password?: string }) => {
+  updateCurrentUser: (userData: { 
+    code_server_password?: string;
+    email?: string;
+    first_name?: string;
+    last_name?: string;
+    password?: string;
+  }) => {
     return apiClient.put('/users/me', userData)
   },
+  // Upload avatar
+  uploadAvatar: (formData: FormData) => {
+    return apiClient.post('/users/me/avatar', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    })
+  },
+  // Delete avatar
+  deleteAvatar: () => apiClient.delete('/users/me/avatar'),
 }
 
 // Admin API
