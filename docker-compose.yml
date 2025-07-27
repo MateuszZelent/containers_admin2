@@ -15,6 +15,7 @@ services:
       - LOG_LEVEL=DEBUG
       - SSH_KEY_PATH=/root/.ssh/id_rsa
       - CADDY_API_URL=http://host.docker.internal:2020
+      - BASE_URL=https://amucontainers.orion.zfns.eu.org
       # Konfiguracja ścieżek dla kontenerów
       - CONTAINER_OUTPUT_DIR=/mnt/storage_3/home/kkingstoun/containers/run
       - TEMPLATE_DIR=/app/slurm_templates

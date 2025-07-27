@@ -22,6 +22,11 @@ const nextConfig = {
         source: '/api/:path*',
         destination: 'http://backend:8000/api/:path*',
       },
+      // WebSocket connections should also go through backend
+      {
+        source: '/ws/:path*',
+        destination: 'http://backend:8000/ws/:path*',
+      },
     ];
   },
 

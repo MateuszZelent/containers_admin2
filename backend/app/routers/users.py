@@ -13,6 +13,7 @@ from app.schemas.user import User, UserCreate, UserUpdate
 from app.services.user import UserService
 from app.db.models import User as UserModel
 from app.websocket.manager import websocket_manager
+from app.core.utils import get_avatar_url, make_avatar_url_absolute
 
 router = APIRouter()
 
@@ -236,7 +237,7 @@ async def upload_avatar(
         image.save(avatar_path, "JPEG", quality=90)
         
         # Update user avatar_url in database
-        avatar_url = f"/static/avatars/{avatar_filename}"
+        avatar_url = get_avatar_url(avatar_filename)
         user_update = UserUpdate(avatar_url=avatar_url)
         UserService.update(db, user=current_user, user_in=user_update)
         

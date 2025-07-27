@@ -71,9 +71,9 @@ export const useWebSocket = ({
       // Local development - connect directly to backend port
       host = 'localhost:8000';
     } else if (isProductionDomain) {
-      // Production domain - use same host without explicit port (Caddy handles routing)
-      // Frontend is served on 443 (HTTPS), Caddy routes /ws/* to backend:8000 internally
-      host = currentHost; // No port - use default HTTPS port 443
+      // Production domain - use same host (Caddy handles routing)
+      // For WebSocket, we need to go through the proxy, not directly to backend
+      host = currentHost; // No port - use default port (443 for HTTPS, 80 for HTTP)
     } else {
       // Network development (IP address or other hostname)
       // Try to connect directly to port 8000
