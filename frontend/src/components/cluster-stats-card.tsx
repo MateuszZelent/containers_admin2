@@ -146,8 +146,8 @@ export function ClusterStatsCard({
               </div>
             ) : (
               <div className="flex items-center gap-1">
-                <div className="w-2 h-2 bg-yellow-500 rounded-full"></div>
-                <span className="text-xs text-yellow-600 dark:text-yellow-400">API</span>
+                <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                <span className="text-xs text-blue-600 dark:text-blue-400">API</span>
               </div>
             )}
           </div>

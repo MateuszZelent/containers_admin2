@@ -16,7 +16,6 @@ import {
   Loader2, 
   Play, 
   Clock, 
-  AlertCircle, 
   CheckCircle2, 
   XCircle, 
   Pause,
@@ -49,6 +48,9 @@ import { DomainReadinessModal } from "@/components/domain-readiness-modal";
 import { useJobStatus } from "@/hooks/useJobStatus";
 import { useClusterStatus } from "@/hooks/useClusterStatus";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
+import { ConnectionStatusCard } from "@/components/connection-status-card";
+import { ClusterHealthIndicator } from "@/components/cluster-health-indicator";
+import { useCanCreateContainers, useClusterHealth } from "@/hooks/useClusterHealth";
 
 // Define interface for cluster stats  
 interface ClusterStats {
@@ -130,7 +132,6 @@ export default function DashboardPage() {
   // Loading states
   const [isJobsLoading, setIsJobsLoading] = useState(false);
   const [isActiveJobsLoading, setIsActiveJobsLoading] = useState(false);
-  const [isClusterStatusLoading, setIsClusterStatusLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   
   // Operation states
@@ -141,7 +142,6 @@ export default function DashboardPage() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   
   // Data states
-  const [clusterStatus, setClusterStatus] = useState<{connected: boolean, slurm_running: boolean} | null>(null);
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
@@ -158,6 +158,10 @@ export default function DashboardPage() {
 
   // WebSocket connection state
   const { isJobStatusConnected, verificationCode } = useJobStatus({ enabled: true });
+  
+  // Cluster health status
+  const canCreateContainers = useCanCreateContainers();
+  const clusterHealth = useClusterHealth();
   
   // Domain readiness modal states
   const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
@@ -237,22 +241,6 @@ export default function DashboardPage() {
       throw error;
     } finally {
       setIsActiveJobsLoading(false);
-    }
-  }, []);
-
-  // Check cluster status with error handling
-  const checkClusterStatus = useCallback(async () => {
-    setIsClusterStatusLoading(true);
-    try {
-      const response = await jobsApi.getClusterStatus();
-      setClusterStatus(response.data);
-      return response;
-    } catch (error: unknown) {
-      console.error("Error checking cluster status:", error);
-      setClusterStatus({ connected: false, slurm_running: false });
-      throw error;
-    } finally {
-      setIsClusterStatusLoading(false);
     }
   }, []);
 
@@ -362,7 +350,6 @@ export default function DashboardPage() {
         await Promise.all([
           fetchJobs(),
           fetchActiveJobs(),
-          checkClusterStatus(),
           fetchCurrentUser()
         ]);
       } catch (error) {
@@ -371,7 +358,7 @@ export default function DashboardPage() {
     };
     
     initialFetch();
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus, fetchCurrentUser]);
+  }, [fetchJobs, fetchActiveJobs, fetchCurrentUser]);
 
   // Fetch tunnels when jobs change
   useEffect(() => {
@@ -405,8 +392,7 @@ export default function DashboardPage() {
     try {
       await Promise.all([
         fetchJobs(), 
-        fetchActiveJobs(), 
-        checkClusterStatus()
+        fetchActiveJobs()
       ]);
       
       if (showFeedback) {
@@ -424,7 +410,7 @@ export default function DashboardPage() {
     } finally {
       setIsRefreshing(false);
     }
-  }, [fetchJobs, fetchActiveJobs, checkClusterStatus]);
+  }, [fetchJobs, fetchActiveJobs]);
 
   // Auto-refresh timer
   useEffect(() => {
@@ -538,22 +524,26 @@ export default function DashboardPage() {
       .reduce((total, job) => total + (job.num_gpus || 0), 0);
   }, [getActiveJobs]);
 
-  // Determine if cluster is fully operational
+  // Determine if cluster is fully operational - now using connection status hook
   const isClusterOperational = useMemo(() => {
-    return clusterStatus && clusterStatus.connected && clusterStatus.slurm_running;
-  }, [clusterStatus]);
+    // This will be handled by the ConnectionStatusCard component now
+    return true; // Default to true to avoid blocking UI
+  }, []);
 
   // Determine if any data is loading
-  const isAnyLoading = isJobsLoading || isActiveJobsLoading || isClusterStatusLoading;
+  const isAnyLoading = isJobsLoading || isActiveJobsLoading;
 
   return (
     <div className="space-y-6 ">
       {/* Header with title and action buttons */}
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">
-          {t('dashboard.taskManagement.title')}
-          {isAnyLoading && <span className="inline-block ml-2 align-middle"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></span>}
-        </h1>
+        <div className="flex items-center gap-4">
+          <h1 className="text-3xl font-bold">
+            {t('dashboard.taskManagement.title')}
+            {isAnyLoading && <span className="inline-block ml-2 align-middle"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></span>}
+          </h1>
+          <ClusterHealthIndicator variant="badge" showTooltip={true} />
+        </div>
         <div className="flex gap-2 items-center">
           <Button 
             onClick={() => setAutoRefreshEnabled(!autoRefreshEnabled)} 
@@ -587,7 +577,7 @@ export default function DashboardPage() {
                   <Link href="/dashboard/jobs/create">
                     <Button 
                       size="sm" 
-                      disabled={!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))}
+                      disabled={!canCreateContainers}
                       className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       <Plus className="h-4 w-4 mr-2" />
@@ -596,9 +586,21 @@ export default function DashboardPage() {
                   </Link>
                 </span>
               </TooltipTrigger>
-              {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
+              {!canCreateContainers && (
                 <TooltipContent>
-                  <p>{t('dashboard.clusterStatus.containerCreationDisabled')}</p>
+                  <div>
+                    <p>{t('dashboard.clusterStatus.containerCreationDisabled')}</p>
+                    {clusterHealth.issues.length > 0 && (
+                      <div className="mt-2 text-xs">
+                        <p className="font-medium">Issues:</p>
+                        <ul className="list-disc list-inside">
+                          {clusterHealth.issues.slice(0, 3).map((issue, index) => (
+                            <li key={index}>{issue}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -612,80 +614,12 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Status klastra */}
-      <Card 
-        className={`backdrop-blur-sm transition-colors duration-300
-          ${(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) 
-            ? 'bg-gradient-to-br from-red-500/20 via-red-600/10 to-red-700/20 dark:from-red-400/30 dark:via-red-500/20 dark:to-red-600/30 border-red-300/50 dark:border-red-700/50' 
-            : 'backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border-slate-200/30 dark:border-slate-700/30'
-          }
-        `}
-      >
-        <CardHeader className="pb-2">
-          <CardTitle className="flex items-center">
-            {t('dashboard.clusterStatus.title')}
-            {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
-              <AlertCircle className="ml-2 h-5 w-5 text-red-500 dark:text-red-400" />
-            )}
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          {isClusterStatusLoading && !clusterStatus ? (
-            <div className="flex items-center">
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              <p>{t('dashboard.clusterStatus.checking')}</p>
-            </div>
-          ) : !clusterStatus ? (
-            <>
-              <p className="text-red-600 dark:text-red-400 font-medium mb-2">{t('dashboard.clusterStatus.cannotGetStatus')}</p>
-              <p className="text-sm text-red-500/80 dark:text-red-400/80">
-                {t('dashboard.clusterStatus.noResponse')}
-              </p>
-            </>
-          ) : (
-            <>
-              <div className="flex flex-wrap gap-4 mb-2">
-                <div className="flex items-center">
-                  <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.connected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
-                  <p className={clusterStatus.connected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    {t('dashboard.clusterStatus.sshConnection')}: {clusterStatus.connected ? t('dashboard.clusterStatus.active') : t('dashboard.clusterStatus.inactive')}
-                  </p>
-                </div>
-                <div className="flex items-center">
-                  <div className={`h-3 w-3 rounded-full mr-2 ${isJobStatusConnected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
-                  <p className={isJobStatusConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    {t('dashboard.clusterStatus.websocketConnection')}: {isJobStatusConnected ? t('dashboard.clusterStatus.active') : t('dashboard.clusterStatus.inactive')}
-                  </p>
-                </div>
-                {verificationCode && (
-                  <div className="flex items-center">
-                    <p className="text-emerald-700 dark:text-emerald-400">
-                      {t('dashboard.clusterStatus.websocketVerification')}: {verificationCode}
-                    </p>
-                  </div>
-                )}
-                {/* <div className="flex items-center">
-                  <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.slurm_running ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
-                  <p className={clusterStatus.slurm_running ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    System kolejkowy SLURM: {clusterStatus.slurm_running ? 'Działa' : 'Nie działa'}
-                  </p>
-                </div> */}
-              </div>
-
-              {(!clusterStatus.connected || !clusterStatus.slurm_running) && (
-                <div className="bg-red-100/70 dark:bg-red-900/30 p-3 rounded-md mt-2 text-sm text-red-600 dark:text-red-300">
-                  <p className="flex items-center">
-                    <AlertCircle className="h-4 w-4 mr-2" />
-                    {!clusterStatus.connected 
-                      ? 'Nie można nawiązać połączenia SSH z klastrem. Nie musisz pisać do Mateusza, nic z tym nie zrobi ;)' 
-                      : 'System kolejkowania SLURM nie odpowiada. Zadania obliczeniowe nie mogą być uruchamiane w tym momencie.'}
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-        </CardContent>
-      </Card>
+      {/* Status połączeń - nowy zoptymalizowany komponent */}
+      <ConnectionStatusCard 
+        className="backdrop-blur-sm"
+        showRefreshButton={true}
+        compact={false}
+      />
 
       {/* Zadania */}
       <Tabs defaultValue="all" className="w-full">

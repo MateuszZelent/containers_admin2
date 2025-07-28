@@ -102,10 +102,16 @@ export const useWebSocket = ({
   }, []);
 
   const connect = useCallback(() => {
+    // Check if WebSocket is actually connected (handle Hot Refresh)
+    if (ws.current?.readyState === WebSocket.OPEN) {
+      console.log('WebSocket already connected, updating state...');
+      setIsConnected(true);
+      return;
+    }
+    
     if (!shouldConnect.current || 
-        ws.current?.readyState === WebSocket.OPEN || 
         ws.current?.readyState === WebSocket.CONNECTING) {
-      console.log('WebSocket already connected or connecting, skipping...');
+      console.log('WebSocket already connecting or disabled, skipping...');
       return;
     }
 
@@ -213,7 +219,13 @@ export const useWebSocket = ({
     // Add delay to prevent Hot Refresh connection storm
     const hotRefreshDelay = setTimeout(() => {
       if (enabled) {
-        connect();
+        // After Hot Refresh, check if WebSocket is still connected
+        if (ws.current?.readyState === WebSocket.OPEN) {
+          console.log('Post-Hot-Refresh: WebSocket still connected, updating state');
+          setIsConnected(true);
+        } else {
+          connect();
+        }
       } else {
         disconnect();
       }

@@ -223,7 +223,8 @@ export function useClusterStatus(): UseClusterStatusReturn {
       return;
     }
 
-    // If WebSocket doesn't connect within 5 seconds, start with API
+    // If WebSocket doesn't connect within 15 seconds, start with API
+    // Increased from 5s to 15s to give cluster service more time
     const initialTimeout = setTimeout(() => {
       if (!isConnected && !usingApiFallback) {
         console.log('WebSocket connection timeout, using API fallback');
@@ -231,7 +232,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
         fetchClusterStatusFromAPI();
         apiIntervalRef.current = setInterval(fetchClusterStatusFromAPI, API_REFRESH_INTERVAL);
       }
-    }, 5000);
+    }, 15000); // Increased timeout
 
     return () => {
       clearTimeout(initialTimeout);
