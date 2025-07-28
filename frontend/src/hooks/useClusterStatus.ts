@@ -46,7 +46,7 @@ interface UseClusterStatusReturn {
   forceApiRefresh: () => void;
 }
 
-const FALLBACK_TIMEOUT = 60000; // 1 minute without WebSocket data triggers API fallback
+const FALLBACK_TIMEOUT = 120000; // 2 minutes without WebSocket data triggers API fallback
 const API_REFRESH_INTERVAL = 30000; // Refresh API every 30 seconds when using fallback
 
 export function useClusterStatus(): UseClusterStatusReturn {
@@ -173,7 +173,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
         const timeSinceLastData = now.getTime() - (lastWebSocketDataTime.current?.getTime() || 0);
         
         if (timeSinceLastData > FALLBACK_TIMEOUT) {
-          console.warn('WebSocket inactive for too long, switching to API fallback');
+          console.warn(`WebSocket inactive for ${Math.round(timeSinceLastData/1000)}s, switching to API fallback`);
           setUsingApiFallback(true);
           setIsWebSocketActive(false);
           

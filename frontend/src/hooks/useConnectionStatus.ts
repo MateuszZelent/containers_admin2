@@ -20,6 +20,7 @@ export interface ConnectionStatus {
     lastChecked: Date | null;
     totalNodes?: number;
     activeNodes?: number;
+    source?: 'websocket' | 'api';
     error?: string;
   };
 }
@@ -133,8 +134,15 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       return;
     }
 
-    if (!hasLostConnection && stableWebSocketState.verificationCode === verificationCode) {
-      // No meaningful changes
+    if (!hasLostConnection) {
+      // Only update if verification code changed and connections are stable
+      if (stableWebSocketState.verificationCode !== verificationCode && 
+          stableWebSocketState.isJobStatusConnected === isJobStatusConnected &&
+          stableWebSocketState.isTunnelHealthConnected === isTunnelHealthConnected &&
+          stableWebSocketState.isNotificationsConnected === isNotificationsConnected) {
+        // Just update verification code without debounce
+        setStableWebSocketState(prev => ({ ...prev, verificationCode }));
+      }
       return;
     }
 
@@ -317,8 +325,16 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       
       const hasWebSocketConnection = isPCSSWebSocketActive && clusterStatus;
       const hasApiConnection = response.data?.current_status === 'active';
-      
       const pcssStatus = hasWebSocketConnection || hasApiConnection ? 'active' : 'inactive';
+      
+      console.log('[useConnectionStatus] PCSS status update:', {
+        isPCSSWebSocketActive,
+        hasClusterStatus: !!clusterStatus,
+        hasWebSocketConnection,
+        hasApiConnection,
+        pcssStatus,
+        statusSource: hasWebSocketConnection ? 'WebSocket' : hasApiConnection ? 'API' : 'None'
+      });
       
       if (isMountedRef.current) {
         setConnectionStatus(prev => ({
@@ -328,11 +344,10 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
             lastChecked: new Date(),
             totalNodes: clusterStatus?.total_cpus ? Math.ceil(clusterStatus.total_cpus / 32) : undefined,
             activeNodes: clusterStatus?.used_cpus ? Math.ceil(clusterStatus.used_cpus / 32) : undefined,
+            source: hasWebSocketConnection ? 'websocket' : hasApiConnection ? 'api' : undefined,
             error: pcssStatus === 'inactive' 
               ? 'PCSS cluster API and WebSocket failed' 
-              : !hasWebSocketConnection && hasApiConnection
-                ? undefined // API fallback is OK, no error
-                : undefined,
+              : undefined,
           },
         }));
       }

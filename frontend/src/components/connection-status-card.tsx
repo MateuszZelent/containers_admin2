@@ -320,7 +320,10 @@ export const ConnectionStatusCard = memo<ConnectionStatusCardProps>(({
                   label="PCSS Cluster"
                   lastChecked={connectionStatus.pcss.lastChecked}
                   error={connectionStatus.pcss.error}
-                  additionalInfo={connectionStatus.pcss.totalNodes ? `${connectionStatus.pcss.activeNodes}/${connectionStatus.pcss.totalNodes} węzłów` : undefined}
+                  additionalInfo={[
+                    connectionStatus.pcss.totalNodes ? `${connectionStatus.pcss.activeNodes}/${connectionStatus.pcss.totalNodes} węzłów` : undefined,
+                    connectionStatus.pcss.source ? `(${connectionStatus.pcss.source === 'websocket' ? 'LIVE' : 'API'})` : undefined
+                  ].filter(Boolean).join(' ')}
                 />
               </div>
             </div>
@@ -423,7 +426,10 @@ export const ConnectionStatusCard = memo<ConnectionStatusCardProps>(({
             label="PCSS Cluster"
             lastChecked={connectionStatus.pcss.lastChecked}
             error={connectionStatus.pcss.error}
-            additionalInfo={connectionStatus.pcss.totalNodes ? `${connectionStatus.pcss.activeNodes}/${connectionStatus.pcss.totalNodes} aktywnych węzłów` : undefined}
+            additionalInfo={[
+              connectionStatus.pcss.totalNodes ? `${connectionStatus.pcss.activeNodes}/${connectionStatus.pcss.totalNodes} aktywnych węzłów` : undefined,
+              connectionStatus.pcss.source ? `(${connectionStatus.pcss.source === 'websocket' ? 'LIVE' : 'API'})` : undefined
+            ].filter(Boolean).join(' ')}
           />
         </div>
 
