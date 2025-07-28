@@ -38,6 +38,8 @@ async def job_status_websocket(
     # Get database session
     db = next(get_db())
     
+    periodic_task = None
+
     try:
         # Authenticate user
         user = await get_current_user_websocket(token, db)
@@ -143,6 +145,8 @@ async def job_status_websocket(
     except Exception as e:
         cluster_logger.error(f"Job status WebSocket error: {e}")
     finally:
+        if periodic_task:
+            periodic_task.cancel()
         websocket_manager.disconnect(websocket)
 
 
@@ -453,8 +457,8 @@ async def cluster_status_websocket(
     # Note: Keep db session open for cluster service
 
     connected = await websocket_manager.connect(
-        websocket, 
-        "cluster_status", 
+        websocket,
+        "cluster_status",
         user_id
     )
 
@@ -462,6 +466,8 @@ async def cluster_status_websocket(
         db.close()
         await websocket.close(code=1011, reason="Connection failed")
         return
+
+    periodic_task = None
 
     try:
         # Send initial connection confirmation
@@ -563,5 +569,7 @@ async def cluster_status_websocket(
     except Exception as e:
         cluster_logger.error(f"Cluster status WebSocket error: {e}")
     finally:
+        if periodic_task:
+            periodic_task.cancel()
         websocket_manager.disconnect(websocket)
         db.close()  # Close database session
