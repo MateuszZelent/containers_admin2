@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 import {
   Card,
   CardContent,
@@ -63,12 +64,12 @@ import { useRouter } from "next/navigation";
 const containerJobSchema = z.object({
   job_name: z
     .string()
-    .min(3, "Nazwa musi mieć co najmniej 3 znaki")
-    .max(100, "Nazwa nie może przekraczać 100 znaków")
-    .regex(/^[a-zA-Z0-9_-]+$/, "Nazwa może zawierać tylko litery, cyfry, _ i -"),
+    .min(3, "Name must be at least 3 characters")
+    .max(100, "Name cannot exceed 100 characters")
+    .regex(/^[a-zA-Z0-9_-]+$/, "Name can only contain letters, numbers, _ and -"),
   template_name: z
     .string()
-    .min(1, "Szablon jest wymagany"),
+    .min(1, "Template is required"),
   partition: z.string().default("proxima"),
   num_nodes: z.number().default(1),
   tasks_per_node: z.number().default(1),
@@ -93,29 +94,7 @@ interface ValidationStep {
   message?: string;
 }
 
-const TIME_LIMIT_OPTIONS = [
-  { value: "01:00:00", label: "1 godzina" },
-  { value: "06:00:00", label: "6 godzin" },
-  { value: "12:00:00", label: "12 godzin" },
-  { value: "24:00:00", label: "24 godziny" },
-  { value: "72:00:00", label: "3 dni" },
-  { value: "168:00:00", label: "7 dni" },
-];
-
-const CPU_OPTIONS = [
-  { value: 4, label: "4 rdzenie" },
-  { value: 8, label: "8 rdzeni" },
-  { value: 12, label: "12 rdzeni" },
-  { value: 16, label: "16 rdzeni" },
-  { value: 20, label: "20 rdzeni" },
-  { value: 24, label: "24 rdzenie" },
-  { value: 28, label: "28 rdzeni" },
-  { value: 32, label: "32 rdzenie" },
-  { value: 36, label: "36 rdzeni" },
-  { value: 40, label: "40 rdzeni" },
-  { value: 44, label: "44 rdzenie" },
-  { value: 48, label: "48 rdzeni" },
-];
+// Constants for form options - moved to component where t() is available
 
 const MEMORY_OPTIONS = [
   { value: 8, label: "8 GB" },
@@ -136,6 +115,51 @@ const GPU_OPTIONS = [
 ];
 
 export default function CreateContainerJobPage() {
+  const { t } = useTranslation();
+  
+  // Form options with translations
+  const TIME_LIMIT_OPTIONS = [
+    { value: "01:00:00", label: t("containers.create_form.time_options.1_hour") },
+    { value: "06:00:00", label: t("containers.create_form.time_options.6_hours") },
+    { value: "12:00:00", label: t("containers.create_form.time_options.12_hours") },
+    { value: "24:00:00", label: t("containers.create_form.time_options.24_hours") },
+    { value: "72:00:00", label: t("containers.create_form.time_options.3_days") },
+    { value: "168:00:00", label: t("containers.create_form.time_options.7_days") },
+  ];
+
+  const CPU_OPTIONS = [
+    { value: 4, label: t("containers.create_form.cpu_options.4_cores") },
+    { value: 8, label: t("containers.create_form.cpu_options.8_cores") },
+    { value: 12, label: t("containers.create_form.cpu_options.12_cores") },
+    { value: 16, label: t("containers.create_form.cpu_options.16_cores") },
+    { value: 20, label: t("containers.create_form.cpu_options.20_cores") },
+    { value: 24, label: t("containers.create_form.cpu_options.24_cores") },
+    { value: 28, label: t("containers.create_form.cpu_options.28_cores") },
+    { value: 32, label: t("containers.create_form.cpu_options.32_cores") },
+    { value: 36, label: t("containers.create_form.cpu_options.36_cores") },
+    { value: 40, label: t("containers.create_form.cpu_options.40_cores") },
+    { value: 44, label: t("containers.create_form.cpu_options.44_cores") },
+    { value: 48, label: t("containers.create_form.cpu_options.48_cores") },
+  ];
+
+  const MEMORY_OPTIONS = [
+    { value: 8, label: "8 GB" },
+    { value: 16, label: "16 GB" },
+    { value: 32, label: "32 GB" },
+    { value: 64, label: "64 GB" },
+    { value: 128, label: "128 GB" },
+    { value: 256, label: "256 GB" },
+    { value: 512, label: "512 GB" },
+  ];
+
+  const GPU_OPTIONS = [
+    { value: 0, label: "0 GPU" },
+    { value: 1, label: "1 GPU" },
+    { value: 2, label: "2 GPU" },
+    { value: 3, label: "3 GPU" },
+    { value: 4, label: "4 GPU" },
+  ];
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingTemplates, setIsLoadingTemplates] = useState(false);
   const [templates, setTemplates] = useState<Template[]>([]);
@@ -175,7 +199,7 @@ export default function CreateContainerJobPage() {
       setCurrentUser(response.data);
     } catch (error) {
       console.error("Error loading user data:", error);
-      toast.error("Nie można załadować danych użytkownika");
+      toast.error(t('errors.cannotLoadUserData'));
     } finally {
       setIsLoadingUser(false);
     }
@@ -184,7 +208,7 @@ export default function CreateContainerJobPage() {
   const loadTemplates = async () => {
     setIsLoadingTemplates(true);
     setTemplateValidation([
-      { id: "loading", label: "Ładowanie dostępnych szablonów", status: "checking" }
+      { id: "loading", label: t('containers.create_form.template_config.loading_templates'), status: "checking" }
     ]);
 
     try {
@@ -195,9 +219,9 @@ export default function CreateContainerJobPage() {
       setTemplateValidation([
         { 
           id: "loaded", 
-          label: `Załadowano ${templateData.length} szablonów`, 
+          label: t('containers.create_form.template_config.template_loaded', { count: templateData.length }), 
           status: "success",
-          message: `Dostępne szablony: ${templateData.map((t: Template) => t.name).join(", ")}`
+          message: t('containers.create_form.template_config.available_templates', { templates: templateData.map((t: Template) => t.name).join(", ") })
         }
       ]);
     } catch (error) {
@@ -205,12 +229,12 @@ export default function CreateContainerJobPage() {
       setTemplateValidation([
         { 
           id: "error", 
-          label: "Błąd podczas ładowania szablonów", 
+          label: t('containers.create_form.template_config.template_error'), 
           status: "error",
-          message: "Nie można załadować listy dostępnych szablonów"
+          message: t('containers.create_form.template_config.cannot_load_templates_list')
         }
       ]);
-      toast.error("Nie można załadować szablonów kontenerów");
+      toast.error(t('errors.cannotLoadTemplates'));
     } finally {
       setIsLoadingTemplates(false);
     }
@@ -248,7 +272,9 @@ export default function CreateContainerJobPage() {
             value > currentUser.max_gpus_per_job) {
           return {
             isValid: false,
-            message: `Maksymalnie ${currentUser.max_gpus_per_job} GPU dla Twojego konta`
+            message: t('containers.create_form.validation.max_gpus_for_account', {
+              max: currentUser.max_gpus_per_job
+            })
           };
         }
         break;
@@ -261,11 +287,13 @@ export default function CreateContainerJobPage() {
             if (hours > currentUser.max_time_limit_hours) {
               return {
                 isValid: false,
-                message: `Maksymalnie ${currentUser.max_time_limit_hours}h dla Twojego konta`
+                message: t('containers.create_form.validation.max_time_for_account', {
+                  max: currentUser.max_time_limit_hours
+                })
               };
             }
           } catch (e) {
-            return { isValid: false, message: "Nieprawidłowy format czasu" };
+            return { isValid: false, message: t('containers.create_form.validation.invalid_time_format') };
           }
         }
         break;
@@ -276,7 +304,7 @@ export default function CreateContainerJobPage() {
             !currentUser.allowed_templates.includes(value)) {
           return {
             isValid: false,
-            message: "Nie masz uprawnień do tego szablonu"
+            message: t('containers.create_form.validation.no_template_permission')
           };
         }
         break;
@@ -295,14 +323,14 @@ export default function CreateContainerJobPage() {
     if (currentUser.allowed_templates && 
         currentUser.allowed_templates.length > 0 && 
         !currentUser.allowed_templates.includes(data.template_name)) {
-      warnings.push(`❌ Nie masz uprawnień do używania szablonu: ${data.template_name}`);
+      warnings.push(`❌ ${t('containers.create_form.validation.no_template_permission_warning', { template: data.template_name })}`);
     }
 
     // Check GPU per job limit
     if (currentUser.max_gpus_per_job !== undefined && 
         currentUser.max_gpus_per_job !== null && 
         data.num_gpus > currentUser.max_gpus_per_job) {
-      warnings.push(`❌ Przekraczasz limit GPU na kontener (${currentUser.max_gpus_per_job}). Żądane: ${data.num_gpus}`);
+      warnings.push(`❌ ${t('containers.create_form.validation.gpu_limit_exceeded', { limit: currentUser.max_gpus_per_job, requested: data.num_gpus })}`);
     }
 
     // Check time limit
@@ -313,10 +341,10 @@ export default function CreateContainerJobPage() {
         const requestedHours = hours + minutes / 60 + seconds / 3600;
         
         if (requestedHours > currentUser.max_time_limit_hours) {
-          warnings.push(`❌ Przekraczasz limit czasu życia kontenera (${currentUser.max_time_limit_hours}h). Żądane: ${requestedHours.toFixed(2)}h`);
+          warnings.push(`❌ ${t('containers.create_form.validation.time_limit_exceeded', { limit: currentUser.max_time_limit_hours, requested: requestedHours.toFixed(2) })}`);
         }
       } catch (e) {
-        warnings.push("⚠️ Nieprawidłowy format czasu życia kontenera");
+        warnings.push(`⚠️ ${t('containers.create_form.validation.invalid_time_format_warning')}`);
       }
     }
 
@@ -339,7 +367,7 @@ export default function CreateContainerJobPage() {
     // Validate user limits before submission
     const limitWarnings = validateUserLimits(data);
     if (limitWarnings.length > 0) {
-      toast.error("Nie można utworzyć kontenera", {
+      toast.error(t('containers.create_form.submit.cannot_create_container'), {
         description: limitWarnings.join("\n"),
         duration: 8000,
       });
@@ -351,7 +379,7 @@ export default function CreateContainerJobPage() {
     try {
       const response = await jobsApi.createJob(data);
       
-      toast.success("Kontener został utworzony pomyślnie!", {
+      toast.success(t('containers.create_form.submit.success'), {
         description: `Zadanie: ${data.job_name}`,
       });
 
@@ -360,14 +388,14 @@ export default function CreateContainerJobPage() {
     } catch (error: any) {
       console.error("Error creating container job:", error);
       
-      let errorMessage = "Wystąpił błąd podczas tworzenia kontenera";
+      let errorMessage = t('containers.create_form.error_creating_container');
       if (error.response?.data?.detail) {
         errorMessage = error.response.data.detail;
       } else if (error.message) {
         errorMessage = error.message;
       }
 
-      toast.error("Błąd podczas tworzenia kontenera", {
+      toast.error(t('containers.create_form.error_creating_container_toast'), {
         description: errorMessage,
       });
     } finally {
@@ -392,7 +420,7 @@ export default function CreateContainerJobPage() {
             >
               <Link href="/dashboard">
                 <ArrowLeft className="h-4 w-4 mr-2" />
-                Powrót do dashboardu
+                {t('containers.create_form.back_to_dashboard')}
               </Link>
             </Button>
           </div>
@@ -406,10 +434,10 @@ export default function CreateContainerJobPage() {
             </div>
             <div>
               <h1 className="text-4xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent mb-2">
-                Konfiguracja kontenera
+                {t('containers.create_form.title')}
               </h1>
               <p className="text-slate-600 dark:text-slate-400 text-lg">
-                Wypełnij formularz, aby utworzyć nowy kontener obliczeniowy
+                {t('containers.create_form.subtitle')}
               </p>
             </div>
           </div>
@@ -435,10 +463,10 @@ export default function CreateContainerJobPage() {
                     </div>
                     <div>
                       <CardTitle className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                        Konfiguracja kontenera
+                        {t('containers.create_form.title')}
                       </CardTitle>
                       <CardDescription className="text-base text-slate-600 dark:text-slate-400 mt-1">
-                        Wypełnij formularz, aby utworzyć nowy kontener obliczeniowy
+                        {t('containers.create_form.subtitle')}
                       </CardDescription>
                     </div>
                   </div>
@@ -453,7 +481,7 @@ export default function CreateContainerJobPage() {
                             <FileText className="h-4 w-4 text-white" />
                           </div>
                           <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                            Informacje podstawowe
+                            {t('containers.create_form.basic_info.title')}
                           </h3>
                         </div>
                         
@@ -462,16 +490,16 @@ export default function CreateContainerJobPage() {
                           name="job_name"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel className="text-base font-medium text-slate-700 dark:text-slate-300">Nazwa kontenera</FormLabel>
+                              <FormLabel className="text-base font-medium text-slate-700 dark:text-slate-300">{t('containers.create_form.basic_info.container_name')}</FormLabel>
                               <FormControl>
                                 <Input 
-                                  placeholder="np. tensorflow_training_2024"
+                                  placeholder={t('containers.create_form.basic_info.container_name_placeholder')}
                                   className="h-12 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-slate-200 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 transition-colors"
                                   {...field} 
                                 />
                               </FormControl>
                               <FormDescription className="text-slate-600 dark:text-slate-400">
-                                Unikalna nazwa identyfikująca kontener (tylko litery, cyfry, _ i -)
+                                {t('containers.create_form.basic_info.container_name_description')}
                               </FormDescription>
                               <FormMessage />
                             </FormItem>
@@ -486,7 +514,7 @@ export default function CreateContainerJobPage() {
                             <Package className="h-4 w-4 text-white" />
                           </div>
                           <h3 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
-                            Konfiguracja szablonu
+                            {t('containers.create_form.template_config.title')}
                           </h3>
                         </div>
                         
@@ -499,10 +527,10 @@ export default function CreateContainerJobPage() {
                             return (
                               <FormItem>
                                 <FormLabel className="text-base font-medium text-slate-700 dark:text-slate-300 flex items-center gap-2">
-                                  Szablon kontenera
+                                  {t('containers.create_form.template_config.template_label')}
                                   {currentUser?.allowed_templates && currentUser.allowed_templates.length > 0 && (
                                     <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                      {currentUser.allowed_templates.length} dostępnych
+                                      {currentUser.allowed_templates.length} {t('containers.create_form.template_config.template_description')}
                                     </span>
                                   )}
                                 </FormLabel>
@@ -515,8 +543,8 @@ export default function CreateContainerJobPage() {
                                     }`}>
                                       <SelectValue placeholder={
                                         templates.length === 0 
-                                          ? "Ładowanie szablonów..." 
-                                          : "Wybierz szablon kontenera"
+                                          ? t('containers.create_form.template_config.template_placeholder_loading') 
+                                          : t('containers.create_form.template_config.template_placeholder')
                                       } />
                                     </SelectTrigger>
                                   </FormControl>
@@ -524,7 +552,7 @@ export default function CreateContainerJobPage() {
                                     {templates.length === 0 && !isLoadingTemplates ? (
                                       <div className="p-4 text-center text-slate-500 dark:text-slate-400">
                                         <AlertCircle className="h-4 w-4 mx-auto mb-2" />
-                                        <p className="text-sm">Brak dostępnych szablonów</p>
+                                        <p className="text-sm">{t('containers.create_form.template_config.no_templates')}</p>
                                       </div>
                                     ) : (
                                       templates.map((template) => (
@@ -541,8 +569,8 @@ export default function CreateContainerJobPage() {
                                 <div className="flex items-center justify-between">
                                   <FormDescription className="text-slate-600 dark:text-slate-400">
                                     {templates.length > 0 
-                                      ? `${templates.length} szablonów dostępnych dla Twojego konta`
-                                      : "Ładowanie dostępnych szablonów..."
+                                      ? t('containers.create_form.template_config.templates_available_for_account', { count: templates.length })
+                                      : t('containers.create_form.template_config.loading_templates_ellipsis')
                                     }
                                   </FormDescription>
                                   {!validation.isValid && (
@@ -620,10 +648,10 @@ export default function CreateContainerJobPage() {
                           </div>
                           <div>
                             <h3 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                              Konfiguracja zasobów
+                              {t('containers.create_form.resources.title')}
                             </h3>
                             <p className="text-slate-600 dark:text-slate-400 mt-1">
-                              Określ wymagania sprzętowe dla kontenera
+                              {t('containers.create_form.resources.hardware_requirements_description')}
                             </p>
                           </div>
                         </div>
@@ -639,12 +667,12 @@ export default function CreateContainerJobPage() {
                                   <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-sm">
                                     <Server className="h-4 w-4 text-white" />
                                   </div>
-                                  Partycja
+                                  {t('containers.create_form.resources.partition')}
                                 </FormLabel>
                                 <Select onValueChange={field.onChange} value={field.value}>
                                   <FormControl>
                                     <SelectTrigger className="h-14 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md">
-                                      <SelectValue placeholder="Wybierz partycję obliczeniową" />
+                                      <SelectValue placeholder={t('containers.create_form.resources.partition_placeholder')} />
                                     </SelectTrigger>
                                   </FormControl>
                                   <SelectContent className="rounded-xl border-2 shadow-xl">
@@ -678,10 +706,10 @@ export default function CreateContainerJobPage() {
                                     <div className="p-2 bg-gradient-to-r from-amber-500 to-orange-600 rounded-lg shadow-sm">
                                       <Clock className="h-4 w-4 text-white" />
                                     </div>
-                                    Limit czasu
+                                    {t('containers.create_form.resources.time_limit')}
                                     {currentUser?.max_time_limit_hours !== undefined && currentUser?.max_time_limit_hours !== null && (
                                       <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                        max: {currentUser.max_time_limit_hours}h
+                                        {t('containers.create_form.resources.max_label')}: {currentUser.max_time_limit_hours}h
                                       </span>
                                     )}
                                   </FormLabel>
@@ -692,7 +720,7 @@ export default function CreateContainerJobPage() {
                                           ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
                                           : 'border-slate-200 dark:border-slate-600 focus:border-amber-500 dark:focus:border-amber-400'
                                       }`}>
-                                        <SelectValue placeholder="Wybierz maksymalny czas działania" />
+                                        <SelectValue placeholder={t('containers.create_form.resources.time_limit_placeholder')} />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent className="rounded-xl border-2 shadow-xl">
@@ -700,7 +728,7 @@ export default function CreateContainerJobPage() {
                                         <SelectItem key={option.value} value={option.value} className="py-3 px-4 focus:bg-amber-50 dark:focus:bg-slate-700">
                                           <div className="flex items-center gap-2">
                                             <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400" />
-                                            <span className="font-medium">{option.label}</span>
+                                            <span className="font-medium">{t(option.label)}</span>
                                           </div>
                                         </SelectItem>
                                       ))}
@@ -726,7 +754,7 @@ export default function CreateContainerJobPage() {
                               <div className="p-1.5 bg-gradient-to-r from-purple-500 to-pink-600 rounded-lg">
                                 <HardDrive className="h-4 w-4 text-white" />
                               </div>
-                              Zasoby sprzętowe
+                              {t('containers.create_form.resources.hardware_title')}
                             </h4>
                           </div>
                           
@@ -740,12 +768,12 @@ export default function CreateContainerJobPage() {
                                     <div className="p-1.5 bg-gradient-to-r from-blue-500 to-cyan-600 rounded-lg">
                                       <Cpu className="h-4 w-4 text-white" />
                                     </div>
-                                    CPU (rdzenie)
+                                    {t('containers.create_form.resources.cpu_label')}
                                   </FormLabel>
                                   <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
                                     <FormControl>
                                       <SelectTrigger className="h-12 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-600 focus:border-blue-500 dark:focus:border-blue-400 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md">
-                                        <SelectValue placeholder="Wybierz CPU" />
+                                        <SelectValue placeholder={t('containers.create_form.resources.cpu_placeholder')} />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent className="rounded-xl border-2 shadow-xl">
@@ -761,7 +789,7 @@ export default function CreateContainerJobPage() {
                                   </Select>
                                   <FormDescription className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
                                     <span className="w-2 h-2 bg-blue-500 rounded-full"></span>
-                                    4-48 rdzeni procesora
+                                    {t('containers.create_form.resources.cpu_description')}
                                   </FormDescription>
                                   <FormMessage />
                                 </FormItem>
@@ -777,12 +805,12 @@ export default function CreateContainerJobPage() {
                                     <div className="p-1.5 bg-gradient-to-r from-green-500 to-emerald-600 rounded-lg">
                                       <HardDrive className="h-4 w-4 text-white" />
                                     </div>
-                                    RAM (GB)
+                                    {t('containers.create_form.resources.memory_label')}
                                   </FormLabel>
                                   <Select onValueChange={(value) => field.onChange(parseInt(value))} value={field.value.toString()}>
                                     <FormControl>
                                       <SelectTrigger className="h-12 text-base bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm border-2 border-slate-200 dark:border-slate-600 focus:border-green-500 dark:focus:border-green-400 transition-all duration-200 rounded-xl shadow-sm hover:shadow-md">
-                                        <SelectValue placeholder="Wybierz RAM" />
+                                        <SelectValue placeholder={t('containers.create_form.resources.memory_placeholder')} />
                                       </SelectTrigger>
                                     </FormControl>
                                     <SelectContent className="rounded-xl border-2 shadow-xl">
@@ -798,7 +826,7 @@ export default function CreateContainerJobPage() {
                                   </Select>
                                   <FormDescription className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
                                     <span className="w-2 h-2 bg-green-500 rounded-full"></span>
-                                    8-512 GB pamięci RAM
+                                    {t('containers.create_form.resources.memory_description')}
                                   </FormDescription>
                                   <FormMessage />
                                 </FormItem>
@@ -818,10 +846,10 @@ export default function CreateContainerJobPage() {
                                       <div className="p-1.5 bg-gradient-to-r from-purple-500 to-violet-600 rounded-lg">
                                         <Monitor className="h-4 w-4 text-white" />
                                       </div>
-                                      GPU
+                                      {t('containers.create_form.resources.gpu_label')}
                                       {currentUser?.max_gpus_per_job !== undefined && currentUser?.max_gpus_per_job !== null && (
                                         <span className="text-xs font-normal text-slate-500 dark:text-slate-400 ml-2 px-2 py-1 bg-slate-100 dark:bg-slate-800 rounded-full">
-                                          max: {currentUser.max_gpus_per_job}
+                                          {t('containers.create_form.resources.max_label')}: {currentUser.max_gpus_per_job}
                                         </span>
                                       )}
                                     </FormLabel>
@@ -835,7 +863,7 @@ export default function CreateContainerJobPage() {
                                             ? 'border-red-300 dark:border-red-600 focus:border-red-500 dark:focus:border-red-400' 
                                             : 'border-slate-200 dark:border-slate-600 focus:border-purple-500 dark:focus:border-purple-400'
                                         }`}>
-                                          <SelectValue placeholder="Wybierz liczbę GPU" />
+                                          <SelectValue placeholder={t('containers.create_form.resources.gpu_placeholder')} />
                                         </SelectTrigger>
                                       </FormControl>
                                       <SelectContent className="rounded-xl border-2 shadow-xl">
@@ -856,7 +884,10 @@ export default function CreateContainerJobPage() {
                                     <div className="flex items-center justify-between">
                                       <FormDescription className="text-sm text-slate-600 dark:text-slate-400 flex items-center gap-2">
                                         <span className="w-2 h-2 bg-purple-500 rounded-full"></span>
-                                        {availableGpuOptions.length > 0 ? `0-${Math.max(...availableGpuOptions.map(o => o.value))} dostępnych` : 'Brak dostępnych GPU'}
+                                        {availableGpuOptions.length > 0 ? 
+                                          t('containers.create_form.resources.gpu_description', { max: Math.max(...availableGpuOptions.map(o => o.value)) }) : 
+                                          t('containers.create_form.resources.no_gpu_available')
+                                        }
                                       </FormDescription>
                                       {!validation.isValid && (
                                         <div className="flex items-center gap-1 text-red-600 dark:text-red-400">
@@ -898,7 +929,7 @@ export default function CreateContainerJobPage() {
                                     <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-400 mt-0.5 flex-shrink-0" />
                                     <div>
                                       <p className="text-sm font-medium text-red-800 dark:text-red-200 mb-2">
-                                        Wykryto problemy z konfiguracją:
+                                        {t('containers.create_form.submit.configuration_issues_detected')}
                                       </p>
                                       <ul className="space-y-1">
                                         {formWarnings.map((warning, index) => (
@@ -931,22 +962,22 @@ export default function CreateContainerJobPage() {
                                 {isSubmitting ? (
                                   <>
                                     <Loader2 className="h-5 w-5 mr-3 animate-spin" />
-                                    Tworzenie kontenera...
+                                    {t('containers.create_form.creating_container')}
                                   </>
                                 ) : hasValidationErrors ? (
                                   <>
                                     <XCircle className="h-5 w-5 mr-3" />
-                                    Popraw błędy konfiguracji
+                                    {t('containers.create_form.submit.fix_configuration_errors')}
                                   </>
                                 ) : isFormIncomplete ? (
                                   <>
                                     <AlertCircle className="h-5 w-5 mr-3" />
-                                    Uzupełnij wymagane pola
+                                    {t('containers.create_form.submit.complete_required_fields')}
                                   </>
                                 ) : (
                                   <>
                                     <CheckCircle2 className="h-5 w-5 mr-3" />
-                                    Utwórz kontener
+                                    {t('containers.create_form.submit.create_container')}
                                   </>
                                 )}
                               </Button>
@@ -983,10 +1014,10 @@ export default function CreateContainerJobPage() {
                       </div>
                       <div>
                         <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                          Twoje uprawnienia
+                          {t('containers.create_form.user_limits.title')}
                         </CardTitle>
                         <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                          Przegląd dostępnych limitów i szablonów
+                          {t('containers.create_form.user_limits.description')}
                         </p>
                       </div>
                     </div>
@@ -1001,8 +1032,8 @@ export default function CreateContainerJobPage() {
                               <Zap className="h-4 w-4 text-purple-600 dark:text-purple-400" />
                             </div>
                             <div>
-                              <p className="font-medium text-slate-900 dark:text-slate-100">GPU na kontener</p>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">Maksymalna liczba</p>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">{t('containers.create_form.user_limits.gpu_per_container')}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{t('containers.create_form.user_limits.maximum_count')}</p>
                             </div>
                           </div>
                           <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-200">
@@ -1021,8 +1052,8 @@ export default function CreateContainerJobPage() {
                               <Clock className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div>
-                              <p className="font-medium text-slate-900 dark:text-slate-100">Maksymalny czas</p>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">Życie kontenera</p>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">{t('containers.create_form.user_limits.max_time')}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{t('containers.create_form.user_limits.container_lifetime')}</p>
                             </div>
                           </div>
                           <Badge variant="secondary" className="bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-200">
@@ -1041,8 +1072,8 @@ export default function CreateContainerJobPage() {
                               <Package className="h-4 w-4 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
-                              <p className="font-medium text-slate-900 dark:text-slate-100">Dostępne szablony</p>
-                              <p className="text-sm text-slate-600 dark:text-slate-400">Dozwolone środowiska</p>
+                              <p className="font-medium text-slate-900 dark:text-slate-100">{t('containers.create_form.user_limits.available_templates')}</p>
+                              <p className="text-sm text-slate-600 dark:text-slate-400">{t('containers.create_form.user_limits.allowed_environments')}</p>
                             </div>
                           </div>
                           <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-200">
@@ -1070,10 +1101,10 @@ export default function CreateContainerJobPage() {
                     </div>
                     <div>
                       <CardTitle className="text-xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-white dark:to-slate-300 bg-clip-text text-transparent">
-                        Podsumowanie konfiguracji
+                        {t('containers.create_form.summary.configuration_summary')}
                       </CardTitle>
                       <p className="text-sm text-slate-600 dark:text-slate-400 mt-1">
-                        Przegląd wybranych parametrów
+                        {t('containers.create_form.summary.selected_parameters_overview')}
                       </p>
                     </div>
                   </div>
@@ -1087,14 +1118,14 @@ export default function CreateContainerJobPage() {
                           <div className="p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-lg shadow-sm">
                             <Server className="h-4 w-4 text-white" />
                           </div>
-                          <span className="font-semibold text-slate-800 dark:text-slate-200">Partycja</span>
+                          <span className="font-semibold text-slate-800 dark:text-slate-200">{t('containers.create_form.summary.partition')}</span>
                         </div>
                         <Badge variant="secondary" className="bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-200 px-3 py-1 text-sm font-medium">
-                          {form.watch("partition") === "proxima" ? "Proxima (GPU)" : form.watch("partition")}
+                          {form.watch("partition") === "proxima" ? t('containers.create_form.summary.proxima_gpu') : form.watch("partition")}
                         </Badge>
                       </div>
                       <div className="text-xs text-slate-600 dark:text-slate-400 ml-11">
-                        Nvidia Tesla H100 98 GB RAM • Obliczenia GPU
+                        {t('containers.create_form.summary.gpu_hardware_spec')}
                       </div>
                     </div>
 
@@ -1102,7 +1133,7 @@ export default function CreateContainerJobPage() {
                     <div className="space-y-3">
                       <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-2 mb-2">
                         <div className="w-2 h-2 bg-emerald-500 rounded-full"></div>
-                        Zasoby sprzętowe
+                        {t('containers.create_form.resources.hardware_title')}
                       </h4>
                       
                       <div className="grid grid-cols-2 gap-3">
@@ -1118,7 +1149,7 @@ export default function CreateContainerJobPage() {
                             {form.watch("num_cpus")}
                           </div>
                           <div className="text-xs text-slate-600 dark:text-slate-400">
-                            {form.watch("num_cpus") === 1 ? 'rdzeń' : form.watch("num_cpus") < 5 ? 'rdzenie' : 'rdzeni'}
+                            {form.watch("num_cpus") === 1 ? t('containers.create_form.summary.core_singular') : form.watch("num_cpus") < 5 ? t('containers.create_form.summary.cores_few') : t('containers.create_form.summary.cores_many')}
                           </div>
                         </div>
 
@@ -1134,7 +1165,7 @@ export default function CreateContainerJobPage() {
                             {form.watch("memory_gb")}
                           </div>
                           <div className="text-xs text-slate-600 dark:text-slate-400">
-                            GB pamięci
+                            {t('containers.create_form.summary.memory_unit')}
                           </div>
                         </div>
 
@@ -1150,7 +1181,7 @@ export default function CreateContainerJobPage() {
                             {form.watch("num_gpus")}
                           </div>
                           <div className="text-xs text-slate-600 dark:text-slate-400">
-                            {form.watch("num_gpus") === 0 ? 'brak GPU' : form.watch("num_gpus") === 1 ? 'karta GPU' : 'karty GPU'}
+                            {form.watch("num_gpus") === 0 ? t('containers.create_form.summary.no_gpu') : form.watch("num_gpus") === 1 ? t('containers.create_form.summary.gpu_singular') : t('containers.create_form.summary.gpu_plural')}
                           </div>
                         </div>
 
@@ -1160,13 +1191,16 @@ export default function CreateContainerJobPage() {
                             <div className="p-1 bg-amber-500 rounded-md">
                               <Clock className="h-3 w-3 text-white" />
                             </div>
-                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Czas</span>
+                            <span className="text-sm font-medium text-slate-700 dark:text-slate-300">{t('containers.create_form.summary.time_label')}</span>
                           </div>
                           <div className="text-sm font-bold text-amber-700 dark:text-amber-400">
-                            {TIME_LIMIT_OPTIONS.find(opt => opt.value === form.watch("time_limit"))?.label || 'Nie wybrano'}
+                            {(() => {
+                              const option = TIME_LIMIT_OPTIONS.find(opt => opt.value === form.watch("time_limit"));
+                              return option ? t(option.label) : t('containers.create_form.summary.not_selected');
+                            })()}
                           </div>
                           <div className="text-xs text-slate-600 dark:text-slate-400">
-                            maksymalny
+                            {t('containers.create_form.summary.maximum')}
                           </div>
                         </div>
                       </div>
@@ -1178,14 +1212,14 @@ export default function CreateContainerJobPage() {
                         <div className="p-2 bg-gradient-to-r from-slate-600 to-gray-700 rounded-lg shadow-sm">
                           <Container className="h-4 w-4 text-white" />
                         </div>
-                        <span className="font-semibold text-slate-800 dark:text-slate-200">Szablon kontenera</span>
+                        <span className="font-semibold text-slate-800 dark:text-slate-200">{t('containers.create_form.summary.container_template')}</span>
                       </div>
                       <div className="ml-11">
                         <div className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                          {form.watch("template_name") || "Nie wybrano szablonu"}
+                          {form.watch("template_name") || t('containers.create_form.summary.no_template_selected')}
                         </div>
                         <div className="text-xs text-slate-600 dark:text-slate-400 mt-1">
-                          {form.watch("template_name") ? "Środowisko kontenerowe" : "Wybierz szablon aby kontynuować"}
+                          {form.watch("template_name") ? t('containers.create_form.runtime_config.environment_settings') : t('containers.create_form.runtime_config.select_template_to_continue')}
                         </div>
                       </div>
                     </div>
@@ -1199,25 +1233,25 @@ export default function CreateContainerJobPage() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <FileText className="h-5 w-5 text-blue-500" />
-                  Informacje
+                  {t('containers.create_form.info.title')}
                 </CardTitle>
               </CardHeader>
               <CardContent className="space-y-3 text-sm text-muted-foreground">
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <p>Kontener zostanie utworzony z wybranym szablonem</p>
+                  <p>{t('containers.create_form.info.container_created_with_template')}</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <p>Zasoby będą zarezerwowane według specyfikacji</p>
+                  <p>{t('containers.create_form.info.resources_reserved_by_spec')}</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <CheckCircle2 className="h-4 w-4 text-emerald-500 mt-0.5 flex-shrink-0" />
-                  <p>Automatyczne zarządzanie cyklem życia kontenera</p>
+                  <p>{t('containers.create_form.info.automatic_lifecycle_management')}</p>
                 </div>
                 <div className="flex items-start gap-2">
                   <AlertCircle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
-                  <p>Limit czasu określa maksymalny czas działania</p>
+                  <p>{t('containers.create_form.info.time_limit_defines_max_runtime')}</p>
                 </div>
               </CardContent>
             </Card>

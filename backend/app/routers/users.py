@@ -7,6 +7,8 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.orm import Session
 from PIL import Image
 
+from pydantic import BaseModel
+
 from app.core.auth import get_current_active_user, get_current_superuser
 from app.db.session import get_db
 from app.schemas.user import User, UserCreate, UserUpdate
@@ -277,3 +279,34 @@ def delete_avatar(
             status_code=500,
             detail=f"Failed to delete avatar: {str(e)}"
         )
+
+
+class LanguageUpdate(BaseModel):
+    preferred_language: str
+
+
+@router.put("/me/language", response_model=User)
+def update_user_language(
+    *,
+    db: Session = Depends(get_db),
+    language_data: LanguageUpdate,
+    current_user: UserModel = Depends(get_current_active_user),
+) -> Any:
+    """
+    Update user's preferred language.
+    Supported languages: pl, en
+    """
+    # Validate language
+    supported_languages = ["pl", "en"]
+    if language_data.preferred_language not in supported_languages:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported language. Use one of: {supported_languages}"
+        )
+    
+    # Update user language
+    user_update = UserUpdate(
+        preferred_language=language_data.preferred_language
+    )
+    user = UserService.update(db, user=current_user, user_in=user_update)
+    return user

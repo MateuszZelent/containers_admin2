@@ -14,6 +14,7 @@ class UserBase(BaseModel):
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
     avatar_url: Optional[str] = None
+    preferred_language: Optional[str] = "pl"
 
 
 class UserCreate(UserBase):
@@ -37,6 +38,7 @@ class UserUpdate(BaseModel):
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
     avatar_url: Optional[str] = None
+    preferred_language: Optional[str] = None
 
 
 class UserInDBBase(UserBase):
@@ -50,6 +52,7 @@ class UserInDBBase(UserBase):
     max_time_limit_hours: Optional[int] = None
     allowed_templates: Optional[List[str]] = None
     avatar_url: Optional[str] = None
+    preferred_language: Optional[str] = "pl"
 
     class Config:
         from_attributes = True

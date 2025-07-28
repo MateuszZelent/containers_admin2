@@ -3,6 +3,7 @@
 import { Separator } from "@/registry/new-york-v4/ui/separator"
 import { SidebarTrigger } from "@/registry/new-york-v4/ui/sidebar"
 import { ModeToggle } from "@/app/dashboard/components/mode-toggle"
+import { LanguageToggle } from "@/app/dashboard/components/language-toggle"
 import { ActiveUsersPanel } from "@/app/dashboard/components/active-users-panel"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Users, Zap } from "lucide-react"
@@ -75,8 +76,10 @@ export function SiteHeader() {
             <ActiveUsersPanel />
           </div>
 
-          {/* Mode toggle with enhanced styling */}
-          <div className="rounded-lg bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 p-1">
+          {/* Mode toggle and Language toggle with enhanced styling */}
+          <div className="flex items-center rounded-lg bg-slate-100/60 dark:bg-slate-800/60 border border-slate-200/50 dark:border-slate-700/50 p-1">
+            <LanguageToggle />
+            <Separator orientation="vertical" className="h-6 mx-1" />
             <ModeToggle />
           </div>
         </div>

@@ -245,8 +245,15 @@ export const userApi = {
     first_name?: string;
     last_name?: string;
     password?: string;
+    preferred_language?: string;
   }) => {
     return apiClient.put('/users/me', userData)
+  },
+  // Update user language preference
+  updateLanguage: (language: string) => {
+    return apiClient.put('/users/me/language', {
+      preferred_language: language
+    })
   },
   // Upload avatar
   uploadAvatar: (formData: FormData) => {

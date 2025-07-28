@@ -47,6 +47,9 @@ class User(Base):
 
     # Template permissions
     allowed_templates = Column(JSONEncodedDict, nullable=True)
+    
+    # User preferences
+    preferred_language = Column(String(10), default="pl", nullable=False)
 
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), onupdate=func.now(), nullable=True)

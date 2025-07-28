@@ -5,6 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 import {
   Card,
   CardContent,
@@ -64,27 +65,17 @@ import { toast } from "sonner";
 import { tasksApi } from "@/lib/api-client";
 import Link from "next/link";
 
-// Form validation schema
-const amumaxTaskSchema = z.object({
-  name: z
-    .string()
-    .min(3, "Nazwa musi mieć co najmniej 3 znaki")
-    .max(100, "Nazwa nie może przekraczać 100 znaków")
-    .regex(/^[a-zA-Z0-9_-]+$/, "Nazwa może zawierać tylko litery, cyfry, _ i -"),
-  mx3_file_path: z
-    .string()
-    .min(1, "Ścieżka do pliku .mx3 jest wymagana")
-    .regex(/\.mx3$/, "Plik musi mieć rozszerzenie .mx3"),
-  description: z.string().max(500, "Opis nie może przekraczać 500 znaków").optional(),
-  partition: z.string().default("proxima"),
-  num_cpus: z.number().min(1).max(32).default(4),
-  memory_gb: z.number().min(1).max(128).default(16),
-  num_gpus: z.number().min(0).max(4).default(1),
-  time_limit: z.string().default("12:00:00"),
-  priority: z.number().min(1).max(10).default(5),
-});
-
-type AmumaxTaskFormData = z.infer<typeof amumaxTaskSchema>;
+type AmumaxTaskFormData = {
+  name: string;
+  mx3_file_path: string;
+  description?: string;
+  partition: string;
+  num_cpus: number;
+  memory_gb: number;
+  num_gpus: number;
+  time_limit: string;
+  priority: number;
+};
 
 interface FileValidation {
   is_valid: boolean;
@@ -120,6 +111,28 @@ const TIME_LIMIT_OPTIONS = [
 ];
 
 export default function SubmitAmumaxTaskPage() {
+  const { t } = useTranslation();
+  
+  // Form validation schema with translations
+  const amumaxTaskSchema = z.object({
+    name: z
+      .string()
+      .min(3, t('tasks.submit_form.validation.name_min'))
+      .max(100, t('tasks.submit_form.validation.name_max'))
+      .regex(/^[a-zA-Z0-9_-]+$/, t('tasks.submit_form.validation.name_format')),
+    mx3_file_path: z
+      .string()
+      .min(1, t('tasks.submit_form.validation.file_path_required'))
+      .regex(/\.mx3$/, t('tasks.submit_form.validation.file_extension')),
+    description: z.string().max(500, t('tasks.submit_form.validation.description_max')).optional(),
+    partition: z.string().default("proxima"),
+    num_cpus: z.number().min(1).max(32).default(4),
+    memory_gb: z.number().min(1).max(128).default(16),
+    num_gpus: z.number().min(0).max(4).default(1),
+    time_limit: z.string().default("12:00:00"),
+    priority: z.number().min(1).max(10).default(5),
+  });
+  
   const [isValidating, setIsValidating] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [fileValidation, setFileValidation] = useState<FileValidation | null>(null);
@@ -183,10 +196,10 @@ export default function SubmitAmumaxTaskPage() {
     setFileValidation(null);
     
     const steps: ValidationStep[] = [
-      { id: "exists", label: "Sprawdzanie istnienia pliku", status: "pending" },
-      { id: "readable", label: "Sprawdzanie uprawnień", status: "pending" },
-      { id: "content", label: "Walidacja zawartości .mx3", status: "pending" },
-      { id: "preview", label: "Generowanie podglądu", status: "pending" },
+      { id: "exists", label: t('tasks.submit_form.validation_steps.checking_file_exists'), status: "pending" },
+      { id: "readable", label: t('tasks.submit_form.validation_steps.checking_permissions'), status: "pending" },
+      { id: "content", label: t('tasks.submit_form.validation_steps.validating_content'), status: "pending" },
+      { id: "preview", label: t('tasks.submit_form.validation_steps.generating_preview'), status: "pending" },
     ];
     
     setValidationSteps([...steps]);
@@ -581,7 +594,7 @@ export default function SubmitAmumaxTaskPage() {
                     {/* Resource Configuration */}
                     <div className="space-y-4">
                       <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-200">
-                        Konfiguracja zasobów
+                        {t('tasks.submit_form.resources.title')}
                       </h3>
 
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

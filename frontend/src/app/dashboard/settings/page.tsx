@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import * as z from "zod"
 import { toast } from "sonner"
-import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw, Plus, Trash2, Copy, Calendar, Globe, Monitor, Upload, X, ImageIcon } from "lucide-react"
+import { Loader2, Eye, EyeOff, Save, User, Code, Key, RefreshCcw, Plus, Trash2, Copy, Calendar, Globe, Monitor, Upload, X, ImageIcon, Languages, Check } from "lucide-react"
 
 import {
   Card,
@@ -51,6 +51,8 @@ import { Badge } from "@/components/ui/badge"
 import { userApi, cliTokensApi, CLIToken, CLITokenCreate } from "@/lib/api-client"
 import { Skeleton } from "@/app/dashboard/components/skeleton"
 import { UserAvatar } from "@/components/ui/user-avatar"
+import { useLanguage } from "@/lib/i18n/LanguageContext"
+import { SUPPORTED_LANGUAGES, SupportedLanguage } from "@/lib/i18n"
 
 // Schema for CLI token creation
 const cliTokenCreateSchema = z.object({
@@ -91,6 +93,7 @@ const accountSchema = z.object({
 });
 
 export default function SettingsPage() {
+  const { t, language, setLanguage } = useLanguage()
   const [isInitialLoading, setIsInitialLoading] = useState(true) // For initial page load skeleton
   const [isSubmittingAccount, setIsSubmittingAccount] = useState(false) // For account form submission
   const [isSubmittingCodeServer, setIsSubmittingCodeServer] = useState(false) // For code-server form submission
@@ -568,7 +571,7 @@ export default function SettingsPage() {
     return (
       <div className="space-y-6">
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Ustawienia użytkownika</h1>
+          <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
         </div>
         <Separator />
         <div className="w-full max-w-2xl">
@@ -595,7 +598,7 @@ export default function SettingsPage() {
       <div className="space-y-6">
         {/* ... (reszta kodu błędu bez zmian) ... */}
         <div className="flex justify-between items-center">
-          <h1 className="text-3xl font-bold">Ustawienia użytkownika</h1>
+          <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
         </div>
 
         <Separator />
@@ -622,7 +625,7 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
-        <h1 className="text-3xl font-bold">Ustawienia użytkownika</h1>
+        <h1 className="text-3xl font-bold">{t('settings.title')}</h1>
       </div>
 
       <Separator />
@@ -631,19 +634,23 @@ export default function SettingsPage() {
         <TabsList className="mb-6">
           <TabsTrigger value="avatar" className="flex items-center gap-2">
             <ImageIcon className="h-4 w-4" />
-            Avatar
+            {t('settings.tabs.avatar')}
           </TabsTrigger>
           <TabsTrigger value="account" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            Ustawienia konta
+            {t('settings.tabs.account')}
           </TabsTrigger>
           <TabsTrigger value="code-server" className="flex items-center gap-2">
             <Code className="h-4 w-4" />
-            Ustawienia Code-server
+            {t('settings.tabs.codeServer')}
           </TabsTrigger>
           <TabsTrigger value="cli-tokens" className="flex items-center gap-2">
             <Key className="h-4 w-4" />
-            Tokeny CLI
+            {t('settings.tabs.cliTokens')}
+          </TabsTrigger>
+          <TabsTrigger value="language" className="flex items-center gap-2">
+            <Languages className="h-4 w-4" />
+            {t('settings.tabs.language')}
           </TabsTrigger>
         </TabsList>
         
@@ -1379,6 +1386,92 @@ export default function SettingsPage() {
                   </div>
                 </div>
               )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Language Tab */}
+        <TabsContent value="language">
+          <Card className="max-w-2xl">
+            <CardHeader>
+              <CardTitle>{t('settings.language.title')}</CardTitle>
+              <CardDescription>
+                {t('settings.language.description')}
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Current Language Display */}
+              <div className="flex items-center justify-between p-4 border rounded-lg bg-muted/50">
+                <div className="flex items-center gap-3">
+                  <Languages className="h-5 w-5 text-muted-foreground" />
+                  <div>
+                    <p className="font-medium">{t('settings.language.current')}</p>
+                    <p className="text-sm text-muted-foreground">
+                      {SUPPORTED_LANGUAGES[language]}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="text-sm font-medium">{t('settings.language.change')}</h3>
+                <div className="grid gap-3">
+                  {Object.entries(SUPPORTED_LANGUAGES).map(([langCode, langName]) => (
+                    <Button
+                      key={langCode}
+                      variant={language === langCode ? "default" : "outline"}
+                      className="justify-start"
+                      onClick={async () => {
+                        if (langCode !== language) {
+                          try {
+                            await userApi.updateLanguage(langCode);
+                            setLanguage(langCode as SupportedLanguage);
+                            
+                            const successMessages = {
+                              pl: 'Język interfejsu został zmieniony',
+                              en: 'Interface language has been changed'
+                            };
+                            
+                            toast.success(successMessages[langCode as SupportedLanguage], {
+                              duration: 3000,
+                              position: "top-center",
+                            });
+                            
+                            // Refresh page to ensure all components update
+                            setTimeout(() => {
+                              window.location.reload();
+                            }, 500);
+                            
+                          } catch (error) {
+                            console.error('Error changing language:', error);
+                            toast.error(t('settings.language.changeError'), {
+                              duration: 5000,
+                              position: "top-center",
+                            });
+                          }
+                        }
+                      }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <Languages className="h-4 w-4" />
+                        <span>{langName}</span>
+                        {language === langCode && (
+                          <Check className="h-4 w-4 ml-auto" />
+                        )}
+                      </div>
+                    </Button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-md bg-blue-50 p-4 text-sm text-blue-800 dark:bg-blue-900/20 dark:text-blue-300">
+                <p>
+                  {language === 'pl' 
+                    ? 'Zmiana języka zostanie zastosowana natychmiast. Strona zostanie odświeżona, aby zapewnić prawidłowe wyświetlanie wszystkich elementów.' 
+                    : 'Language change will be applied immediately. Page will be refreshed to ensure proper display of all elements.'
+                  }
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>

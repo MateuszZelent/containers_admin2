@@ -48,22 +48,20 @@ import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
 import { useJobStatus } from "@/hooks/useJobStatus";
 import { useClusterStatus } from "@/hooks/useClusterStatus";
+import { useTranslation } from "@/lib/i18n/LanguageContext";
 
 // Define interface for cluster stats  
 interface ClusterStats {
   id: number;
-  // Nowe szczegółowe pola węzłów
   free_nodes: number;
   busy_nodes: number;
   unavailable_nodes: number;
   total_nodes: number;
-  // Nowe szczegółowe pola GPU
   free_gpus: number;
   active_gpus: number;
   standby_gpus: number;
   busy_gpus: number;
   total_gpus: number;
-  // Legacy pola (dla kompatybilności wstecznej)
   used_nodes: number;
   used_gpus: number;
   timestamp: string;
@@ -113,6 +111,7 @@ const getErrorMessage = (error: unknown, defaultMessage: string): string => {
 
 export default function DashboardPage() {
   const router = useRouter();
+  const { t } = useTranslation();
   
   // Main state
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -182,7 +181,7 @@ export default function DashboardPage() {
       setJobs(response.data);
       return response;
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, "Nie udało się pobrać listy zadań");
+      const errorMessage = getErrorMessage(error, t('errors.failedToFetchJobs'));
       // toast.error(errorMessage);
       console.error("Error fetching jobs:", error);
       throw error;
@@ -282,7 +281,7 @@ export default function DashboardPage() {
       setAllUsers(usersResponse.data);
       setAllJobs(jobsResponse.data);
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, "Nie udało się pobrać danych administracyjnych");
+      const errorMessage = getErrorMessage(error, t('errors.failedToFetchAdminData'));
       toast.error(errorMessage);
     } finally {
       setIsLoadingAdminData(false);
@@ -296,16 +295,16 @@ export default function DashboardPage() {
   };
 
   const handleDeleteUser = async (userId: number) => {
-    if (!confirm("Czy na pewno chcesz usunąć tego użytkownika? Ta operacja jest nieodwracalna.")) {
+    if (!confirm(t('dashboard.confirmations.deleteUserConfirm'))) {
       return;
     }
 
     try {
       await adminApi.deleteUser(userId);
-      toast.success("Użytkownik został usunięty pomyślnie");
+      toast.success(t('dashboard.confirmations.userDeletedSuccess'));
       fetchAdminData(); // Refresh admin data
     } catch (error: any) {
-      const errorMessage = error.response?.data?.detail || "Nie udało się usunąć użytkownika";
+      const errorMessage = error.response?.data?.detail || t('errors.failedToDeleteUser');
       toast.error(errorMessage);
     }
   };
@@ -338,7 +337,7 @@ export default function DashboardPage() {
             toast.error(message);
           }
         } else if (error.request) {
-          toast.error(`Brak odpowiedzi od serwera przy próbie pobrania tuneli dla zadania ${jobId}.`);
+          toast.error(t('dashboard.clusterStatus.noServerResponse', { jobId }));
         } else {
           toast.error(`Błąd konfiguracji żądania tuneli dla zadania ${jobId}.`);
         }
@@ -458,9 +457,9 @@ export default function DashboardPage() {
     try {
       await jobsApi.deleteJob(jobToDelete.id);
       setJobs(prev => prev.filter(job => job.id !== jobToDelete.id));
-      toast.success("Kontener został usunięty");
+      toast.success(t('dashboard.confirmations.containerDeletedSuccess'));
     } catch (error: unknown) {
-      const errorMessage = getErrorMessage(error, "Nie udało się usunąć kontenera");
+      const errorMessage = getErrorMessage(error, t('errors.failedToDeleteContainer'));
       toast.error(errorMessage);
       console.error(`Error deleting job ${jobToDelete.id}:`, error);
     } finally {
@@ -552,7 +551,7 @@ export default function DashboardPage() {
       {/* Header with title and action buttons */}
       <div className="flex justify-between items-center">
         <h1 className="text-3xl font-bold">
-          Panel zarządzania zadaniami
+          {t('dashboard.taskManagement.title')}
           {isAnyLoading && <span className="inline-block ml-2 align-middle"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></span>}
         </h1>
         <div className="flex gap-2 items-center">
@@ -561,7 +560,7 @@ export default function DashboardPage() {
             variant={autoRefreshEnabled ? "default" : "outline"}
             size="sm"
           >
-            Auto {autoRefreshEnabled ? "Wł" : "Wył"}
+            {autoRefreshEnabled ? t('dashboard.taskManagement.autoRefresh.on') : t('dashboard.taskManagement.autoRefresh.off')}
           </Button>
           <Button 
             onClick={() => refreshData(true)} 
@@ -579,7 +578,7 @@ export default function DashboardPage() {
                 ${refreshStatus === 'error' ? "text-white" : ""}
               `} 
             />
-            Odśwież
+            {t('dashboard.taskManagement.refreshButton')}
           </Button>
           <TooltipProvider>
             <Tooltip>
@@ -592,14 +591,14 @@ export default function DashboardPage() {
                       className="bg-gradient-to-r from-blue-500 to-purple-600 hover:from-blue-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105 disabled:opacity-50 disabled:cursor-not-allowed disabled:transform-none"
                     >
                       <Plus className="h-4 w-4 mr-2" />
-                      Nowy kontener
+                      {t('dashboard.actions.newContainer')}
                     </Button>
                   </Link>
                 </span>
               </TooltipTrigger>
               {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
                 <TooltipContent>
-                  <p>Tworzenie kontenerów jest niemożliwe - klaster jest niedostępny</p>
+                  <p>{t('dashboard.clusterStatus.containerCreationDisabled')}</p>
                 </TooltipContent>
               )}
             </Tooltip>
@@ -607,7 +606,7 @@ export default function DashboardPage() {
           <Link href="/dashboard/settings">
             <Button variant="outline" size="sm">
               <Settings className="h-4 w-4 mr-2" />
-              Ustawienia
+              {t('dashboard.taskManagement.settings')}
             </Button>
           </Link>
         </div>
@@ -624,7 +623,7 @@ export default function DashboardPage() {
       >
         <CardHeader className="pb-2">
           <CardTitle className="flex items-center">
-            Status połączenia z klastrem PCSS
+            {t('dashboard.clusterStatus.title')}
             {(!clusterStatus || (clusterStatus && (!clusterStatus.connected || !clusterStatus.slurm_running))) && (
               <AlertCircle className="ml-2 h-5 w-5 text-red-500 dark:text-red-400" />
             )}
@@ -634,13 +633,13 @@ export default function DashboardPage() {
           {isClusterStatusLoading && !clusterStatus ? (
             <div className="flex items-center">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              <p>Sprawdzanie statusu klastra...</p>
+              <p>{t('dashboard.clusterStatus.checking')}</p>
             </div>
           ) : !clusterStatus ? (
             <>
-              <p className="text-red-600 dark:text-red-400 font-medium mb-2">Nie można uzyskać statusu klastra</p>
+              <p className="text-red-600 dark:text-red-400 font-medium mb-2">{t('dashboard.clusterStatus.cannotGetStatus')}</p>
               <p className="text-sm text-red-500/80 dark:text-red-400/80">
-                Brak odpowiedzi z serwera. Sprawdź połączenie sieciowe lub skontaktuj się z administratorem.
+                {t('dashboard.clusterStatus.noResponse')}
               </p>
             </>
           ) : (
@@ -649,19 +648,19 @@ export default function DashboardPage() {
                 <div className="flex items-center">
                   <div className={`h-3 w-3 rounded-full mr-2 ${clusterStatus.connected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
                   <p className={clusterStatus.connected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    Połączenie SSH: {clusterStatus.connected ? 'Aktywne' : 'Nieaktywne'}
+                    {t('dashboard.clusterStatus.sshConnection')}: {clusterStatus.connected ? t('dashboard.clusterStatus.active') : t('dashboard.clusterStatus.inactive')}
                   </p>
                 </div>
                 <div className="flex items-center">
                   <div className={`h-3 w-3 rounded-full mr-2 ${isJobStatusConnected ? 'bg-emerald-500 dark:bg-emerald-400' : 'bg-red-500 dark:bg-red-400'}`}></div>
                   <p className={isJobStatusConnected ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-700 dark:text-red-400 font-medium'}>
-                    Połączenie WebSocket: {isJobStatusConnected ? 'Aktywne' : 'Nieaktywne'}
+                    {t('dashboard.clusterStatus.websocketConnection')}: {isJobStatusConnected ? t('dashboard.clusterStatus.active') : t('dashboard.clusterStatus.inactive')}
                   </p>
                 </div>
                 {verificationCode && (
                   <div className="flex items-center">
                     <p className="text-emerald-700 dark:text-emerald-400">
-                      Weryfikacja WebSocket: {verificationCode}
+                      {t('dashboard.clusterStatus.websocketVerification')}: {verificationCode}
                     </p>
                   </div>
                 )}
@@ -691,12 +690,12 @@ export default function DashboardPage() {
       {/* Zadania */}
       <Tabs defaultValue="all" className="w-full">
         <TabsList className="backdrop-blur-sm bg-gradient-to-r from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/15 dark:via-slate-500/10 dark:to-gray-600/15 border border-slate-200/20 dark:border-slate-700/20">
-          <TabsTrigger value="all">Aktywne zadania</TabsTrigger>
+          <TabsTrigger value="all">{t('dashboard.tabs.activeTasks')}</TabsTrigger>
           {/* <TabsTrigger value="active">Lista zadań</TabsTrigger> */}
-          <TabsTrigger value="task-queue">Task Queue</TabsTrigger>
-          <TabsTrigger value="completed">Zadania zakończone</TabsTrigger>
+          <TabsTrigger value="task-queue">{t('dashboard.tabs.taskQueue')}</TabsTrigger>
+          <TabsTrigger value="completed">{t('dashboard.tabs.completedTasks')}</TabsTrigger>
           {currentUser?.is_superuser && (
-            <TabsTrigger value="admin">Panel administracyjny</TabsTrigger>
+            <TabsTrigger value="admin">{t('dashboard.tabs.adminPanel')}</TabsTrigger>
           )}
         </TabsList>
         
@@ -705,7 +704,7 @@ export default function DashboardPage() {
           <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-slate-500/5 via-slate-600/3 to-gray-700/5 dark:from-slate-400/10 dark:via-slate-500/5 dark:to-gray-600/10 border border-slate-200/20 dark:border-slate-700/20 hover:border-slate-300/30 dark:hover:border-slate-600/30 transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-slate-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="pb-2 relative">
-              <CardTitle className="text-slate-900 dark:text-slate-100">Aktywne zadania</CardTitle>
+              <CardTitle className="text-slate-900 dark:text-slate-100">{t('dashboard.taskSections.activeTasks')}</CardTitle>
               <CardDescription className="text-slate-600 dark:text-slate-400">
                 Przegląd aktywnych kontenerów i statystyki klastra
               </CardDescription>
@@ -719,7 +718,7 @@ export default function DashboardPage() {
               <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">Aktywne</p>
+                    <p className="text-sm font-medium text-emerald-700 dark:text-emerald-300">{t('dashboard.stats.activeContainers')}</p>
                     <p className="text-3xl font-bold text-emerald-900 dark:text-emerald-100 tracking-tight">
                       {getActiveJobs().filter(job => job.status === "RUNNING").length}
                     </p>
@@ -730,7 +729,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center text-xs text-emerald-600 dark:text-emerald-400">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 mr-2 animate-pulse" />
-                  W trakcie wykonania
+                  {t('dashboard.actions.running')}
                 </div>
               </CardContent>
             </Card>
@@ -741,7 +740,7 @@ export default function DashboardPage() {
               <CardContent className="p-6 relative">
                 <div className="flex items-center justify-between">
                   <div className="space-y-1">
-                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">Oczekujące</p>
+                    <p className="text-sm font-medium text-amber-700 dark:text-amber-300">{t('dashboard.actions.pending')}</p>
                     <p className="text-3xl font-bold text-amber-900 dark:text-amber-100 tracking-tight">
                       {getActiveJobs().filter(job => job.status === "PENDING" || job.status === "CONFIGURING").length}
                     </p>
@@ -752,7 +751,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="mt-3 flex items-center text-xs text-amber-600 dark:text-amber-400">
                   <div className="h-1.5 w-1.5 rounded-full bg-amber-500 mr-2 animate-pulse" />
-                  Oczekuje na uruchomienie
+                  {t('dashboard.actions.waitingToStart')}
                 </div>
               </CardContent>
             </Card>
@@ -872,10 +871,10 @@ export default function DashboardPage() {
                   </div>
                   <div className="space-y-2">
                     <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                      Brak aktywnych kontenerów
+                      {t('dashboard.emptyStates.noActiveContainers')}
                     </h3>
                     <p className="text-slate-600 dark:text-slate-400 max-w-sm">
-                      Utwórz nowy kontener, aby rozpocząć pracę z klastrze obliczeniowym.
+                      {t('dashboard.emptyStates.noActiveContainersDescription')}
                     </p>
                   </div>
                   <Link href="/dashboard/jobs/create">
@@ -915,7 +914,7 @@ export default function DashboardPage() {
           <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-blue-500/5 via-blue-600/3 to-cyan-700/5 dark:from-blue-400/10 dark:via-blue-500/5 dark:to-cyan-600/10 border border-blue-200/20 dark:border-blue-700/20 hover:border-blue-300/30 dark:hover:border-blue-600/30 transition-all duration-300">
             <div className="absolute inset-0 bg-gradient-to-br from-blue-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
             <CardHeader className="pb-2 relative">
-              <CardTitle className="text-blue-900 dark:text-blue-100">Zadania aktywne</CardTitle>
+              <CardTitle className="text-blue-900 dark:text-blue-100">{t('dashboard.taskSections.activeTasksTitle')}</CardTitle>
               <CardDescription className="text-blue-600 dark:text-blue-400">
                 Zadania aktualnie wykonywane lub oczekujące na klastrze
               </CardDescription>
@@ -1112,7 +1111,7 @@ export default function DashboardPage() {
                           onClick={fetchAdminData}
                         >
                           <RefreshCcw className="h-4 w-4 mr-2" />
-                          Odśwież
+                          {t('dashboard.taskManagement.refreshButton')}
                         </Button>
                       </div>
                       
