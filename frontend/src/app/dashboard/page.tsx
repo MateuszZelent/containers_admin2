@@ -45,7 +45,6 @@ import { ResourceUsageChart } from "./components/resource-usage-chart";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
-import { useJobStatus } from "@/hooks/useJobStatus";
 import { useClusterStatus } from "@/hooks/useClusterStatus";
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { ConnectionStatusCard } from "@/components/connection-status-card";
@@ -155,9 +154,6 @@ export default function DashboardPage() {
     requestStatusUpdate,
     forceApiRefresh: fetchClusterStats
   } = useClusterStatus();
-
-  // WebSocket connection state
-  const { isJobStatusConnected, verificationCode } = useJobStatus({ enabled: true });
   
   // Cluster health status
   const canCreateContainers = useCanCreateContainers();

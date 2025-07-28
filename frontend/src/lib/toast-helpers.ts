@@ -4,37 +4,79 @@ import { CheckCircle2, AlertCircle, AlertTriangle, Info, Loader2 } from 'lucide-
 // Global debounce map to prevent duplicate toasts
 const toastDebounceMap = new Map<string, number>();
 
+// Clean up old entries from debounce map every 5 minutes
+const CLEANUP_INTERVAL = 5 * 60 * 1000; // 5 minutes
+let cleanupInterval: NodeJS.Timeout | null = null;
+
+const startCleanupTask = () => {
+  if (cleanupInterval) return; // Already running
+  
+  cleanupInterval = setInterval(() => {
+    const now = Date.now();
+    const cutoff = now - 30000; // Remove entries older than 30 seconds
+    
+    let removedCount = 0;
+    for (const [key, timestamp] of toastDebounceMap.entries()) {
+      if (timestamp < cutoff) {
+        toastDebounceMap.delete(key);
+        removedCount++;
+      }
+    }
+    
+    if (removedCount > 0) {
+      console.log(`[Toast Cleanup] Removed ${removedCount} old debounce entries`);
+    }
+  }, CLEANUP_INTERVAL);
+};
+
+// Start cleanup task when module loads
+if (typeof window !== 'undefined') {
+  startCleanupTask();
+}
+
 // Helper function to debounce toasts by message
 const debounceToast = (key: string, fn: () => void, delay: number = 3000) => {
   const now = Date.now();
   const lastShown = toastDebounceMap.get(key) || 0;
   
+  console.log(`[Toast Debounce] Key: ${key}, Last shown: ${lastShown}, Now: ${now}, Delay: ${delay}`);
+  
   if (now - lastShown > delay) {
+    console.log(`[Toast Debounce] Showing toast for key: ${key}`);
     toastDebounceMap.set(key, now);
-    fn();
+    return fn();
+  } else {
+    console.log(`[Toast Debounce] Skipping duplicate toast for key: ${key}, time left: ${delay - (now - lastShown)}ms`);
+    return null; // Return null for blocked toasts
   }
 };
 
 // Helper functions for different types of toast notifications
 export const showToast = {
   success: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
-    return toast.success(message, {
-      description,
-      action: action ? {
-        label: action.label,
-        onClick: action.onClick,
-      } : undefined,
-    });
+    const key = `success:${message}`;
+    return debounceToast(key, () => {
+      toast.success(message, {
+        description,
+        action: action ? {
+          label: action.label,
+          onClick: action.onClick,
+        } : undefined,
+      });
+    }, 1000); // 1 second debounce for success messages
   },
 
   error: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
-    return toast.error(message, {
-      description,
-      action: action ? {
-        label: action.label,
-        onClick: action.onClick,
-      } : undefined,
-    });
+    const key = `error:${message}`;
+    return debounceToast(key, () => {
+      toast.error(message, {
+        description,
+        action: action ? {
+          label: action.label,
+          onClick: action.onClick,
+        } : undefined,
+      });
+    }, 2000); // 2 second debounce for error messages
   },
 
   warning: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
@@ -47,17 +89,20 @@ export const showToast = {
           onClick: action.onClick,
         } : undefined,
       });
-    });
+    }, 3000); // 3 second debounce for warnings
   },
 
   info: (message: string, description?: string, action?: { label: string; onClick: () => void }) => {
-    return toast.info(message, {
-      description,
-      action: action ? {
-        label: action.label,
-        onClick: action.onClick,
-      } : undefined,
-    });
+    const key = `info:${message}`;
+    return debounceToast(key, () => {
+      toast.info(message, {
+        description,
+        action: action ? {
+          label: action.label,
+          onClick: action.onClick,
+        } : undefined,
+      });
+    }, 1500); // 1.5 second debounce for info messages
   },
 
   loading: (message: string, description?: string) => {

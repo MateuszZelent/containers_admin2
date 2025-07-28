@@ -17,7 +17,8 @@ import {
   ChevronUp,
   AlertTriangle
 } from 'lucide-react';
-import { useConnectionStatus, ConnectionStatus } from '@/hooks/useConnectionStatus';
+import { useConnectionStatusContext } from '@/contexts/ConnectionStatusContext';
+import { ConnectionStatus } from '@/hooks/useConnectionStatus';
 import { useTranslation } from '@/lib/i18n/LanguageContext';
 
 interface ConnectionStatusCardProps {
@@ -235,12 +236,7 @@ export const ConnectionStatusCard = memo<ConnectionStatusCardProps>(({
     error,
     lastUpdate,
     refreshStatus,
-  } = useConnectionStatus({
-    cacheEnabled: true,
-    cacheTTL: 60000, // 1 minute cache
-    refreshInterval: 30000, // 30 second auto-refresh
-    enableAutoRefresh: true,
-  });
+  } = useConnectionStatusContext();
 
   const handleRefresh = async () => {
     try {
