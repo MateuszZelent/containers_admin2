@@ -3,10 +3,11 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Loader2, Settings, Monitor, Database, Shield } from "lucide-react";
+import { Loader2, Settings, Monitor, Database, Shield, Activity } from "lucide-react";
 import { userApi } from "@/lib/api-client";
 import { User } from "@/lib/types";
 import { ResourceMonitoringSettings } from "@/app/dashboard/components/resource-monitoring-settings";
+import { ClusterMonitoringSettings } from "@/app/dashboard/components/cluster-monitoring-settings";
 
 export default function AdminSettings() {
   const router = useRouter();
@@ -81,6 +82,26 @@ export default function AdminSettings() {
           </CardHeader>
           <CardContent>
             <ResourceMonitoringSettings />
+          </CardContent>
+        </Card>
+
+        {/* Cluster Monitoring Settings */}
+        <Card className="bg-white/60 backdrop-blur-sm dark:bg-slate-800/60">
+          <CardHeader className="pb-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2 bg-cyan-100 dark:bg-cyan-900/50 rounded-lg">
+                <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-400" />
+              </div>
+              <div>
+                <CardTitle className="text-xl">Ustawienia monitoringu klastra PCSS</CardTitle>
+                <CardDescription className="mt-1">
+                  Konfiguracja częstotliwości monitorowania stanu klastra obliczeniowego PCSS
+                </CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent>
+            <ClusterMonitoringSettings />
           </CardContent>
         </Card>
 

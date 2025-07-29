@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { showToast } from '@/lib/toast-helpers';
+import { debugLog } from '@/lib/debug';
 // import { clusterApi } from '@/lib/api-client'; // DISABLED - WebSocket only
 
 export interface ClusterNode {
@@ -96,19 +97,19 @@ export function useClusterStatus(): UseClusterStatusReturn {
     const message = lastMessage;
     
     if (message.type === 'cluster_status') {
-      console.log('[useClusterStatus] Received cluster_status via WebSocket - WEBSOCKET ONLY MODE');
+      debugLog.ws('Received cluster_status via WebSocket - WEBSOCKET ONLY MODE');
       
       // Clear initial connection timeout since we got data
       if (initialTimeoutRef.current) {
-        console.log('[useClusterStatus] Clearing initial timeout - received cluster data');
+        debugLog.ws('Clearing initial timeout - received cluster data');
         clearTimeout(initialTimeoutRef.current);
         initialTimeoutRef.current = null;
       }
       
       // Map WebSocket data structure to ClusterStatus interface
       const wsData = message.data;
-      console.log('[useClusterStatus] Raw WebSocket data:', wsData);
-      console.log('[useClusterStatus] GPU data from backend:', wsData.gpus);
+      debugLog.ws('Raw WebSocket data:', wsData);
+      debugLog.ws('GPU data from backend:', wsData.gpus);
       
       const clusterStatus: ClusterStatus = {
         nodes: [], // WebSocket doesn't provide detailed node list

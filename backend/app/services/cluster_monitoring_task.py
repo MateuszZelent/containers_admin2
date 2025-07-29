@@ -1,5 +1,5 @@
 import asyncio
-from typing import Optional
+from typing import Optional, Dict
 from sqlalchemy.orm import Session
 from app.db.session import SessionLocal
 from app.services.cluster_stats_monitor import ClusterStatsMonitorService
@@ -14,6 +14,8 @@ class ClusterMonitoringTask:
         self.interval_seconds = interval_minutes * 60
         self._task: Optional[asyncio.Task] = None
         self._running = False
+        self._last_update: Optional[str] = None
+        self._update_count = 0
 
     async def start(self):
         """Start the background monitoring task."""
@@ -42,6 +44,25 @@ class ClusterMonitoringTask:
 
         cluster_logger.info("Stopped cluster monitoring")
 
+    async def restart_with_new_interval(self, interval_minutes: int):
+        """Restart monitoring with new interval."""
+        cluster_logger.info(
+            f"Restarting cluster monitoring with new interval: {interval_minutes} minutes"
+        )
+        await self.stop()
+        self.interval_minutes = interval_minutes
+        self.interval_seconds = interval_minutes * 60
+        await self.start()
+
+    def get_status(self) -> Dict:
+        """Get current monitoring status."""
+        return {
+            "interval_minutes": self.interval_minutes,
+            "current_status": "active" if self._running else "inactive",
+            "last_update": self._last_update,
+            "update_count": self._update_count
+        }
+
     async def _monitoring_loop(self):
         """Main monitoring loop."""
         while self._running:
@@ -54,6 +75,9 @@ class ClusterMonitoringTask:
                     success = await monitor_service.update_cluster_stats()
 
                     if success:
+                        self._update_count += 1
+                        from datetime import datetime
+                        self._last_update = datetime.now().isoformat()
                         cluster_logger.debug("Cluster stats updated successfully")
                     else:
                         cluster_logger.warning("Failed to update cluster stats")

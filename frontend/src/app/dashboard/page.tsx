@@ -42,6 +42,7 @@ import { CreateUserDialog } from "./components/create-user-dialog";
 import { EditUserDialog } from "./components/edit-user-dialog";
 import { ClusterStatsCard } from "@/components/cluster-stats-card";
 import { ResourceUsageChart } from "./components/resource-usage-chart";
+import { OptimizedResourceUsageChart } from "./components/optimized-resource-usage-chart";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
@@ -782,7 +783,10 @@ export default function DashboardPage() {
           
           {/* Resource usage chart - full width with proper spacing */}
           <div className="mt-6">
+            <OptimizedResourceUsageChart />
+            {/* Fallback to old chart if needed - uncomment if issues persist
             <ResourceUsageChart />
+            */}
           </div>
           
           {/* Loading state with skeleton cards only when there are no jobs yet */}

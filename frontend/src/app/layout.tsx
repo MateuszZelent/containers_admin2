@@ -3,7 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { ThemeProvider } from "@/components/theme-provider"
 import { LanguageProvider } from "@/lib/i18n/LanguageContext"
-import { ConnectionStatusProvider } from "@/contexts/ConnectionStatusContext"
+import { AuthProvider } from "@/contexts/AuthContext"
 import "@/app/dashboard/theme.css"
 import { SonnerToaster } from '@/components/ui/sonner-config';
 
@@ -39,15 +39,10 @@ export default function RootLayout({
           storageKey="ui-theme"
         >
           <LanguageProvider>
-            <ConnectionStatusProvider
-              cacheEnabled={true}
-              cacheTTL={60000} // 1 minute cache
-              refreshInterval={30000} // 30 second auto-refresh
-              enableAutoRefresh={true}
-            >
+            <AuthProvider>
               {children}
               <SonnerToaster />
-            </ConnectionStatusProvider>
+            </AuthProvider>
           </LanguageProvider>
         </ThemeProvider>
       </body>

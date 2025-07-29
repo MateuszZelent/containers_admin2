@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
+import { debugLog } from "@/lib/debug";
 import { 
   Monitor,
   Bug,
@@ -45,7 +46,7 @@ export function ClusterStatsCard({
   const isLoading = propLoading;
   const error = propError;
 
-  console.log('[ClusterStatsCard] Render with props:', {
+  debugLog.general('[ClusterStatsCard] Render with props:', {
     clusterStatus: clusterStatus ? 'has data' : 'no data',
     raw_gpus: clusterStatus?.raw_gpus,
     isLoading,

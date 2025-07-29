@@ -320,6 +320,14 @@ export const adminApi = {
     apiClient.put('/admin/monitoring/interval', { interval_minutes: intervalMinutes }),
   
   restartMonitoring: () => apiClient.post('/admin/monitoring/restart'),
+
+  // Cluster monitoring endpoints (admin only)
+  getClusterMonitoringSettings: () => apiClient.get('/admin/cluster-monitoring/status'),
+  
+  updateClusterMonitoringInterval: (intervalMinutes: number) => 
+    apiClient.put('/admin/cluster-monitoring/interval', { interval_minutes: intervalMinutes }),
+  
+  restartClusterMonitoring: () => apiClient.post('/admin/cluster-monitoring/restart'),
 }
 
 // Jobs API (Containers)
@@ -575,6 +583,13 @@ export const clusterApi = {
   // Get resource usage history
   getUsageHistory: (limit?: number) =>
     apiClient.get(`/cluster/usage/history${limit ? `?limit=${limit}` : ''}`),
+  
+  // Get optimized resource usage data with intelligent aggregation  
+  getOptimizedUsageData: (timeRange: string = '24h') =>
+    apiClient.get(`/cluster/usage/optimized?time_range=${timeRange}`),
+  
+  // Get available time ranges for optimized data
+  getTimeRanges: () => apiClient.get('/cluster/usage/time-ranges'),
   
   // Test cluster stats script execution (admin only)
   testScript: () => apiClient.get('/cluster/stats/test-script'),

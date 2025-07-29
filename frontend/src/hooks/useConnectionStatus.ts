@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { jobsApi, adminApi } from '@/lib/api-client';
 import { useJobStatus } from './useJobStatus';
 import { useClusterStatus } from './useClusterStatus';
+import { debugLog } from '@/lib/debug';
 
 export interface ConnectionStatus {
   ssh: {
@@ -100,12 +101,12 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
 
   // Debug: Monitor changes to isPCSSWebSocketActive
   useEffect(() => {
-    console.log('[useConnectionStatus] isPCSSWebSocketActive changed:', isPCSSWebSocketActive);
+    debugLog.ws('[useConnectionStatus] isPCSSWebSocketActive changed:', isPCSSWebSocketActive);
   }, [isPCSSWebSocketActive]);
 
   // Debug: Monitor changes to clusterStatus
   useEffect(() => {
-    console.log('[useConnectionStatus] clusterStatus changed:', {
+    debugLog.ws('[useConnectionStatus] clusterStatus changed:', {
       hasClusterStatus: !!clusterStatus,
       total_cpus: clusterStatus?.total_cpus,
       lastUpdate: clusterStatus ? 'has data' : 'no data'
@@ -126,7 +127,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     };
 
     // Log immediate values for debugging
-    console.log('[useConnectionStatus] Raw WebSocket values:', currentRawState);
+    debugLog.ws('[useConnectionStatus] Raw WebSocket values:', currentRawState);
 
     // Check if any connection went from false to true - update immediately
     const hasNewConnection = (
@@ -143,7 +144,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     );
 
     if (hasNewConnection) {
-      console.log('[useConnectionStatus] New connection detected - updating immediately');
+      debugLog.ws('[useConnectionStatus] New connection detected - updating immediately');
       setStableWebSocketState(currentRawState);
       return;
     }
@@ -173,7 +174,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
           return prev; // No change
         }
 
-        console.log('[useConnectionStatus] Debounced update to stable state:', {
+        debugLog.ws('[useConnectionStatus] Debounced update to stable state:', {
           from: prev,
           to: currentRawState
         });
@@ -288,7 +289,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       activeState.isNotificationsConnected && 'notifications'
     ].filter(Boolean);
     
-    console.log('[useConnectionStatus] WebSocket status update:', {
+    debugLog.ws('[useConnectionStatus] WebSocket status update:', {
       stableState: stableWebSocketState,
       rawValues: { isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected },
       activeState,
@@ -326,7 +327,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       const hasWebSocketConnection = isPCSSWebSocketActive; // Only WebSocket
       const pcssStatus = hasWebSocketConnection ? 'active' : 'inactive';
       
-      console.log('[useConnectionStatus] PCSS status update (WebSocket ONLY mode):', {
+      debugLog.ws('[useConnectionStatus] PCSS status update (WebSocket ONLY mode):', {
         isPCSSWebSocketActive,
         hasClusterStatus: !!clusterStatus,
         clusterStatusSample: clusterStatus ? {
@@ -406,7 +407,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
 
   // Monitor changes in cluster WebSocket status and update PCSS immediately
   useEffect(() => {
-    console.log('[useConnectionStatus] Cluster WebSocket status changed, updating PCSS...', {
+    debugLog.ws('[useConnectionStatus] Cluster WebSocket status changed, updating PCSS...', {
       isPCSSWebSocketActive,
       hasClusterStatus: !!clusterStatus
     });
