@@ -352,7 +352,7 @@ class ClusterStats(Base):
     # Węzły (nodes)
     free_nodes = Column(Integer, nullable=False, default=0)
     busy_nodes = Column(Integer, nullable=False, default=0)
-    unavailable_nodes = Column(Integer, nullable=False, default=0)
+    sleeping_nodes = Column(Integer, nullable=False, default=0)  # power saving
     total_nodes = Column(Integer, nullable=False, default=0)
 
     # GPU
@@ -375,7 +375,7 @@ class ClusterStats(Base):
         return (
             f"<ClusterStats("
             f"nodes=free:{self.free_nodes}/busy:{self.busy_nodes}/"
-            f"unavailable:{self.unavailable_nodes}/total:{self.total_nodes}, "
+            f"sleeping:{self.sleeping_nodes}/total:{self.total_nodes}, "
             f"gpus=free:{self.free_gpus}/busy:{self.busy_gpus}/"
             f"total:{self.total_gpus})>"
         )

@@ -14,7 +14,7 @@ class ClusterStats(Base):
     # Węzły (nodes)
     free_nodes = Column(Integer, nullable=False)
     busy_nodes = Column(Integer, nullable=False)
-    unavailable_nodes = Column(Integer, nullable=False)
+    sleeping_nodes = Column(Integer, nullable=False)  # power saving nodes
     total_nodes = Column(Integer, nullable=False)
 
     # GPU

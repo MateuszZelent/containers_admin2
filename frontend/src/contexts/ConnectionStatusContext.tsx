@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useConnectionStatus, ConnectionStatus } from '@/hooks/useConnectionStatus';
+import { useClusterStatus, ClusterStatus } from '@/hooks/useClusterStatus';
 
 interface ConnectionStatusContextType {
   connectionStatus: ConnectionStatus;
@@ -13,6 +14,13 @@ interface ConnectionStatusContextType {
   refreshWebSocketStatus: () => void;
   refreshPCSSStatus: () => Promise<void>;
   clearCache: () => void;
+  // Cluster status data - global state
+  clusterStatus: ClusterStatus | null;
+  clusterLoading: boolean;
+  clusterError: string | null;
+  clusterLastUpdate: Date | null;
+  isClusterWebSocketActive: boolean;
+  requestClusterStatusUpdate: () => void;
 }
 
 const ConnectionStatusContext = createContext<ConnectionStatusContextType | undefined>(undefined);
@@ -39,8 +47,29 @@ export function ConnectionStatusProvider({
     enableAutoRefresh,
   });
 
+  // Global cluster status - ONE instance for entire app
+  const {
+    clusterStatus,
+    loading: clusterLoading,
+    error: clusterError,
+    lastUpdate: clusterLastUpdate,
+    isWebSocketActive: isClusterWebSocketActive,
+    requestStatusUpdate: requestClusterStatusUpdate
+  } = useClusterStatus();
+
+  const contextValue: ConnectionStatusContextType = {
+    ...connectionStatusData,
+    // Add cluster status to global context
+    clusterStatus,
+    clusterLoading,
+    clusterError,
+    clusterLastUpdate,
+    isClusterWebSocketActive,
+    requestClusterStatusUpdate
+  };
+
   return (
-    <ConnectionStatusContext.Provider value={connectionStatusData}>
+    <ConnectionStatusContext.Provider value={contextValue}>
       {children}
     </ConnectionStatusContext.Provider>
   );

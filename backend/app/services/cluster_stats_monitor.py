@@ -24,8 +24,8 @@ class ClusterStatsMonitorService:
             # Define the script path on the remote server
             script_path = "/mnt/storage_3/home/kkingstoun/scripts/check.sh"
 
-            # Execute the script with -s option for new format
-            command = f"bash {script_path} -s"
+            # Execute the script with -j option for JSON format
+            command = f"bash {script_path} -j"
 
             cluster_logger.debug(f"Executing cluster stats command: {command}")
             output = await self.slurm_service._execute_async_command(command)
@@ -36,20 +36,107 @@ class ClusterStatsMonitorService:
 
             cluster_logger.debug(f"Cluster stats output:\n{output}")
 
-            # Parse the output
-            stats = self._parse_cluster_stats_output(output)
+            # Parse the output (now JSON format)
+            stats = self._parse_cluster_stats_json(output)
 
             if stats:
                 cluster_logger.info(
                     f"Parsed cluster stats: "
-                    f"nodes=free:{stats['free_nodes']}/busy:{stats['busy_nodes']}/unavailable:{stats['unavailable_nodes']}/total:{stats['total_nodes']}, "
-                    f"gpus=free:{stats['free_gpus']}/busy:{stats['busy_gpus']}/total:{stats['total_gpus']}"
+                    f"nodes=free:{stats['free_nodes']}/busy:{stats['busy_nodes']}/"
+                    f"sleeping:{stats['sleeping_nodes']}/total:{stats['total_nodes']}, "
+                    f"gpus=free:{stats['free_gpus']}/busy:{stats['busy_gpus']}/"
+                    f"total:{stats['total_gpus']}"
                 )
 
             return stats
 
         except Exception as e:
             cluster_logger.error(f"Error executing cluster stats script: {str(e)}")
+            return None
+
+    def _parse_cluster_stats_json(
+        self, output: str
+    ) -> Optional[Dict[str, int]]:
+        """Parse JSON output from the cluster stats script.
+
+        Expected JSON format:
+        {
+          "timestamp": "2025-07-29T13:30:00+02:00",
+          "nodes": {
+            "free": 8,
+            "busy": 12,
+            "sleeping": 57,
+            "total": 77
+          },
+          "gpus": {
+            "free": 256,
+            "busy": 44,
+            "total": 308
+          }
+        }
+        """
+        try:
+            import json
+            
+            # Extract JSON part from output (skip header lines)
+            # Look for lines starting with { and count braces to find matching }
+            lines = output.strip().split('\n')
+            json_start = -1
+            json_end = -1
+            brace_count = 0
+            
+            for i, line in enumerate(lines):
+                stripped_line = line.strip()
+                if stripped_line.startswith('{') and json_start == -1:
+                    json_start = i
+                    
+                if json_start != -1:
+                    # Count braces to find matching closing brace
+                    brace_count += stripped_line.count('{') - stripped_line.count('}')
+                    if brace_count == 0:
+                        json_end = i
+                        break
+            
+            if json_start == -1 or json_end == -1:
+                cluster_logger.error("No valid JSON found in output")
+                cluster_logger.debug(f"Output was:\n{output}")
+                return None
+            
+            # Extract and parse JSON
+            json_text = '\n'.join(lines[json_start:json_end + 1])
+            cluster_logger.debug(f"Extracted JSON: {json_text}")
+            data = json.loads(json_text)
+            
+            # Check for error in JSON
+            if "error" in data:
+                cluster_logger.error(f"Script returned error: {data['error']}")
+                return None
+            
+            # Extract data with proper field names for database
+            stats = {
+                "free_nodes": data["nodes"]["free"],
+                "busy_nodes": data["nodes"]["busy"],
+                "sleeping_nodes": data["nodes"]["sleeping"],
+                "total_nodes": data["nodes"]["total"],
+                "free_gpus": data["gpus"]["free"],
+                "active_gpus": 0,  # JSON doesn't distinguish active/standby
+                "standby_gpus": 0,  # All free GPU are counted as free, not standby
+                "busy_gpus": data["gpus"]["busy"],
+                "total_gpus": data["gpus"]["total"],
+            }
+            
+            return stats
+            
+        except json.JSONDecodeError as e:
+            cluster_logger.error(f"Error parsing JSON output: {str(e)}")
+            cluster_logger.debug(f"Invalid JSON output:\n{output}")
+            return None
+        except KeyError as e:
+            cluster_logger.error(f"Missing required field in JSON: {str(e)}")
+            cluster_logger.debug(f"JSON output:\n{output}")
+            return None
+        except Exception as e:
+            cluster_logger.error(f"Error parsing cluster stats JSON: {str(e)}")
             return None
 
     def _parse_cluster_stats_output(self, output: str) -> Optional[Dict[str, int]]:
@@ -76,7 +163,7 @@ class ClusterStatsMonitorService:
             stats = {
                 "free_nodes": 0,
                 "busy_nodes": 0,
-                "unavailable_nodes": 0,
+                "sleeping_nodes": 0,  # zmienione z unavailable_nodes
                 "total_nodes": 0,
                 "free_gpus": 0,
                 "active_gpus": 0,
@@ -112,10 +199,10 @@ class ClusterStatsMonitorService:
                         match = re.search(r"Busy nodes:\s*(\d+)", line)
                         if match:
                             stats["busy_nodes"] = int(match.group(1))
-                    elif line.startswith("Unavailable nodes:"):
-                        match = re.search(r"Unavailable nodes:\s*(\d+)", line)
+                    elif line.startswith("Sleeping nodes:"):
+                        match = re.search(r"Sleeping nodes:\s*(\d+)", line)
                         if match:
-                            stats["unavailable_nodes"] = int(match.group(1))
+                            stats["sleeping_nodes"] = int(match.group(1))
                     elif line.startswith("Total nodes:"):
                         match = re.search(r"Total nodes:\s*(\d+)", line)
                         if match:
@@ -175,7 +262,7 @@ class ClusterStatsMonitorService:
             cluster_stats = ClusterStatsCreate(
                 free_nodes=stats_data["free_nodes"],
                 busy_nodes=stats_data["busy_nodes"],
-                unavailable_nodes=stats_data["unavailable_nodes"],
+                sleeping_nodes=stats_data["sleeping_nodes"],
                 total_nodes=stats_data["total_nodes"],
                 free_gpus=stats_data["free_gpus"],
                 active_gpus=stats_data["active_gpus"],
@@ -193,7 +280,7 @@ class ClusterStatsMonitorService:
             cluster_logger.info(
                 f"Successfully updated cluster stats in database: "
                 f"nodes=free:{db_stats.free_nodes}/busy:{db_stats.busy_nodes}/"
-                f"unavailable:{db_stats.unavailable_nodes}/total:{db_stats.total_nodes}, "
+                f"sleeping:{db_stats.sleeping_nodes}/total:{db_stats.total_nodes}, "
                 f"gpus=free:{db_stats.free_gpus}/busy:{db_stats.busy_gpus}/"
                 f"total:{db_stats.total_gpus}"
             )
@@ -240,8 +327,9 @@ class ClusterStatsMonitorService:
                 "nodes": {
                     "free": current_stats.free_nodes,
                     "busy": current_stats.busy_nodes,
-                    "unavailable": current_stats.unavailable_nodes,
+                    "sleeping": current_stats.sleeping_nodes,
                     "total": current_stats.total_nodes,
+                    "available": current_stats.free_nodes + current_stats.sleeping_nodes,  # available = free + sleeping
                     "utilization_percent": round(node_utilization, 1),
                 },
                 "gpus": {
@@ -250,6 +338,7 @@ class ClusterStatsMonitorService:
                     "standby": current_stats.standby_gpus,
                     "busy": current_stats.busy_gpus,
                     "total": current_stats.total_gpus,
+                    "available": current_stats.free_gpus,  # available = only free GPUs (standby already included)
                     "utilization_percent": round(gpu_utilization, 1),
                 },
             }
@@ -284,7 +373,7 @@ class ClusterStatsMonitorService:
             busy_nodes = len(
                 [line for line in lines if "up" in line and "alloc" in line]
             )
-            unavailable_nodes = total_nodes - available_nodes - busy_nodes
+            sleeping_nodes = total_nodes - available_nodes - busy_nodes
 
             # Get GPU information
             gpu_cmd = "sinfo -p proxima -o '%n %G %t %a' -h"
@@ -317,7 +406,7 @@ class ClusterStatsMonitorService:
             stats = {
                 "free_nodes": available_nodes,
                 "busy_nodes": busy_nodes,
-                "unavailable_nodes": unavailable_nodes,
+                "sleeping_nodes": sleeping_nodes,
                 "total_nodes": total_nodes,
                 "free_gpus": total_gpus - busy_gpus,
                 "active_gpus": 0,  # Cannot determine from SLURM
@@ -329,7 +418,7 @@ class ClusterStatsMonitorService:
             cluster_logger.info(
                 f"Direct SLURM stats: "
                 f"nodes=free:{stats['free_nodes']}/busy:{stats['busy_nodes']}/"
-                f"unavailable:{stats['unavailable_nodes']}/total:{stats['total_nodes']}, "
+                f"sleeping:{stats['sleeping_nodes']}/total:{stats['total_nodes']}, "
                 f"gpus=free:{stats['free_gpus']}/busy:{stats['busy_gpus']}/"
                 f"total:{stats['total_gpus']}"
             )

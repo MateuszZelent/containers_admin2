@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { showToast } from '@/lib/toast-helpers';
-import { clusterApi } from '@/lib/api-client';
+// import { clusterApi } from '@/lib/api-client'; // DISABLED - WebSocket only
 
 export interface ClusterNode {
   name: string;
@@ -17,6 +17,21 @@ export interface ClusterNode {
 
 export interface ClusterStatus {
   nodes: ClusterNode[];
+  // Raw node data from WebSocket (from check.sh)
+  raw_nodes?: {
+    free: number;
+    busy: number;
+    sleeping: number;
+    total: number;
+    available: number;
+  };
+  // Raw GPU data from WebSocket (from check.sh)
+  raw_gpus?: {
+    free: number;
+    busy: number;
+    total: number;
+    available: number;
+  };
   total_cpus: number;
   total_memory: number;
   used_cpus: number;
@@ -43,11 +58,10 @@ interface UseClusterStatusReturn {
   lastUpdate: Date | null;
   isWebSocketActive: boolean;
   requestStatusUpdate: () => void;
-  forceApiRefresh: () => void;
 }
 
-const FALLBACK_TIMEOUT = 120000; // 2 minutes without WebSocket data triggers API fallback
-const API_REFRESH_INTERVAL = 30000; // Refresh API every 30 seconds when using fallback
+// DISABLED - API fallback completely removed to use WebSocket only
+const RECONNECT_INTERVAL = 5000; // Try to reconnect every 5 seconds if disconnected
 
 export function useClusterStatus(): UseClusterStatusReturn {
   const [clusterStatus, setClusterStatus] = useState<ClusterStatus | null>(null);
@@ -55,12 +69,11 @@ export function useClusterStatus(): UseClusterStatusReturn {
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [isWebSocketActive, setIsWebSocketActive] = useState(false);
-  const [usingApiFallback, setUsingApiFallback] = useState(false);
   
   const lastWebSocketDataTime = useRef<Date | null>(null);
-  const fallbackTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const apiIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const fallbackToastShown = useRef<boolean>(false);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const initialConnectionAttempted = useRef<boolean>(false);
+  const initialTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // WebSocket connection
   const { 
@@ -73,50 +86,8 @@ export function useClusterStatus(): UseClusterStatusReturn {
     url: '/ws/cluster/status'
   });
 
-  // API fallback function
-  const fetchClusterStatusFromAPI = useCallback(async () => {
-    try {
-      // Use the cluster stats API as fallback with proper authentication
-      const response = await clusterApi.getStats();
-      const data = response.data;
-      
-      // Convert stats format to cluster status format
-      const clusterStatus: ClusterStatus = {
-        nodes: data.nodes || [],
-        total_cpus: data.total_cpus || 0,
-        total_memory: data.total_memory || 0,
-        used_cpus: data.used_cpus || 0,
-        used_memory: data.used_memory || 0,
-        available_cpus: data.available_cpus || 0,
-        available_memory: data.available_memory || 0,
-        queue_stats: data.queue_stats || {
-          running: 0,
-          pending: 0,
-          completed: 0,
-          failed: 0
-        },
-        active_sessions: data.active_sessions || {
-          active_users: 0,
-          total_connections: 0,
-          connections_by_channel: {}
-        }
-      };
-      
-      setClusterStatus(clusterStatus);
-      setLastUpdate(new Date());
-      setLoading(false);
-      setError(null);
-    } catch (err) {
-      console.error('Error fetching cluster status from API:', err);
-      setError(err instanceof Error ? err.message : 'Failed to fetch cluster status');
-      setLoading(false);
-    }
-  }, []);
-
-  // Force API refresh (public method)
-  const forceApiRefresh = useCallback(() => {
-    fetchClusterStatusFromAPI();
-  }, [fetchClusterStatusFromAPI]);
+  // REMOVED - No more API fallback functions
+  // All data comes only from WebSocket
 
   // Handle WebSocket messages
   useEffect(() => {
@@ -125,77 +96,128 @@ export function useClusterStatus(): UseClusterStatusReturn {
     const message = lastMessage;
     
     if (message.type === 'cluster_status') {
-      setClusterStatus(message.data);
-      setLastUpdate(new Date());
+      console.log('[useClusterStatus] Received cluster_status via WebSocket - WEBSOCKET ONLY MODE');
+      
+      // Clear initial connection timeout since we got data
+      if (initialTimeoutRef.current) {
+        console.log('[useClusterStatus] Clearing initial timeout - received cluster data');
+        clearTimeout(initialTimeoutRef.current);
+        initialTimeoutRef.current = null;
+      }
+      
+      // Map WebSocket data structure to ClusterStatus interface
+      const wsData = message.data;
+      console.log('[useClusterStatus] Raw WebSocket data:', wsData);
+      console.log('[useClusterStatus] GPU data from backend:', wsData.gpus);
+      
+      const clusterStatus: ClusterStatus = {
+        nodes: [], // WebSocket doesn't provide detailed node list
+        // Raw data from check.sh
+        raw_nodes: wsData.nodes ? {
+          free: wsData.nodes.free || 0,
+          busy: wsData.nodes.busy || 0,
+          sleeping: wsData.nodes.sleeping || 0,
+          total: wsData.nodes.total || 0,
+          available: wsData.nodes.available || 0
+        } : undefined,
+        raw_gpus: wsData.gpus ? {
+          free: wsData.gpus.free || 0,
+          busy: wsData.gpus.busy || 0,
+          total: wsData.gpus.total || 0,
+          available: wsData.gpus.available || 0
+        } : undefined,
+        // Legacy CPU/memory estimates (for compatibility)
+        total_cpus: (wsData.nodes?.total || 0) * 32, // Estimate: 32 CPUs per node
+        total_memory: (wsData.nodes?.total || 0) * 256, // Estimate: 256GB per node
+        used_cpus: (wsData.nodes?.busy || 0) * 32,
+        used_memory: (wsData.nodes?.busy || 0) * 256,
+        // available = free + sleeping nodes (sleeping nodes can be woken up)
+        available_cpus: ((wsData.nodes?.free || 0) + (wsData.nodes?.sleeping || 0)) * 32,
+        available_memory: ((wsData.nodes?.free || 0) + (wsData.nodes?.sleeping || 0)) * 256,
+        queue_stats: {
+          running: 0,
+          pending: 0,
+          completed: 0,
+          failed: 0
+        },
+        active_sessions: {
+          active_users: 0,
+          total_connections: 0,
+          connections_by_channel: {}
+        }
+      };
+      
+      setClusterStatus(clusterStatus);
+      console.log('[useClusterStatus] Final clusterStatus.raw_gpus:', clusterStatus.raw_gpus);
+      // Use timestamp from cluster data (when data was collected), not WebSocket timestamp
+      const clusterTimestamp = wsData.timestamp ? new Date(wsData.timestamp) : new Date();
+      setLastUpdate(clusterTimestamp);
       setLoading(false);
       setError(null);
       lastWebSocketDataTime.current = new Date();
       
-      // We're getting data via WebSocket, so stop API fallback
-      if (usingApiFallback) {
-        setUsingApiFallback(false);
-        fallbackToastShown.current = false; // Reset toast flag when WebSocket recovers
-        if (apiIntervalRef.current) {
-          clearInterval(apiIntervalRef.current);
-          apiIntervalRef.current = null;
-        }
-      }
+      console.log('[useClusterStatus] WEBSOCKET ONLY - Status updated successfully');
     } else if (message.type === 'connection_established') {
-      console.log('Connected to cluster status WebSocket');
-      setIsWebSocketActive(true);
+      console.log('[useClusterStatus] Connected to cluster status WebSocket - WEBSOCKET ONLY MODE');
       setError(null);
+      
+      // Clear initial connection timeout since we connected
+      if (initialTimeoutRef.current) {
+        console.log('[useClusterStatus] Clearing initial timeout - connection established');
+        clearTimeout(initialTimeoutRef.current);
+        initialTimeoutRef.current = null;
+      }
+      
+      // Request immediate status update when connection is established
+      setTimeout(() => {
+        sendMessage({ type: 'request_status' });
+      }, 100);
     } else if (message.type === 'pong') {
       // Heartbeat response - connection is alive
       lastWebSocketDataTime.current = new Date();
     }
-  }, [lastMessage, usingApiFallback]);
+  }, [lastMessage, sendMessage]);
 
   // Monitor WebSocket connection status
   useEffect(() => {
+    console.log('[useClusterStatus] Connection status changed - WEBSOCKET ONLY:', { 
+      isConnected,
+      isWebSocketActive: isConnected
+    });
+    
+    // Set isWebSocketActive based on actual WebSocket connection ONLY
     setIsWebSocketActive(isConnected);
     
     if (isConnected) {
       lastWebSocketDataTime.current = new Date();
-    } else {
-      setIsWebSocketActive(false);
-    }
-  }, [isConnected]);
-
-  // Fallback mechanism - switch to API if WebSocket is inactive for too long
-  useEffect(() => {
-    if (fallbackTimeoutRef.current) {
-      clearTimeout(fallbackTimeoutRef.current);
-    }
-
-    if (isWebSocketActive && lastWebSocketDataTime.current) {
-      fallbackTimeoutRef.current = setTimeout(() => {
-        const now = new Date();
-        const timeSinceLastData = now.getTime() - (lastWebSocketDataTime.current?.getTime() || 0);
-        
-        if (timeSinceLastData > FALLBACK_TIMEOUT) {
-          console.warn(`WebSocket inactive for ${Math.round(timeSinceLastData/1000)}s, switching to API fallback`);
-          setUsingApiFallback(true);
-          setIsWebSocketActive(false);
-          
-          // Show toast only once per session
-          if (!fallbackToastShown.current) {
-            showToast.warning('Switched to periodic updates due to connection issues');
-            fallbackToastShown.current = true;
-          }
-          
-          // Start API polling
-          fetchClusterStatusFromAPI();
-          apiIntervalRef.current = setInterval(fetchClusterStatusFromAPI, API_REFRESH_INTERVAL);
-        }
-      }, FALLBACK_TIMEOUT);
-    }
-
-    return () => {
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
+      console.log('[useClusterStatus] WebSocket connected - requesting status');
+      setError(null); // Clear any connection errors
+      setLoading(false); // Connected, no longer loading
+      
+      // Clear initial connection timeout since we connected successfully
+      if (initialTimeoutRef.current) {
+        console.log('[useClusterStatus] Clearing initial timeout - WebSocket connected');
+        clearTimeout(initialTimeoutRef.current);
+        initialTimeoutRef.current = null;
       }
-    };
-  }, [isWebSocketActive, lastWebSocketDataTime.current, fetchClusterStatusFromAPI]);
+      
+      // Request status when WebSocket connects
+      setTimeout(() => {
+        sendMessage({ type: 'request_status' });
+      }, 500);
+    } else {
+      // Only show error if we had a previous connection or after initial attempts
+      const hasHadConnection = lastWebSocketDataTime.current !== null;
+      if (hasHadConnection) {
+        console.log('[useClusterStatus] WebSocket disconnected - will attempt reconnect');
+        setError('WebSocket disconnected - attempting to reconnect...');
+        setLoading(true); // Disconnected, show loading
+      } else {
+        console.log('[useClusterStatus] Initial WebSocket connection attempt...');
+        // Don't set error during initial connection attempts
+      }
+    }
+  }, [isConnected, sendMessage]);
 
   // Initial connection and setup - runs only once
   useEffect(() => {
@@ -204,49 +226,78 @@ export function useClusterStatus(): UseClusterStatusReturn {
       return;
     }
     
+    console.log('[useClusterStatus] Initializing WebSocket connection - WEBSOCKET ONLY MODE');
+    initialConnectionAttempted.current = true;
     connectWebSocket();
+    
+    // Set a timeout to show connection error only if initial connection fails after 15 seconds
+    // This gives more time for the connection to establish
+    initialTimeoutRef.current = setTimeout(() => {
+      // Only show error if we're still not connected AND don't have any data AND haven't cleared this timeout
+      if (!isConnected && !clusterStatus && initialConnectionAttempted.current && initialTimeoutRef.current) {
+        console.log('[useClusterStatus] Initial connection timeout - showing error after 15 seconds');
+        setError('Unable to connect to cluster status service');
+        setLoading(false);
+      }
+    }, 15000); // 15 seconds for initial connection (increased from 10)
     
     return () => {
       disconnectWebSocket();
-      if (fallbackTimeoutRef.current) {
-        clearTimeout(fallbackTimeoutRef.current);
+      if (initialTimeoutRef.current) {
+        clearTimeout(initialTimeoutRef.current);
+        initialTimeoutRef.current = null;
       }
-      if (apiIntervalRef.current) {
-        clearInterval(apiIntervalRef.current);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
       }
     };
   }, []); // Empty dependency array - runs only once
 
-  // Handle connection timeout separately
+  // Auto-reconnect mechanism - if WebSocket disconnects, try to reconnect
   useEffect(() => {
     if (typeof window === 'undefined') {
       return;
     }
 
-    // If WebSocket doesn't connect within 15 seconds, start with API
-    // Increased from 5s to 15s to give cluster service more time
-    const initialTimeout = setTimeout(() => {
-      if (!isConnected && !usingApiFallback) {
-        console.log('WebSocket connection timeout, using API fallback');
-        setUsingApiFallback(true);
-        fetchClusterStatusFromAPI();
-        apiIntervalRef.current = setInterval(fetchClusterStatusFromAPI, API_REFRESH_INTERVAL);
+    if (!isConnected && !reconnectTimeoutRef.current) {
+      // Don't show error immediately during initial connection attempts
+      const isInitialConnection = !lastWebSocketDataTime.current;
+      
+      if (!isInitialConnection) {
+        console.log('[useClusterStatus] WebSocket disconnected, scheduling reconnect in 5 seconds');
+        setError('WebSocket disconnected - attempting to reconnect...');
       }
-    }, 15000); // Increased timeout
+      
+      reconnectTimeoutRef.current = setTimeout(() => {
+        console.log('[useClusterStatus] Attempting to reconnect WebSocket');
+        connectWebSocket();
+        reconnectTimeoutRef.current = null;
+      }, RECONNECT_INTERVAL);
+    } else if (isConnected && reconnectTimeoutRef.current) {
+      // Connected successfully, clear any pending reconnect
+      clearTimeout(reconnectTimeoutRef.current);
+      reconnectTimeoutRef.current = null;
+      setError(null);
+    }
 
     return () => {
-      clearTimeout(initialTimeout);
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
     };
-  }, [isConnected, usingApiFallback]); // Only re-run when connection status changes
+  }, [isConnected, connectWebSocket]);
 
   // Request immediate status update
   const requestStatusUpdate = useCallback(() => {
     if (isConnected) {
+      console.log('[useClusterStatus] Requesting status update via WebSocket');
       sendMessage({ type: 'request_status' });
     } else {
-      fetchClusterStatusFromAPI();
+      console.log('[useClusterStatus] Cannot request status - WebSocket not connected');
+      setError('WebSocket not connected - cannot fetch data');
     }
-  }, [isConnected, sendMessage, fetchClusterStatusFromAPI]);
+  }, [isConnected, sendMessage]);
 
   // Periodic heartbeat to keep connection alive
   useEffect(() => {
@@ -265,7 +316,6 @@ export function useClusterStatus(): UseClusterStatusReturn {
     error,
     lastUpdate,
     isWebSocketActive,
-    requestStatusUpdate,
-    forceApiRefresh
+    requestStatusUpdate
   };
 }

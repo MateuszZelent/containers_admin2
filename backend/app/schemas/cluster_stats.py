@@ -10,7 +10,7 @@ class ClusterStatsBase(BaseModel):
     # Węzły (nodes)
     free_nodes: int
     busy_nodes: int
-    unavailable_nodes: int
+    sleeping_nodes: int  # węzły w trybie oszczędzania energii (POWERED_DOWN)
     total_nodes: int
 
     # GPU
@@ -34,7 +34,7 @@ class ClusterStatsUpdate(BaseModel):
 
     free_nodes: Optional[int] = None
     busy_nodes: Optional[int] = None
-    unavailable_nodes: Optional[int] = None
+    sleeping_nodes: Optional[int] = None  # węzły w trybie oszczędzania energii
     total_nodes: Optional[int] = None
     free_gpus: Optional[int] = None
     active_gpus: Optional[int] = None

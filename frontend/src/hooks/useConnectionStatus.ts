@@ -98,6 +98,20 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
   
   const { isWebSocketActive: isPCSSWebSocketActive, clusterStatus } = useClusterStatus();
 
+  // Debug: Monitor changes to isPCSSWebSocketActive
+  useEffect(() => {
+    console.log('[useConnectionStatus] isPCSSWebSocketActive changed:', isPCSSWebSocketActive);
+  }, [isPCSSWebSocketActive]);
+
+  // Debug: Monitor changes to clusterStatus
+  useEffect(() => {
+    console.log('[useConnectionStatus] clusterStatus changed:', {
+      hasClusterStatus: !!clusterStatus,
+      total_cpus: clusterStatus?.total_cpus,
+      lastUpdate: clusterStatus ? 'has data' : 'no data'
+    });
+  }, [clusterStatus]);
+
   // Stabilize WebSocket state to prevent oscillation with asymmetric debouncing
   useEffect(() => {
     if (debounceTimeoutRef.current) {
@@ -258,19 +272,8 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
 
   // Refresh WebSocket status using stable state with fallback to raw values
   const refreshWebSocketStatus = useCallback(() => {
-    // Use stable state, but fallback to raw values if stable state is all false
-    const useRawValues = 
-      !stableWebSocketState.isJobStatusConnected && 
-      !stableWebSocketState.isTunnelHealthConnected && 
-      !stableWebSocketState.isNotificationsConnected &&
-      (isJobStatusConnected || isTunnelHealthConnected || isNotificationsConnected);
-
-    const activeState = useRawValues ? {
-      isJobStatusConnected,
-      isTunnelHealthConnected,
-      isNotificationsConnected,
-      verificationCode
-    } : stableWebSocketState;
+    // Always use stable state for consistent display
+    const activeState = stableWebSocketState;
 
     const isCriticalWebSocketActive = 
       activeState.isJobStatusConnected || 
@@ -288,7 +291,6 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     console.log('[useConnectionStatus] WebSocket status update:', {
       stableState: stableWebSocketState,
       rawValues: { isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected },
-      useRawValues,
       activeState,
       activeConnections,
       wsStatus
@@ -318,22 +320,23 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     }
   }, [stableWebSocketState, isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected, verificationCode]);
 
-  // Refresh PCSS status
+  // Refresh PCSS status - WebSocket only
   const refreshPCSSStatus = useCallback(async () => {
     try {
-      const response = await adminApi.getMonitoringSettings();
+      const hasWebSocketConnection = isPCSSWebSocketActive; // Only WebSocket
+      const pcssStatus = hasWebSocketConnection ? 'active' : 'inactive';
       
-      const hasWebSocketConnection = isPCSSWebSocketActive && clusterStatus;
-      const hasApiConnection = response.data?.current_status === 'active';
-      const pcssStatus = hasWebSocketConnection || hasApiConnection ? 'active' : 'inactive';
-      
-      console.log('[useConnectionStatus] PCSS status update:', {
+      console.log('[useConnectionStatus] PCSS status update (WebSocket ONLY mode):', {
         isPCSSWebSocketActive,
         hasClusterStatus: !!clusterStatus,
+        clusterStatusSample: clusterStatus ? {
+          total_cpus: clusterStatus.total_cpus,
+          nodes_count: clusterStatus.nodes?.length || 0
+        } : null,
         hasWebSocketConnection,
-        hasApiConnection,
         pcssStatus,
-        statusSource: hasWebSocketConnection ? 'WebSocket' : hasApiConnection ? 'API' : 'None'
+        statusSource: hasWebSocketConnection ? 'WebSocket' : 'None',
+        finalSource: hasWebSocketConnection ? 'websocket' : undefined
       });
       
       if (isMountedRef.current) {
@@ -344,21 +347,22 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
             lastChecked: new Date(),
             totalNodes: clusterStatus?.total_cpus ? Math.ceil(clusterStatus.total_cpus / 32) : undefined,
             activeNodes: clusterStatus?.used_cpus ? Math.ceil(clusterStatus.used_cpus / 32) : undefined,
-            source: hasWebSocketConnection ? 'websocket' : hasApiConnection ? 'api' : undefined,
+            source: hasWebSocketConnection ? 'websocket' : undefined,
             error: pcssStatus === 'inactive' 
-              ? 'PCSS cluster API and WebSocket failed' 
+              ? 'PCSS WebSocket not active' 
               : undefined,
           },
         }));
       }
     } catch (error) {
+      console.error('[useConnectionStatus] Error in PCSS status update:', error);
       if (isMountedRef.current) {
         setConnectionStatus(prev => ({
           ...prev,
           pcss: {
             status: 'inactive',
             lastChecked: new Date(),
-            error: error instanceof Error ? error.message : 'PCSS cluster connection failed',
+            error: error instanceof Error ? error.message : 'PCSS connection failed',
           },
         }));
       }
@@ -399,6 +403,15 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       }
     }
   }, [refreshSSHStatus, refreshPCSSStatus, refreshWebSocketStatus, saveToCache, connectionStatus]);
+
+  // Monitor changes in cluster WebSocket status and update PCSS immediately
+  useEffect(() => {
+    console.log('[useConnectionStatus] Cluster WebSocket status changed, updating PCSS...', {
+      isPCSSWebSocketActive,
+      hasClusterStatus: !!clusterStatus
+    });
+    refreshPCSSStatus();
+  }, [isPCSSWebSocketActive, clusterStatus, refreshPCSSStatus]);
 
   // Auto-refresh
   const scheduleNextRefresh = useCallback(() => {

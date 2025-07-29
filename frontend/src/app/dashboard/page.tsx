@@ -7,7 +7,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { jobsApi, adminApi, userApi, clusterApi } from "@/lib/api-client";
+import { jobsApi, adminApi, userApi } from "@/lib/api-client";
 import { ConfirmationDialog } from "@/components/ui/confirmation-dialog";
 import { 
   Plus, 
@@ -45,9 +45,10 @@ import { ResourceUsageChart } from "./components/resource-usage-chart";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { DomainReadinessModal } from "@/components/domain-readiness-modal";
-import { useClusterStatus } from "@/hooks/useClusterStatus";
+// import { useClusterStatus } from "@/hooks/useClusterStatus"; // REMOVED - using global context
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { ConnectionStatusCard } from "@/components/connection-status-card";
+import { useConnectionStatusContext } from "@/contexts/ConnectionStatusContext";
 import { ClusterHealthIndicator } from "@/components/cluster-health-indicator";
 import { useCanCreateContainers, useClusterHealth } from "@/hooks/useClusterHealth";
 
@@ -56,7 +57,7 @@ interface ClusterStats {
   id: number;
   free_nodes: number;
   busy_nodes: number;
-  unavailable_nodes: number;
+  sleeping_nodes: number;  // zmienione z unavailable_nodes
   total_nodes: number;
   free_gpus: number;
   active_gpus: number;
@@ -144,16 +145,32 @@ export default function DashboardPage() {
   const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
-  // WebSocket-based cluster status
-  const {
+  // WebSocket-based cluster status - FROM GLOBAL CONTEXT ONLY
+  const { 
+    connectionStatus,
     clusterStatus: clusterStats,
-    loading: isClusterStatsLoading,
-    error: clusterStatsError,
-    lastUpdate: clusterLastUpdate,
-    isWebSocketActive,
-    requestStatusUpdate,
-    forceApiRefresh: fetchClusterStats
-  } = useClusterStatus();
+    clusterLoading: isClusterStatsLoading,
+    clusterError: clusterStatsError,
+    clusterLastUpdate,
+    isClusterWebSocketActive: clusterWebSocketActive,
+    requestClusterStatusUpdate
+  } = useConnectionStatusContext();
+  
+  // Get WebSocket status from connection context (for UI display)
+  const isWebSocketActive = connectionStatus.pcss.source === 'websocket';
+  
+  // DEBUG: Monitor both WebSocket statuses
+  useEffect(() => {
+    console.log('[Dashboard] ClusterStatus update:', { 
+      clusterWebSocketActive, 
+      connectionWebSocketActive: isWebSocketActive,
+      pcssSource: connectionStatus.pcss.source,
+      lastUpdate: clusterLastUpdate,
+      loading: isClusterStatsLoading,
+      hasClusterStats: !!clusterStats,
+      clusterStatsKeys: clusterStats ? Object.keys(clusterStats) : null
+    });
+  }, [clusterWebSocketActive, isWebSocketActive, connectionStatus.pcss.source, clusterLastUpdate, isClusterStatsLoading, clusterStats]);
   
   // Cluster health status
   const canCreateContainers = useCanCreateContainers();
@@ -754,9 +771,12 @@ export default function DashboardPage() {
 
             {/* PCSS Cluster Stats Card */}
             <ClusterStatsCard 
-              onRefresh={fetchClusterStats}
+              onRefresh={requestClusterStatusUpdate}
               isWebSocketActive={isWebSocketActive}
-              lastUpdate={clusterLastUpdate}  
+              lastUpdate={clusterLastUpdate}
+              clusterStatus={clusterStats}
+              loading={isClusterStatsLoading}
+              error={clusterStatsError}
             />
           </div>
           

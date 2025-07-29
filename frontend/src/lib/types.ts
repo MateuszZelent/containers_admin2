@@ -103,7 +103,7 @@ export interface ClusterStats {
   // Nowe szczegółowe pola węzłów
   free_nodes: number;
   busy_nodes: number;
-  unavailable_nodes: number;
+  sleeping_nodes: number;  // zmienione z unavailable_nodes
   total_nodes: number;
   // Nowe szczegółowe pola GPU
   free_gpus: number;

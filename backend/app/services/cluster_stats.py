@@ -24,7 +24,7 @@ class ClusterStatsService:
             # Update existing record with new fields
             existing.free_nodes = stats_data.free_nodes
             existing.busy_nodes = stats_data.busy_nodes
-            existing.unavailable_nodes = stats_data.unavailable_nodes
+            existing.sleeping_nodes = stats_data.sleeping_nodes
             existing.total_nodes = stats_data.total_nodes
             existing.free_gpus = stats_data.free_gpus
             existing.active_gpus = stats_data.active_gpus
@@ -32,6 +32,10 @@ class ClusterStatsService:
             existing.busy_gpus = stats_data.busy_gpus
             existing.total_gpus = stats_data.total_gpus
             existing.source = getattr(stats_data, "source", "check.sh")
+            
+            # Update timestamp to current time
+            from datetime import datetime
+            existing.timestamp = datetime.utcnow()
 
             # Keep legacy fields for backward compatibility
             existing.used_nodes = stats_data.busy_nodes
@@ -46,7 +50,7 @@ class ClusterStatsService:
             stats = ClusterStatsModel(
                 free_nodes=stats_data.free_nodes,
                 busy_nodes=stats_data.busy_nodes,
-                unavailable_nodes=stats_data.unavailable_nodes,
+                sleeping_nodes=stats_data.sleeping_nodes,
                 total_nodes=stats_data.total_nodes,
                 free_gpus=stats_data.free_gpus,
                 active_gpus=stats_data.active_gpus,

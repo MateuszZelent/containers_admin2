@@ -218,7 +218,7 @@ export default function ClusterStatsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                     <div className="text-2xl font-bold text-green-600">
                       {summary.nodes.free}
@@ -235,12 +235,20 @@ export default function ClusterStatsPage() {
                       Zajęte węzły
                     </div>
                   </div>
-                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4">
-                    <div className="text-2xl font-bold text-red-600">
-                      {summary.nodes.unavailable}
+                  <div className="bg-orange-50 dark:bg-orange-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-orange-600">
+                      {summary.nodes.sleeping}
                     </div>
-                    <div className="text-sm text-red-700 dark:text-red-400">
-                      Niedostępne
+                    <div className="text-sm text-orange-700 dark:text-orange-400">
+                      Śpiące węzły
+                    </div>
+                  </div>
+                  <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-cyan-600">
+                      {summary.nodes.available}
+                    </div>
+                    <div className="text-sm text-cyan-700 dark:text-cyan-400">
+                      Dostępne węzły
                     </div>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
@@ -282,7 +290,7 @@ export default function ClusterStatsPage() {
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-3 gap-4">
                   <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4">
                     <div className="text-2xl font-bold text-green-600">
                       {summary.gpus.free}
@@ -299,12 +307,28 @@ export default function ClusterStatsPage() {
                       Aktywne GPU
                     </div>
                   </div>
+                  <div className="bg-purple-50 dark:bg-purple-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-purple-600">
+                      {summary.gpus.standby}
+                    </div>
+                    <div className="text-sm text-purple-700 dark:text-purple-400">
+                      Standby GPU
+                    </div>
+                  </div>
                   <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4">
                     <div className="text-2xl font-bold text-blue-600">
                       {summary.gpus.busy}
                     </div>
                     <div className="text-sm text-blue-700 dark:text-blue-400">
                       Zajęte GPU
+                    </div>
+                  </div>
+                  <div className="bg-cyan-50 dark:bg-cyan-900/20 rounded-lg p-4">
+                    <div className="text-2xl font-bold text-cyan-600">
+                      {summary.gpus.available}
+                    </div>
+                    <div className="text-sm text-cyan-700 dark:text-cyan-400">
+                      Dostępne GPU
                     </div>
                   </div>
                   <div className="bg-gray-50 dark:bg-gray-800 rounded-lg p-4">
