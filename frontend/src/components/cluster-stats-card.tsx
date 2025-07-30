@@ -76,26 +76,23 @@ export function ClusterStatsCard({
     <Card className="group relative overflow-hidden backdrop-blur-sm bg-gradient-to-br from-cyan-500/5 via-teal-600/3 to-cyan-700/5 dark:from-cyan-400/10 dark:via-teal-500/5 dark:to-cyan-600/10 border border-cyan-200/20 dark:border-cyan-700/20 hover:border-cyan-300/30 dark:hover:border-cyan-600/30 transition-all duration-300 hover:shadow-lg hover:shadow-cyan-500/5 dark:hover:shadow-cyan-400/5">
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
       <CardContent className="p-6 relative">
-        <div className="flex items-center justify-between">
-          <div className="space-y-1">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300">Klaster </p>
-                {/* Status indicator */}
-                {isLoading ? (
-                  <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse"></div>
-                ) : isWebSocketActive ? (
-                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
-                ) : error ? (
-                  <div className="w-2 h-2 bg-red-500 rounded-full"></div>
-                ) : (
-                  <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
-                )}
-              </div>
-              
+        <div className="flex items-start justify-between">
+          <div className="space-y-1 flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium text-cyan-700 dark:text-cyan-300 truncate">Klaster</p>
+              {/* Status indicator */}
+              {isLoading ? (
+                <div className="w-2 h-2 bg-gray-400 rounded-full animate-pulse flex-shrink-0"></div>
+              ) : isWebSocketActive ? (
+                <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse flex-shrink-0"></div>
+              ) : error ? (
+                <div className="w-2 h-2 bg-red-500 rounded-full flex-shrink-0"></div>
+              ) : (
+                <div className="w-2 h-2 bg-gray-400 rounded-full flex-shrink-0"></div>
+              )}
               {/* Timestamp */}
               {lastUpdate && (
-                <p className="text-xs text-cyan-500/70 dark:text-cyan-400/70">
+                <span className="text-xs text-cyan-500/70 dark:text-cyan-400/70 truncate">
                   {(() => {
                     const now = new Date();
                     const isToday = lastUpdate.toDateString() === now.toDateString();
@@ -111,7 +108,7 @@ export function ClusterStatsCard({
                       return `${lastUpdate.toLocaleDateString()} ${lastUpdate.toLocaleTimeString()}`;
                     }
                   })()}
-                </p>
+                </span>
               )}
             </div>
             
@@ -121,14 +118,14 @@ export function ClusterStatsCard({
                 {/* Nodes section */}
                 {clusterStatus.raw_nodes && (
                   <div className="text-xs text-cyan-600 dark:text-cyan-400">
-                    <div className="font-medium mb-1">WĘZŁY KLASTRA</div>
-                    <div className="flex items-center gap-3">
+                    <div className="font-medium mb-1 text-[10px] uppercase tracking-wide">WĘZŁY</div>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="font-semibold">{clusterStatus.raw_nodes.free}</span>
+                              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                              <span className="font-semibold text-xs">{clusterStatus.raw_nodes.free}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Wolne węzły</TooltipContent>
@@ -139,8 +136,8 @@ export function ClusterStatsCard({
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                              <span className="font-semibold">{clusterStatus.raw_nodes.busy}</span>
+                              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></div>
+                              <span className="font-semibold text-xs">{clusterStatus.raw_nodes.busy}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Zajęte węzły</TooltipContent>
@@ -151,8 +148,8 @@ export function ClusterStatsCard({
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <Moon className="w-3 h-3 text-yellow-500" />
-                              <span className="font-semibold">{clusterStatus.raw_nodes.sleeping}</span>
+                              <Moon className="w-3 h-3 text-yellow-500 flex-shrink-0" />
+                              <span className="font-semibold text-xs">{clusterStatus.raw_nodes.sleeping}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Śpiące węzły</TooltipContent>
@@ -163,8 +160,8 @@ export function ClusterStatsCard({
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <Server className="w-3 h-3 text-blue-500" />
-                              <span className="font-semibold">{clusterStatus.raw_nodes.total}</span>
+                              <Server className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                              <span className="font-semibold text-xs">{clusterStatus.raw_nodes.total}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Wszystkie węzły</TooltipContent>
@@ -177,14 +174,14 @@ export function ClusterStatsCard({
                 {/* GPU section */}
                 {clusterStatus.raw_gpus && (
                   <div className="text-xs text-cyan-600 dark:text-cyan-400 pt-2 border-t border-cyan-200/20 dark:border-cyan-700/20">
-                    <div className="font-medium mb-1">KARTY GRAFICZNE</div>
-                    <div className="flex items-center gap-3">
+                    <div className="font-medium mb-1 text-[10px] uppercase tracking-wide">GPU</div>
+                    <div className="flex items-center gap-2 flex-wrap">
                       <TooltipProvider>
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
-                              <span className="font-semibold">{clusterStatus.raw_gpus.free}</span>
+                              <div className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0"></div>
+                              <span className="font-semibold text-xs">{clusterStatus.raw_gpus.free}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Wolne GPU</TooltipContent>
@@ -195,8 +192,8 @@ export function ClusterStatsCard({
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                              <span className="font-semibold">{clusterStatus.raw_gpus.busy}</span>
+                              <div className="w-2 h-2 rounded-full bg-red-500 flex-shrink-0"></div>
+                              <span className="font-semibold text-xs">{clusterStatus.raw_gpus.busy}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Zajęte GPU</TooltipContent>
@@ -207,8 +204,8 @@ export function ClusterStatsCard({
                         <Tooltip>
                           <TooltipTrigger>
                             <div className="flex items-center gap-1">
-                              <Zap className="w-3 h-3 text-blue-500" />
-                              <span className="font-semibold">{clusterStatus.raw_gpus.total}</span>
+                              <Zap className="w-3 h-3 text-blue-500 flex-shrink-0" />
+                              <span className="font-semibold text-xs">{clusterStatus.raw_gpus.total}</span>
                             </div>
                           </TooltipTrigger>
                           <TooltipContent>Wszystkie GPU</TooltipContent>
@@ -229,32 +226,16 @@ export function ClusterStatsCard({
             )}
           </div>
 
-          {/* Right side - Icon and Debug */}
-          <div className="flex flex-col items-end gap-2">
+          {/* Right side - Icon only */}
+          <div className="flex-shrink-0 ml-3">
             <Button
               onClick={() => setIsDetailsOpen(true)}
               variant="ghost"
               size="sm"
-              className="h-12 w-12 p-0 rounded-xl bg-gradient-to-br from-cyan-400/80 to-teal-600/80 hover:from-cyan-500/90 hover:to-teal-700/90 shadow-md hover:shadow-lg transition-all duration-300 group-hover:scale-110"
+              className="h-12 w-12 p-0 rounded-xl bg-gradient-to-br from-cyan-400/80 to-teal-600/80 hover:from-cyan-500/90 hover:to-teal-700/90 shadow-md hover:shadow-lg transition-all duration-300 group-hover:scale-110 flex-shrink-0"
             >
               <Monitor className="h-6 w-6 text-white" />
             </Button>
-            
-            <TooltipProvider>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button
-                    onClick={() => setIsDiagnosticsOpen(true)}
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 w-6 p-0 text-cyan-600/60 hover:text-cyan-600 dark:text-cyan-400/60 dark:hover:text-cyan-400"
-                  >
-                    <Bug className="h-3 w-3" />
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>Debug klastra</TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
           </div>
         </div>
       </CardContent>
@@ -267,11 +248,30 @@ export function ClusterStatsCard({
 
       {/* Cluster Details Modal */}
       <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur-sm">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Monitor className="h-5 w-5 text-cyan-600" />
               Szczegóły Klastra
+              <div className="ml-auto">
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={() => {
+                          setIsDiagnosticsOpen(true);
+                        }}
+                        variant="outline"
+                        size="sm"
+                        className="h-8 w-8 p-0"
+                      >
+                        <Bug className="h-4 w-4" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>Debug klastra</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              </div>
             </DialogTitle>
             <DialogDescription>
               Pełne informacje o stanie klastra obliczeniowego
