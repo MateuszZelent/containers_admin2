@@ -15,7 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@radix-ui/react-scroll-area";
 import { Copy, Download, FileText, Loader2, X } from "lucide-react";
 import { toast } from "sonner";
-import { tasksApi } from "@/lib/api-client";
+import { taskQueueApi } from "@/lib/api-client";
 
 interface FilePreviewDialogProps {
   open: boolean;
@@ -54,7 +54,7 @@ export function FilePreviewDialog({
     setIsLoading(true);
     setError(null);
     try {
-      const response = await tasksApi.getFileContent(filePath);
+      const response = await taskQueueApi.getFileContent(filePath);
       setFileContent(response.data);
     } catch (error: any) {
       const errorMessage = error.response?.data?.detail || "Nie udało się załadować pliku";

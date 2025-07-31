@@ -143,6 +143,7 @@ singularity run \
   --env VSCODE_IPC_HOOK_CLI="" \
   --env PASSWORD=$PASSWORD \
   --env CODE_SERVER_CONFIG=$CONFIG_FILE \
+  --env localusername=$localusername \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
@@ -157,4 +158,6 @@ singularity run \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}
+
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif

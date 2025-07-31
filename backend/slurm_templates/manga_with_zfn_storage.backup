@@ -160,4 +160,4 @@ singularity run \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}

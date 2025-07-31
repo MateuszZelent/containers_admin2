@@ -11,6 +11,7 @@ import {
   HardDrive,
   Server
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ModernCardLayout, BaseCardData, CardAction, ResourceInfo, StatusBadge } from "./modern-card-layout";
 
 interface TaskCardProps {
@@ -18,6 +19,8 @@ interface TaskCardProps {
   onDelete: (task: TaskQueueJob) => void;
   onCancel: (task: TaskQueueJob) => void;
   onView: (task: TaskQueueJob) => void;
+  isSelected?: boolean;
+  onSelectionToggle?: (taskId: string) => void;
 }
 
 // Task categories
@@ -105,7 +108,9 @@ export const TaskCard = React.memo<TaskCardProps>(({
   task,
   onDelete,
   onCancel,
-  onView
+  onView,
+  isSelected = false,
+  onSelectionToggle
 }) => {
   const category = getTaskCategory(task);
 
@@ -237,6 +242,8 @@ export const TaskCard = React.memo<TaskCardProps>(({
       showElapsedTime={task.status === "RUNNING"}
       additionalSections={additionalSections}
       className="task-card"
+      isSelected={isSelected}
+      onSelectionToggle={onSelectionToggle ? () => onSelectionToggle(task.task_id) : undefined}
     />
   );
 });

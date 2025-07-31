@@ -119,7 +119,7 @@ log_message "Cleaning up previous mounts..."
 fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga 2>/dev/null || true
 
 ### 8. Sprawdzanie dostępności obrazu Singularity
-SINGULARITY_IMAGE="/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif"
+SINGULARITY_IMAGE="/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif"
 if [ ! -f "$SINGULARITY_IMAGE" ]; then
     log_message "ERROR: Singularity image not found: $SINGULARITY_IMAGE"
     exit 1

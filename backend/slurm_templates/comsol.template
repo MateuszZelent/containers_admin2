@@ -139,5 +139,5 @@ singularity run \
   --bind "$target_dir/code-server/settings.json":"$SINIMAGE_DIR/.local/share/code-server/User/settings.json":rw \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --disable-telemetry "$SINIMAGE_DIR"
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif code-server --disable-telemetry "$SINIMAGE_DIR"
 

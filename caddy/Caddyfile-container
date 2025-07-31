@@ -1,20 +1,117 @@
-{
-    # Global configuration for Caddy in container
-    admin 0.0.0.0:2019  # Make Admin API accessible from any IP within Docker network
+amucontainers.orion.zfns.eu.org {
+    tls mateusz.zelent@amu.edu.pl
     
-    # Disable automatic HTTPS since we're behind a proxy
-    auto_https off
+    # Enable proper response buffering and timeouts
+    @static {
+        path /_next/static/* /static/* /favicon.ico /robots.txt /sitemap.xml
+        file {
+            try_files {path}
+        }
+    }
     
-    # Define servers section with proper trusted proxies
-    servers {
-        trusted_proxies static private_ranges
+    # Handle static files with proper headers
+    @fonts {
+        path *.woff2 *.woff *.ttf *.otf
+    }
+
+    # WebSocket for FastAPI - MUST BE FIRST (before @api)
+    @api_ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /ws/*
+    }
+    reverse_proxy @api_ws localhost:8000 {
+        header_up Host {host}
+        header_up Connection "Upgrade"
+        header_up Upgrade "websocket"
+        header_up X-Real-IP {remote_host}
+        
+        # WebSocket specific settings
+        transport http {
+            dial_timeout 30s
+            response_header_timeout 60s
+        }
+    }
+
+    # WebSocket for Next.js HMR - more specific matcher
+    @nextjs_ws {
+        header Connection *Upgrade*
+        header Upgrade websocket
+        path /_next/webpack-hmr
+    }
+    reverse_proxy @nextjs_ws localhost:3000 {
+        header_up Host {host}
+        header_up Connection "Upgrade"
+        header_up Upgrade "websocket"   
+    }
+
+    # API requests to FastAPI backend (AFTER WebSocket rules)
+    @api {
+        path /api/*
+    }
+    reverse_proxy @api localhost:8000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        
+        # Standard HTTP timeouts
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
+    }
+
+    # All other requests to Next.js frontend with proper headers
+    reverse_proxy localhost:3000 {
+        header_up Host {host}
+        header_up X-Real-IP {remote_host}
+        
+        # Increase timeouts for better reliability
+        transport http {
+            dial_timeout 10s
+            response_header_timeout 30s
+        }
+    }
+
+    # Enable logging for debugging
+    log {
+        output file /var/log/caddy/amucontainers.log
+        format console
+        level INFO
+    }
+
+    # Handle errors gracefully
+    handle_errors {
+        @404 {
+            expression int({http.error.status_code}) == 404
+        }
+        @5xx {
+            expression int({http.error.status_code}) >= 500
+        }
+        respond @404 "Page not found" 404
+        respond @5xx "Internal server error - please try again later" 500
+    }
+
+    # Security headers
+    header {
+        # Remove server info
+        -Server
+        
+        # Security headers
+        X-Content-Type-Options nosniff
+        X-Frame-Options DENY
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy strict-origin-when-cross-origin
+        
+        # Cache control for static assets
+        @static_cache {
+            path /_next/static/* /static/*
+        }
+        Cache-Control @static_cache "public, max-age=31536000, immutable"
+        
+        # No cache for API and dynamic content
+        @no_cache {
+            path /api/* /ws/*
+        }
+        Cache-Control @no_cache "no-cache, no-store, must-revalidate"
     }
 }
-
-# Default site - will respond to all requests not matched elsewhere
-:80 {
-    respond "SLURM Container Manager - Caddy Container" 200
-}
-
-# Import dynamic route configurations
-import /etc/caddy/sites/*

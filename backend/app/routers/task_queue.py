@@ -1,5 +1,8 @@
 from typing import Any, List, Optional, Union, Dict
-from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
+from fastapi import (
+    APIRouter, Depends, HTTPException, BackgroundTasks, status, 
+    UploadFile, File, Form
+)
 from sqlalchemy.orm import Session
 
 from app.core.auth import get_current_active_user
@@ -64,6 +67,144 @@ def get_queue_status(
     """
     task_service = TaskQueueService(db)
     return task_service.get_queue_status(current_user.id)
+
+
+@router.post("/upload-mx3", response_model=Union[TaskQueueJobInDB, Dict[str, Any]])
+async def upload_mx3_with_optional_task(
+    *,
+    db: Session = Depends(get_db),
+    file: UploadFile = File(...),
+    task_name: str = Form(...),
+    auto_start: bool = Form(False),
+    partition: str = Form("proxima"),
+    num_cpus: int = Form(5),
+    memory_gb: int = Form(24),
+    num_gpus: int = Form(1),
+    time_limit: str = Form("24:00:00"),
+    priority: int = Form(0),
+    background_tasks: BackgroundTasks,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Upload MX3 file with optional automatic task creation.
+    
+    If auto_start=false (default): Only uploads file, returns file info
+    If auto_start=true: Uploads file AND creates TaskQueueJob automatically
+    
+    This provides flexibility for different client workflows.
+    """
+    import os
+    import hashlib
+    import uuid
+    
+    # Validate file extension
+    if not file.filename or not file.filename.endswith('.mx3'):
+        raise HTTPException(
+            status_code=400,
+            detail="File must have .mx3 extension"
+        )
+    
+    # Check file size (limit to 50MB)
+    content = await file.read()
+    if len(content) > 50 * 1024 * 1024:  # 50MB
+        raise HTTPException(
+            status_code=413,
+            detail="File too large (max 50MB)"
+        )
+    
+    # Calculate MD5
+    file_md5 = hashlib.md5(content).hexdigest()
+    
+    # Create unique job directory
+    job_key = str(uuid.uuid4())[:8]
+    user_dir_path = f"/mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs/{current_user.username}_{job_key}"
+    
+    try:
+        # Create directory and save file
+        os.makedirs(user_dir_path, exist_ok=True)
+        
+        file_path = os.path.join(user_dir_path, file.filename)
+        with open(file_path, 'wb') as f:
+            f.write(content)
+        
+        # Verify file integrity
+        with open(file_path, 'rb') as f:
+            saved_md5 = hashlib.md5(f.read()).hexdigest()
+        
+        if saved_md5 != file_md5:
+            os.remove(file_path)
+            os.rmdir(user_dir_path)
+            raise HTTPException(
+                status_code=500,
+                detail="File integrity check failed"
+            )
+        
+        # If auto_start is False, just return file info
+        if not auto_start:
+            return {
+                "job_key": job_key,
+                "file_path": file_path,
+                "original_filename": file.filename,
+                "file_md5": file_md5,
+                "file_size": len(content),
+                "auto_start": False,
+                "message": "File uploaded. Create task manually via POST /tasks/",
+                "next_steps": [
+                    f"POST /tasks/ with simulation_file: {file_path}",
+                    "Monitor via GET /tasks/{{task_id}}",
+                    "Download via GET /tasks/{{task_id}}/download"
+                ]
+            }
+        
+        # If auto_start is True, create TaskQueueJob
+        task_service = TaskQueueService(db)
+        from app.schemas.task_queue import TaskQueueJobCreate
+        
+        # Add amumax prefix to ensure proper frontend categorization
+        prefixed_task_name = f"amumax_{task_name}"
+        
+        task_data = TaskQueueJobCreate(
+            name=prefixed_task_name,
+            simulation_file=file_path,
+            partition=partition,
+            num_cpus=num_cpus,
+            memory_gb=memory_gb,
+            num_gpus=num_gpus,
+            time_limit=time_limit,
+            priority=priority,
+            parameters={
+                "uploaded_file": file.filename,
+                "file_md5": file_md5,
+                "file_size": len(content),
+                "job_key": job_key,
+                "upload_method": "api_auto_start"
+            }
+        )
+        
+        task = task_service.create_task(task_data, current_user.id)
+        
+        # Start the queue processor in the background
+        background_tasks.add_task(task_service._process_queue_once)
+        
+        return task
+        
+    except Exception as e:
+        # Cleanup on error
+        if 'file_path' in locals() and os.path.exists(file_path):
+            os.remove(file_path)
+        if 'user_dir_path' in locals() and os.path.exists(user_dir_path):
+            try:
+                os.rmdir(user_dir_path)
+            except OSError:
+                pass
+        
+        if isinstance(e, HTTPException):
+            raise
+        
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error processing upload: {str(e)}"
+        )
 
 
 @router.post("/validate")
@@ -267,6 +408,122 @@ async def get_task_results(
 
     results = await task_service.get_task_results(task)
     return results
+
+
+@router.get("/{task_id}/download")
+async def download_task_results(
+    *,
+    db: Session = Depends(get_db),
+    task_id: str,
+    current_user: User = Depends(get_current_active_user),
+) -> Any:
+    """
+    Download packaged results for a completed task as ZIP archive.
+    
+    Returns a downloadable ZIP file containing all simulation results
+    with MD5 verification.
+    """
+    from fastapi.responses import FileResponse
+    import zipfile
+    import tempfile
+    import hashlib
+    import os
+    from pathlib import Path
+    
+    task_service = TaskQueueService(db)
+    
+    # Try to convert to integer if it's a numeric string
+    parsed_id: Union[str, int] = task_id
+    if task_id.isdigit():
+        parsed_id = int(task_id)
+    
+    task = task_service.get_task(parsed_id)
+
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.owner_id != current_user.id:
+        raise HTTPException(
+            status_code=403, detail="Not authorized to access this task"
+        )
+    
+    if task.status != "COMPLETED":
+        raise HTTPException(
+            status_code=400, 
+            detail=f"Task not completed (status: {task.status})"
+        )
+
+    # Check if output directory exists (translate path if needed)
+    output_dir = task.output_dir
+    if not output_dir:
+        raise HTTPException(
+            status_code=404,
+            detail="Results not found - no output directory configured"
+        )
+    
+    # Translate path for host filesystem access
+    host_output_dir = task_service._translate_path(output_dir)
+    if not os.path.exists(host_output_dir):
+        raise HTTPException(
+            status_code=404,
+            detail="Results not found or have been cleaned up"
+        )
+
+    try:
+        # Create temporary ZIP file
+        with tempfile.NamedTemporaryFile(
+            delete=False, suffix='.zip'
+        ) as temp_zip:
+            with zipfile.ZipFile(temp_zip.name, 'w', zipfile.ZIP_DEFLATED) as zf:
+                # Add all files from output directory (use translated path)
+                output_path = Path(host_output_dir)
+                for file_path in output_path.rglob('*'):
+                    if file_path.is_file():
+                        # Create relative path within ZIP
+                        arc_name = file_path.relative_to(output_path)
+                        zf.write(file_path, arc_name)
+                
+                # Add metadata file
+                metadata = {
+                    "task_id": task.task_id,
+                    "task_name": task.name,
+                    "simulation_file": task.simulation_file,
+                    "status": task.status,
+                    "created_at": task.created_at.isoformat(),
+                    "completed_at": task.finished_at.isoformat() if task.finished_at else None,
+                    "parameters": task.parameters,
+                }
+                
+                import json
+                zf.writestr(
+                    "task_metadata.json", 
+                    json.dumps(metadata, indent=2)
+                )
+        
+        # Calculate MD5 of the ZIP file
+        with open(temp_zip.name, 'rb') as f:
+            zip_md5 = hashlib.md5(f.read()).hexdigest()
+        
+        # Create filename
+        safe_task_name = "".join(c for c in task.name if c.isalnum() or c in (' ', '-', '_')).strip()
+        safe_task_name = safe_task_name.replace(' ', '_')
+        filename = f"{safe_task_name}_{task.task_id}_results.zip"
+        
+        # Return file with MD5 in headers
+        return FileResponse(
+            temp_zip.name,
+            media_type='application/zip',
+            filename=filename,
+            headers={
+                "X-File-MD5": zip_md5,
+                "X-Content-Length": str(os.path.getsize(temp_zip.name))
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Error creating download archive: {str(e)}"
+        )
 
 
 @router.post("/{task_id}/cancel")

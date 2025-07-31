@@ -16,6 +16,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
 import { 
   Clock, 
   AlertCircle,  
@@ -92,6 +93,8 @@ export interface ModernCardLayoutProps {
   overlay?: React.ReactNode;
   formatDate?: (date: string) => string;
   className?: string;
+  isSelected?: boolean;
+  onSelectionToggle?: () => void;
 }
 
 // Enhanced glassmorphism styling optimized for both light and dark mode
@@ -208,7 +211,9 @@ export const ModernCardLayout = React.memo<ModernCardLayoutProps>(({
   additionalSections = [],
   overlay,
   formatDate = (date: string) => new Date(date).toLocaleString(),
-  className = ""
+  className = "",
+  isSelected = false,
+  onSelectionToggle
 }) => {
   const gradientClass = getStatusGradient(data.status);
   const itemStatusKey = `${data.id}-${data.status}`;
@@ -245,6 +250,13 @@ export const ModernCardLayout = React.memo<ModernCardLayoutProps>(({
         <CardHeader className="pb-4 relative z-10">
           <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 lg:gap-0">
             <div className="flex items-center space-x-3 min-w-0 flex-1">
+              {onSelectionToggle && (
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={onSelectionToggle}
+                  className="mr-1"
+                />
+              )}
               <TypeIcon className="h-5 w-5 text-blue-600 dark:text-blue-400" />
               <div className="flex flex-col min-w-0 flex-1">
                 <CardTitle className="text-base lg:text-lg font-bold bg-gradient-to-r from-slate-900 via-slate-800 to-slate-700 dark:from-white dark:via-slate-100 dark:to-slate-200 bg-clip-text text-transparent transition-all duration-300 truncate">

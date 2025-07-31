@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Separator } from "@/components/ui/separator";
-import { tasksApi } from "@/lib/api-client";
+import { taskQueueApi } from "@/lib/api-client";
 
 interface AmumaxResults {
   task_id: string;
@@ -71,7 +71,7 @@ export default function AmumaxResultsPage({
     const fetchResults = async () => {
       setIsLoading(true);
       try {
-        const response = await tasksApi.getAmumaxResults(taskId);
+        const response = await taskQueueApi.getAmumaxResults(taskId);
         setResults(response.data);
       } catch (error: any) {
         const errorMessage = error.response?.data?.detail || "Nie udało się pobrać wyników";

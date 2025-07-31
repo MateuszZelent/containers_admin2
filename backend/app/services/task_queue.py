@@ -21,7 +21,6 @@ from app.schemas.task_queue import (
 )
 from app.services.slurm import SlurmSSHService
 from app.core.logging import cluster_logger
-from app.core.config import settings
 
 
 class TaskStatus(str, Enum):
@@ -163,6 +162,33 @@ class TaskQueueService:
 
         return filepath
 
+    def _determine_output_directory(
+        self, simulation_file: str, username: str, task_id: str
+    ) -> str:
+        """
+        Determine output directory based on simulation file location.
+        
+        For uploaded files (mx3), use same directory as input file.
+        For container files, use standard output directory structure.
+        
+        Args:
+            simulation_file: Path to the simulation file
+            username: Username for directory structure
+            task_id: Task ID for directory name
+            
+        Returns:
+            Output directory path
+        """
+        from app.core.config import settings
+        
+        # Check if this is an uploaded mx3 file
+        if "/mx3jobs/" in simulation_file:
+            # For uploaded files, output goes to same directory as input
+            return os.path.dirname(simulation_file)
+        
+        # For container-based files, use standard structure
+        return os.path.join(settings.SIMULATION_OUTPUT_DIR, username, task_id)
+
     def _detect_task_type(self, simulation_file: str) -> str:
         """
         Detect task type based on simulation file extension.
@@ -299,14 +325,16 @@ class TaskQueueService:
             # Generate unique task ID
             task_id = f"task_{uuid.uuid4().hex[:8]}"
 
-            # Create output directory path based on username and task ID
+            # Create output directory path based on simulation file location
             user = self.db.query(User).filter(User.id == owner_id).first()
             if not user:
                 raise ValueError(f"Owner ID {owner_id} not found")
 
             username = user.username
-            output_dir = os.path.join(
-                settings.SIMULATION_OUTPUT_DIR, username, task_id
+            
+            # Determine output directory based on input file location
+            output_dir = self._determine_output_directory(
+                data.simulation_file, username, task_id
             )
 
             # Store the original simulation file path from container

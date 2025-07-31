@@ -380,80 +380,83 @@ export const jobsApi = {
     apiClient.post(`/jobs/${jobId}/tunnels/${tunnelId}/health-check`),
 };
 
-export const tasksApi = {
-  // Get all tasks
+// CLI Tokens API
+export const taskQueueApi = {
+  // Get all tasks for current user
   getTasks: (status?: string, skip?: number, limit?: number) => {
     const params = new URLSearchParams();
-    if (status) params.append('status', status);
-    if (skip !== undefined) params.append('skip', skip.toString());
-    if (limit !== undefined) params.append('limit', limit.toString());
-    return apiClient.get(`/tasks/?${params.toString()}`);
+    if (status) params.set('status', status);
+    if (skip !== undefined) params.set('skip', skip.toString());
+    if (limit !== undefined) params.set('limit', limit.toString());
+    return apiClient.get(`/task-queue/?${params.toString()}`);
   },
-
+  
   // Get active tasks
-  getActiveTasks: () => apiClient.get('/tasks/active'),
-
-  // Get task details
-  getTask: (taskId: number) => apiClient.get(`/tasks/${taskId}`),
-
+  getActiveTasks: () => apiClient.get('/task-queue/active'),
+  
+  // Get specific task
+  getTask: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}`),
+  
   // Get task status
-  getTaskStatus: (taskId: number) => apiClient.get(`/tasks/${taskId}/status`),
-
-  // Submit new task (unified for all task types)
-  createTask: (taskData: { [key: string]: any }) => apiClient.post('/tasks/', taskData),
+  getTaskStatus: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/status`),
   
-  // Get available templates
-  getTemplates: () => apiClient.get('/tasks/templates'),
-
-  // Get queue status
-  getQueueStatus: () => apiClient.get('/tasks/status'),
-
-  // Get code server URL
-  getCodeServerUrl: (taskId: number) => apiClient.get(`/tasks/${taskId}/code-server`),
-
-  // Delete task
-  deleteTask: (taskId: string) => apiClient.delete(`/tasks/${taskId}`),
-
-  // Cancel task
-  cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
-
-  // Get SSH tunnels for task
-  getTaskTunnels: (taskId: number) => apiClient.get(`/tasks/${taskId}/tunnels`),
-
-  // Create SSH tunnel for task
-  createTaskTunnel: (taskId: number) => apiClient.post(`/tasks/${taskId}/tunnels`),
-
-  // Close SSH tunnel
-  closeTaskTunnel: (taskId: number, tunnelId: number) =>
-    apiClient.delete(`/tasks/${taskId}/tunnels/${tunnelId}`),
-
+  // Create new task
+  createTask: (taskData: any) => apiClient.post('/task-queue/', taskData),
+  
   // Update task
-  updateTask: (taskId: number, taskData: { [key: string]: any }) => 
-    apiClient.put(`/tasks/${taskId}`, taskData),
+  updateTask: (taskId: string | number, taskData: any) => 
+    apiClient.put(`/task-queue/${taskId}`, taskData),
   
-  // Get task results (automatically detects type and returns appropriate format)
-  getTaskResults: (taskId: number) => apiClient.get(`/tasks/${taskId}/results`),
+  // Delete task
+  deleteTask: (taskId: string) => apiClient.delete(`/task-queue/${taskId}`),
   
-  // Process queue
-  processQueue: () => apiClient.post('/tasks/process'),
-
-  // Validate simulation file (works for .mx3, .py, and other file types)
+  // Cancel task
+  cancelTask: (taskId: string) => apiClient.post(`/task-queue/${taskId}/cancel`),
+  
+  // Get queue status
+  getQueueStatus: () => apiClient.get('/task-queue/status'),
+  
+  // Refresh task details (trigger SLURM detail fetch)
+  refreshTaskDetails: (taskId: string) => 
+    apiClient.post(`/task-queue/${taskId}/refresh-details`),
+  
+  // Submit task to SLURM
+  submitTask: (taskId: string) => 
+    apiClient.post(`/task-queue/${taskId}/submit`),
+  
+  // Get task results
+  getTaskResults: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/results`),
+  
+  // Get Amumax results (alias for getTaskResults)
+  getAmumaxResults: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/results`),
+  
+  // Validate file
   validateFile: (filePath: string) => 
-    apiClient.post('/tasks/validate', { file_path: filePath }),
+    apiClient.post('/task-queue/validate', { file_path: filePath }),
     
-  // Validate MX3 file specifically for Amumax tasks
+  // Validate MX3 file specifically
   validateMx3File: (filePath: string) => 
-    apiClient.post('/tasks/validate', { file_path: filePath }),
+    apiClient.post('/task-queue/validate', { file_path: filePath }),
     
-  // Get full file content for preview with syntax highlighting
+  // Get file content for preview
   getFileContent: (filePath: string, options?: { lines?: number }) => 
-    apiClient.get('/tasks/file-content', { 
+    apiClient.get('/task-queue/file-content', { 
       params: { 
         file_path: filePath,
         ...(options?.lines && { lines: options.lines })
       } 
     }),
-    
+  
+  // Upload MX3 file
+  uploadMx3: (file: File, autoCreateTask: boolean = false) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('auto_create_task', autoCreateTask.toString());
+    return apiClient.post('/task-queue/upload-mx3', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+  },
+  
   // Create Amumax task specifically
   createAmumaxTask: (taskData: {
     name: string;
@@ -479,55 +482,11 @@ export const tasksApi = {
       parameters: taskData.description ? { description: taskData.description } : {}
     };
     
-    return apiClient.post('/tasks/', backendTaskData);
-  },
-    
-  // Refresh task details (trigger SLURM detail fetch)
-  refreshTaskDetails: (taskId: string) => 
-    apiClient.post(`/tasks/${taskId}/refresh-details`),
-};
-
-// Task Queue API
-export const taskQueueApi = {
-  // Get all tasks for current user
-  getTasks: (status?: string, skip?: number, limit?: number) => {
-    const params = new URLSearchParams();
-    if (status) params.set('status', status);
-    if (skip !== undefined) params.set('skip', skip.toString());
-    if (limit !== undefined) params.set('limit', limit.toString());
-    return apiClient.get(`/task-queue/?${params.toString()}`);
+    return apiClient.post('/task-queue/', backendTaskData);
   },
   
-  // Get specific task
-  getTask: (taskId: string) => apiClient.get(`/task-queue/${taskId}`),
-  
-  // Create new task
-  createTask: (taskData: any) => apiClient.post('/task-queue/', taskData),
-  
-  // Update task
-  updateTask: (taskId: string, taskData: any) => 
-    apiClient.put(`/task-queue/${taskId}`, taskData),
-  
-  // Delete task
-  deleteTask: (taskId: string) => apiClient.delete(`/task-queue/${taskId}`),
-  
-  // Get queue status
-  getQueueStatus: () => apiClient.get('/task-queue/status'),
-  
-  // Get active tasks
-  getActiveTasks: () => apiClient.get('/task-queue/active'),
-  
-  // Refresh task details (trigger SLURM detail fetch)
-  refreshTaskDetails: (taskId: string) => 
-    apiClient.post(`/task-queue/${taskId}/refresh-details`),
-  
-  // Submit task to SLURM
-  submitTask: (taskId: string) => 
-    apiClient.post(`/task-queue/${taskId}/submit`),
-  
-  // Cancel task
-  cancelTask: (taskId: string) => 
-    apiClient.post(`/task-queue/${taskId}/cancel`),
+  // Process queue
+  processQueue: () => apiClient.post('/task-queue/process'),
 };
 
 // CLI Tokens API

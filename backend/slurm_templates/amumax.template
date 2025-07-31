@@ -42,8 +42,9 @@ singularity exec \
   --no-home \
   --containall \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs":"/mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs":rw \
   --bind "/mnt/storage_2/scratch/pl0095-01/zelent/olek":"/mnt/storage_2/scratch/pl0095-01/zelent/olek":rw \
   --bind "/mnt/storage_2/scratch/pl0095-01/zelent/plus":"$SINIMAGE_DIR/pcss_storage/mumax_plus":rw \
   --bind "/mnt/storage_2/scratch/pl0095-01/zelent/mannga":"$SINIMAGE_DIR/pcss_storage/mannga":rw \
-  --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/.zshrc":"$SINIMAGE_DIR/.zshrc":rw \
+  --bind "/mnt/storage_2/scratch/pl0095-01/zelent/tmp/amumax_kernels":"/tmp/amumax_kernels/":rw \
   /mnt/storage_2/project_data/pl0095-01/mateuszz/new_home/amu_container_env/docker_amumax/mumax_runtime.sif amumax {simulation_file}

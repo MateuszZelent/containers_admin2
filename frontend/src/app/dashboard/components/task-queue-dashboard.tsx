@@ -48,6 +48,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { TaskCard } from "./task-card-new";
 import { TaskQueueJob as GlobalTaskQueueJob } from "@/lib/types";
 import {
@@ -76,8 +77,10 @@ import {
   FileText,
   Settings,
   MoreHorizontal,
+  ChevronLeft,
+  ChevronRight,
 } from "lucide-react";
-import { tasksApi } from "@/lib/api-client";
+import { taskQueueApi } from "@/lib/api-client";
 import { toast } from "sonner";
 
 // Types
@@ -188,7 +191,7 @@ const TASK_CATEGORIES = {
     description: "Physics and computational simulations",
     icon: Activity,
     color: "text-blue-600",
-    filters: ["amumax", "mumax", "simulation", ".mx3"]
+    filters: ["amumax", "mumax", "simulation", ".mx3", "mx3jobs", "mx3 simulation"]
   },
   computation: {
     label: "Computations", 
@@ -263,19 +266,26 @@ export function TaskQueueDashboard() {
   
   // Filters and search
   const [searchTerm, setSearchTerm] = useState("");
-  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [statusFilter, setStatusFilter] = useState<string>("active");
   const [categoryFilter, setCategoryFilter] = useState<string>("all");
   const [sortBy, setSortBy] = useState<string>("created_at");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [activeTab, setActiveTab] = useState<"active" | "completed">("active");
   
   // UI state
-  const [selectedTasks, setSelectedTasks] = useState<Set<number>>(new Set());
+  const [selectedTasks, setSelectedTasks] = useState<Set<string>>(new Set());
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [massDeleteDialogOpen, setMassDeleteDialogOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<TaskQueueJob | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [selectedTask, setSelectedTask] = useState<TaskQueueJob | null>(null);
   const [taskDetailsOpen, setTaskDetailsOpen] = useState(false);
   const [refreshingDetails, setRefreshingDetails] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [itemsPerPage, setItemsPerPage] = useState(12); // 12 items per page for grid view
+  const [totalItems, setTotalItems] = useState(0);
 
   // Utility functions
   const formatTime = (timestamp: string | null) => {
@@ -304,7 +314,7 @@ export function TaskQueueDashboard() {
   // Data fetching
   const fetchTasks = useCallback(async () => {
     try {
-      const response = await tasksApi.getTasks();
+      const response = await taskQueueApi.getTasks();
       setTasks(response.data);
     } catch (error) {
       toast.error("Failed to fetch tasks");
@@ -314,7 +324,7 @@ export function TaskQueueDashboard() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const response = await tasksApi.getQueueStatus();
+      const response = await taskQueueApi.getQueueStatus();
       setStats(response.data);
     } catch (error) {
       toast.error("Failed to fetch queue status");
@@ -350,6 +360,17 @@ export function TaskQueueDashboard() {
   // Filtered and sorted tasks
   const filteredTasks = useMemo(() => {
     let filtered = tasks.filter(task => {
+      // Tab filter - active vs completed
+      const activeStatuses = ["PENDING", "CONFIGURING", "RUNNING"];
+      const completedStatuses = ["COMPLETED", "ERROR", "CANCELLED", "TIMEOUT"];
+      
+      if (activeTab === "active" && !activeStatuses.includes(task.status)) {
+        return false;
+      }
+      if (activeTab === "completed" && !completedStatuses.includes(task.status)) {
+        return false;
+      }
+
       // Search filter
       if (searchTerm) {
         const search = searchTerm.toLowerCase();
@@ -363,8 +384,8 @@ export function TaskQueueDashboard() {
         }
       }
 
-      // Status filter
-      if (statusFilter !== "all" && task.status !== statusFilter) {
+      // Status filter (if not "all")
+      if (statusFilter !== "all" && statusFilter !== "active" && task.status !== statusFilter) {
         return false;
       }
 
@@ -399,12 +420,25 @@ export function TaskQueueDashboard() {
     });
 
     return filtered;
-  }, [tasks, searchTerm, statusFilter, categoryFilter, sortBy, sortOrder]);
+  }, [tasks, searchTerm, statusFilter, categoryFilter, sortBy, sortOrder, activeTab]);
+
+  // Paginated tasks
+  const paginatedTasks = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    setTotalItems(filteredTasks.length);
+    return filteredTasks.slice(startIndex, endIndex);
+  }, [filteredTasks, currentPage, itemsPerPage]);
+
+  // Reset to first page when filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, categoryFilter, activeTab, itemsPerPage]);
 
   // Task operations
   const deleteTask = async (task: TaskQueueJob) => {
     try {
-      await tasksApi.deleteTask(task.task_id);
+      await taskQueueApi.deleteTask(task.task_id);
       toast.success(`Task "${task.name}" deleted successfully`);
       await refreshData();
     } catch (error) {
@@ -413,9 +447,63 @@ export function TaskQueueDashboard() {
     }
   };
 
+  // Mass deletion functionality
+  const massDeleteTasks = async () => {
+    const tasksToDelete = Array.from(selectedTasks)
+      .map(taskId => tasks.find(task => task.task_id === taskId))
+      .filter((task): task is TaskQueueJob => task !== undefined);
+
+    if (tasksToDelete.length === 0) {
+      toast.error("No tasks selected for deletion");
+      return;
+    }
+
+    try {
+      const deletePromises = tasksToDelete.map(task => taskQueueApi.deleteTask(task.task_id));
+      await Promise.all(deletePromises);
+      
+      toast.success(`${tasksToDelete.length} tasks deleted successfully`);
+      setSelectedTasks(new Set());
+      setMassDeleteDialogOpen(false);
+      await refreshData();
+    } catch (error) {
+      toast.error("Failed to delete some tasks");
+      console.error("Error in mass deletion:", error);
+    }
+  };
+
+  // Selection management
+  const toggleTaskSelection = (taskId: string) => {
+    const newSelected = new Set(selectedTasks);
+    if (newSelected.has(taskId)) {
+      newSelected.delete(taskId);
+    } else {
+      newSelected.add(taskId);
+    }
+    setSelectedTasks(newSelected);
+  };
+
+  const selectAllTasks = () => {
+    if (selectedTasks.size === paginatedTasks.length && paginatedTasks.every(task => selectedTasks.has(task.task_id))) {
+      // Deselect all on current page
+      paginatedTasks.forEach(task => {
+        if (selectedTasks.has(task.task_id)) {
+          toggleTaskSelection(task.task_id);
+        }
+      });
+    } else {
+      // Select all on current page
+      paginatedTasks.forEach(task => {
+        if (!selectedTasks.has(task.task_id)) {
+          toggleTaskSelection(task.task_id);
+        }
+      });
+    }
+  };
+
   const cancelTask = async (task: TaskQueueJob) => {
     try {
-      await tasksApi.cancelTask(task.task_id);
+      await taskQueueApi.cancelTask(task.task_id);
       toast.success(`Task "${task.name}" cancelled successfully`);
       await refreshData();
     } catch (error) {
@@ -439,7 +527,7 @@ export function TaskQueueDashboard() {
 
     setRefreshingDetails(true);
     try {
-      await tasksApi.refreshTaskDetails(task.task_id);
+      await taskQueueApi.refreshTaskDetails(task.task_id);
       toast.success("Task details refresh triggered");
       
       // Refresh the task list after a short delay to get updated data
@@ -507,15 +595,15 @@ export function TaskQueueDashboard() {
         <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-blue-500/10 via-cyan-600/5 to-indigo-700/10 dark:from-blue-400/20 dark:via-cyan-500/10 dark:to-indigo-600/20 border border-blue-200/30 dark:border-blue-700/30 hover:border-blue-300/50 dark:hover:border-blue-600/50 transition-all duration-300">
           <div className="absolute inset-0 bg-gradient-to-br from-blue-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 relative">
-            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Total Tasks</CardTitle>
+            <CardTitle className="text-sm font-medium text-blue-900 dark:text-blue-100">Tasks Completed</CardTitle>
             <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-400 to-cyan-600 flex items-center justify-center shadow-md">
               <Activity className="h-4 w-4 text-white" />
             </div>
           </CardHeader>
           <CardContent className="relative">
-            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{tasks.length}</div>
+            <div className="text-2xl font-bold text-blue-900 dark:text-blue-100">{statusStats.COMPLETED || 0}</div>
             <p className="text-xs text-blue-600 dark:text-blue-400">
-              All tasks in queue
+              Successfully finished
             </p>
           </CardContent>
         </Card>
@@ -575,13 +663,47 @@ export function TaskQueueDashboard() {
         </Card>
       </div>
 
-      {/* Filters and Search */}
+      {/* Active/Completed Tabs and Filters */}
       <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30 hover:border-slate-300/50 dark:hover:border-slate-600/50 transition-all duration-300">
         <div className="absolute inset-0 bg-gradient-to-br from-slate-500/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <CardHeader className="relative">
-          <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Filters</CardTitle>
+          <CardTitle className="text-lg text-slate-900 dark:text-slate-100">Task Queue</CardTitle>
+          
+          {/* Active/Completed Tabs */}
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "active" | "completed")} className="mt-4">
+            <TabsList>
+              <TabsTrigger value="active">Active Tasks</TabsTrigger>
+              <TabsTrigger value="completed">Completed Tasks</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </CardHeader>
         <CardContent className="relative">
+          {/* Mass Action Bar */}
+          {selectedTasks.size > 0 && (
+            <div className="mb-4 flex items-center justify-between p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+              <span className="text-sm text-blue-700 dark:text-blue-300">
+                {selectedTasks.size} task(s) selected
+              </span>
+              <div className="flex items-center gap-2">
+                <Button 
+                  variant="outline" 
+                  size="sm"
+                  onClick={() => setSelectedTasks(new Set())}
+                >
+                  Clear Selection
+                </Button>
+                <Button 
+                  variant="destructive" 
+                  size="sm"
+                  onClick={() => setMassDeleteDialogOpen(true)}
+                >
+                  Delete Selected
+                </Button>
+              </div>
+            </div>
+          )}
+          
+          {/* Filters */}
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -643,6 +765,18 @@ export function TaskQueueDashboard() {
             >
               {sortOrder === "asc" ? "↑" : "↓"}
             </Button>
+
+            <Select value={itemsPerPage.toString()} onValueChange={(value) => setItemsPerPage(parseInt(value))}>
+              <SelectTrigger className="w-[120px]">
+                <SelectValue placeholder="Per page" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="6">6 per page</SelectItem>
+                <SelectItem value="12">12 per page</SelectItem>
+                <SelectItem value="24">24 per page</SelectItem>
+                <SelectItem value="48">48 per page</SelectItem>
+              </SelectContent>
+            </Select>
           </div>
         </CardContent>
       </Card>
@@ -650,9 +784,16 @@ export function TaskQueueDashboard() {
       {/* Tasks Grid/List */}
       <div className="space-y-4">
         <div className="flex items-center justify-between">
-          <p className="text-sm text-muted-foreground">
-            Showing {filteredTasks.length} of {tasks.length} tasks
-          </p>
+          <div className="flex items-center gap-2">
+            <Checkbox
+              checked={paginatedTasks.length > 0 && paginatedTasks.every(task => selectedTasks.has(task.task_id))}
+              onCheckedChange={selectAllTasks}
+              className="mr-2"
+            />
+            <p className="text-sm text-muted-foreground">
+              Showing {paginatedTasks.length} of {totalItems} tasks (page {currentPage} of {Math.ceil(totalItems / itemsPerPage)})
+            </p>
+          </div>
           <Tabs value={viewMode} onValueChange={(v) => setViewMode(v as "grid" | "list")}>
             <TabsList>
               <TabsTrigger value="grid">Grid</TabsTrigger>
@@ -670,13 +811,15 @@ export function TaskQueueDashboard() {
               exit={{ opacity: 0 }}
               className="flex flex-wrap justify-center gap-6"
             >
-              {filteredTasks.map((task) => (
+              {paginatedTasks.map((task) => (
                 <TaskCard
                   key={task.id}
                   task={convertToGlobalTaskQueueJob(task)}
                   onDelete={() => deleteTask(task)}
                   onCancel={() => cancelTask(task)}
                   onView={() => viewTaskDetails(task)}
+                  isSelected={selectedTasks.has(task.task_id)}
+                  onSelectionToggle={toggleTaskSelection}
                 />
               ))}
             </motion.div>
@@ -688,14 +831,78 @@ export function TaskQueueDashboard() {
               exit={{ opacity: 0 }}
             >
               <TaskList
-                tasks={filteredTasks}
+                tasks={paginatedTasks}
                 onDelete={deleteTask}
                 onCancel={cancelTask}
                 onView={viewTaskDetails}
+                selectedTasks={selectedTasks}
+                onSelectionToggle={toggleTaskSelection}
               />
             </motion.div>
           )}
         </AnimatePresence>
+
+        {/* Pagination */}
+        {totalItems > itemsPerPage && (
+          <div className="flex items-center justify-between mt-6">
+            <div className="text-sm text-muted-foreground">
+              Page {currentPage} of {Math.ceil(totalItems / itemsPerPage)}
+            </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                disabled={currentPage === 1}
+              >
+                <ChevronLeft className="h-4 w-4" />
+                Previous
+              </Button>
+              
+              {/* Page numbers */}
+              <div className="flex items-center space-x-1">
+                {(() => {
+                  const totalPages = Math.ceil(totalItems / itemsPerPage);
+                  const pages = [];
+                  const maxVisible = 5;
+                  
+                  let start = Math.max(1, currentPage - Math.floor(maxVisible / 2));
+                  let end = Math.min(totalPages, start + maxVisible - 1);
+                  
+                  if (end - start + 1 < maxVisible) {
+                    start = Math.max(1, end - maxVisible + 1);
+                  }
+                  
+                  for (let i = start; i <= end; i++) {
+                    pages.push(
+                      <Button
+                        key={i}
+                        variant={currentPage === i ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => setCurrentPage(i)}
+                        className="min-w-[2.5rem]"
+                      >
+                        {i}
+                      </Button>
+                    );
+                  }
+                  
+                  return pages;
+                })()}
+              </div>
+              
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage(prev => Math.min(prev + 1, Math.ceil(totalItems / itemsPerPage)))}
+                disabled={currentPage === Math.ceil(totalItems / itemsPerPage)}
+              >
+                Next
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+          </div>
+        )}
 
         {filteredTasks.length === 0 && (
           <Card className="group relative overflow-hidden backdrop-blur-md bg-gradient-to-br from-slate-500/10 via-slate-600/5 to-gray-700/10 dark:from-slate-400/20 dark:via-slate-500/10 dark:to-gray-600/20 border border-slate-200/30 dark:border-slate-700/30">
@@ -744,6 +951,28 @@ export function TaskQueueDashboard() {
               className="bg-red-600 hover:bg-red-700"
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Mass Delete Confirmation Dialog */}
+      <AlertDialog open={massDeleteDialogOpen} onOpenChange={setMassDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Multiple Tasks</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete {selectedTasks.size} selected task(s)? 
+              This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={massDeleteTasks}
+              className="bg-red-600 hover:bg-red-700"
+            >
+              Delete {selectedTasks.size} Task(s)
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -891,12 +1120,16 @@ function TaskList({
   tasks, 
   onDelete, 
   onCancel,
-  onView
+  onView,
+  selectedTasks,
+  onSelectionToggle
 }: { 
   tasks: TaskQueueJob[];
   onDelete: (task: TaskQueueJob) => void;
   onCancel: (task: TaskQueueJob) => void;
   onView: (task: TaskQueueJob) => void;
+  selectedTasks: Set<string>;
+  onSelectionToggle: (taskId: string) => void;
 }) {
   const formatTime = (timestamp: string | null) => {
     if (!timestamp) return "N/A";
@@ -911,6 +1144,22 @@ function TaskList({
           <table className="w-full">
             <thead className="border-b">
               <tr className="text-left">
+                <th className="p-4 font-medium">
+                  <Checkbox
+                    checked={tasks.length > 0 && tasks.every(task => selectedTasks.has(task.task_id))}
+                    onCheckedChange={() => {
+                      if (tasks.every(task => selectedTasks.has(task.task_id))) {
+                        tasks.forEach(task => onSelectionToggle(task.task_id));
+                      } else {
+                        tasks.forEach(task => {
+                          if (!selectedTasks.has(task.task_id)) {
+                            onSelectionToggle(task.task_id);
+                          }
+                        });
+                      }
+                    }}
+                  />
+                </th>
                 <th className="p-4 font-medium">Task</th>
                 <th className="p-4 font-medium">Status</th>
                 <th className="p-4 font-medium">Resources</th>
@@ -934,6 +1183,12 @@ function TaskList({
                     exit={{ opacity: 0 }}
                     className="border-b hover:bg-muted/50"
                   >
+                    <td className="p-4">
+                      <Checkbox
+                        checked={selectedTasks.has(task.task_id)}
+                        onCheckedChange={() => onSelectionToggle(task.task_id)}
+                      />
+                    </td>
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <category.icon className={`h-4 w-4 ${category.color}`} />

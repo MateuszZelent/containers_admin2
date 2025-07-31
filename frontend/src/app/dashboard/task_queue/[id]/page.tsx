@@ -7,7 +7,7 @@ import { RefreshCcw, ArrowLeft, Download, FilePlus2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogTrigger, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from "@/components/ui/dialog";
-import { tasksApi } from "@/lib/api-client";
+import { taskQueueApi } from "@/lib/api-client";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
@@ -78,7 +78,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     const fetchTask = async () => {
       setIsLoading(true);
       try {
-        const response = await tasksApi.getTask(taskId);
+        const response = await taskQueueApi.getTask(taskId);
         setTask(response.data);
         setErrorMessage(null);
       } catch (error: any) {
@@ -101,7 +101,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
       const fetchResults = async () => {
         setIsLoadingResults(true);
         try {
-          const response = await tasksApi.getTaskResults(taskId);
+          const response = await taskQueueApi.getTaskResults(taskId);
           setResults(response.data);
         } catch (error: any) {
           console.error("Nie udało się pobrać wyników zadania:", error);
@@ -135,7 +135,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
   const refreshTask = async () => {
     setIsRefreshing(true);
     try {
-      const response = await tasksApi.getTask(taskId);
+      const response = await taskQueueApi.getTask(taskId);
       setTask(response.data);
     } catch (error) {
       console.error("Błąd podczas odświeżania zadania:", error);
@@ -150,7 +150,7 @@ export default function TaskDetailPage({ params }: { params: Promise<{ id: strin
     
     setIsCanceling(true);
     try {
-      await tasksApi.cancelTask(task.task_id);
+      await taskQueueApi.cancelTask(task.task_id);
       toast.success("Zadanie zostało anulowane");
       refreshTask(); // Refresh data after cancellation
     } catch (error: any) {

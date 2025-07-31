@@ -32,7 +32,7 @@ echo "Uruchamiam symulację amumax..."
 
 # Uruchom symulację w kontenerze Singularity
 singularity exec --nv \
-    /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif \
+    /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif \
     amumax3 -o $OUTPUT_DIR $SIM_FILE
 
 EXIT_CODE=$?

@@ -84,7 +84,6 @@ mkdir -p $SINIMAGE_DIR/.local/share/jupyter
 mkdir -p $SINIMAGE_DIR/.local/share/matplotlib
 mkdir -p $SINIMAGE_DIR/.local/cache
 mkdir -p $SINIMAGE_DIR/.local/etc/code-server
-mkdir -p $SINIMAGE_DIR/zfn_storage/mannga
 # # Załadowanie modułu obsługi GPU (jeśli to wymagane na klastrze)
 modprobe nvidia_uvm || echo "Nie udało się załadować nvidia_uvm (może nie być potrzebne)"
 mkdir -p "$SINIMAGE_DIR/.local/run"
@@ -94,7 +93,6 @@ export XDG_RUNTIME_DIR="$SINIMAGE_DIR/.runtime"
 mkdir -p "$XDG_RUNTIME_DIR"
 chmod 700 "$XDG_RUNTIME_DIR"
 
-fusermount -uz $SINIMAGE_DIR/zfn_storage/mannga
 
 # rclone mount \
 #     --daemon \
@@ -143,6 +141,7 @@ singularity run \
   --env VSCODE_IPC_HOOK_CLI="" \
   --env PASSWORD=$PASSWORD \
   --env CODE_SERVER_CONFIG=$CONFIG_FILE \
+  --env localusername=$localusername \
   --bind $SINIMAGE_DIR:$SINIMAGE_DIR:rw \
   --bind /mnt/storage_3/home/kkingstoun/new_home/fonts/fonts:$SINIMAGE_DIR/fonts:rw \
   --bind $SINIMAGE_DIR:/mnt/storage_3/home/kkingstoun/new_home:rw \
@@ -157,4 +156,4 @@ singularity run \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/software/entrypoint.sh":ro \
   --bind "/mnt/storage_3/home/kkingstoun/entrypoint.sh:/mnt/storage_3/home/kkingstoun/entrypoint.sh" \
   --bind "/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh":"/mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/entrypoint.sh" \
-  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}
+  /mnt/storage_3/home/kkingstoun/new_home/amu_container_env/docker2/mumax_container_updated.sif code-server --bind-addr 0.0.0.0:{NEW_PORT}

@@ -62,7 +62,7 @@ import {
   Monitor,
 } from "lucide-react";
 import { toast } from "sonner";
-import { tasksApi } from "@/lib/api-client";
+import { taskQueueApi } from "@/lib/api-client";
 import Link from "next/link";
 
 type AmumaxTaskFormData = {
@@ -210,7 +210,7 @@ export default function SubmitAmumaxTaskPage() {
         step.id === "exists" ? { ...step, status: "checking" } : step
       ));
 
-      const fileCheckResponse = await tasksApi.validateMx3File(filePath);
+      const fileCheckResponse = await taskQueueApi.validateMx3File(filePath);
       const validation = fileCheckResponse.data;
 
       // Step 1: Check if file exists
@@ -269,7 +269,7 @@ export default function SubmitAmumaxTaskPage() {
       } else {
         // Try to get full file content
         try {
-          const previewResponse = await tasksApi.getFileContent(filePath, { lines: 50 });
+          const previewResponse = await taskQueueApi.getFileContent(filePath, { lines: 50 });
           setFilePreview(previewResponse.data.content);
           setValidationSteps(prev => prev.map(step => 
             step.id === "preview" ? { ...step, status: "success" } : step
@@ -311,7 +311,7 @@ export default function SubmitAmumaxTaskPage() {
 
     setIsSubmitting(true);
     try {
-      const response = await tasksApi.createAmumaxTask(data);
+      const response = await taskQueueApi.createAmumaxTask(data);
       toast.success(`Zadanie "${data.name}" zostało utworzone! ID: ${response.data.id}`);
       form.reset();
       setFileValidation(null);
