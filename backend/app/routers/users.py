@@ -11,7 +11,7 @@ from pydantic import BaseModel
 
 from app.core.auth import get_current_active_user, get_current_superuser
 from app.db.session import get_db
-from app.schemas.user import User, UserCreate, UserUpdate
+from app.schemas.user import User, UserCreate, UserUpdate, UserWithUsage
 from app.services.user import UserService
 from app.db.models import User as UserModel
 from app.websocket.manager import websocket_manager
@@ -47,12 +47,58 @@ def create_user(
 
 @router.get("/me", response_model=User)
 def read_user_me(
+    *,
+    db: Session = Depends(get_db),
+    include_usage: bool = False,
     current_user: UserModel = Depends(get_current_active_user),
 ) -> Any:
     """
-    Get current user.
+    Get current user with optional usage information.
+    
+    Args:
+        include_usage: If True, includes current resource usage statistics
     """
+    if include_usage:
+        from app.services.user import UserService
+        usage_data = UserService.get_user_current_usage(db, current_user)
+        
+        # Convert user model to dict and add usage
+        user_dict = {
+            "id": current_user.id,
+            "username": current_user.username,
+            "email": current_user.email,
+            "first_name": current_user.first_name,
+            "last_name": current_user.last_name,
+            "max_containers": current_user.max_containers,
+            "max_gpus": current_user.max_gpus,
+            "max_gpus_per_job": current_user.max_gpus_per_job,
+            "max_time_limit_hours": current_user.max_time_limit_hours,
+            "allowed_templates": current_user.allowed_templates,
+            "avatar_url": current_user.avatar_url,
+            "preferred_language": current_user.preferred_language,
+            "is_active": current_user.is_active,
+            "is_superuser": current_user.is_superuser,
+            "code_server_password": current_user.code_server_password,
+            "current_usage": usage_data
+        }
+        return user_dict
+    
     return current_user
+
+
+@router.get("/me/usage")
+def get_user_usage(
+    *,
+    db: Session = Depends(get_db),
+    current_user: UserModel = Depends(get_current_active_user),
+) -> Any:
+    """
+    Get current user's resource usage and limits.
+    """
+    from app.services.user import UserService
+    
+    usage_data = UserService.get_user_current_usage(db, current_user)
+    return usage_data
 
 
 @router.put("/me", response_model=User)

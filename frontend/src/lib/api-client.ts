@@ -380,7 +380,7 @@ export const jobsApi = {
     apiClient.post(`/jobs/${jobId}/tunnels/${tunnelId}/health-check`),
 };
 
-// CLI Tokens API
+// Task Queue API
 export const taskQueueApi = {
   // Get all tasks for current user
   getTasks: (status?: string, skip?: number, limit?: number) => {
@@ -388,59 +388,59 @@ export const taskQueueApi = {
     if (status) params.set('status', status);
     if (skip !== undefined) params.set('skip', skip.toString());
     if (limit !== undefined) params.set('limit', limit.toString());
-    return apiClient.get(`/task-queue/?${params.toString()}`);
+    return apiClient.get(`/tasks/?${params.toString()}`);
   },
   
   // Get active tasks
-  getActiveTasks: () => apiClient.get('/task-queue/active'),
+  getActiveTasks: () => apiClient.get('/tasks/active'),
   
   // Get specific task
-  getTask: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}`),
+  getTask: (taskId: string | number) => apiClient.get(`/tasks/${taskId}`),
   
   // Get task status
-  getTaskStatus: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/status`),
+  getTaskStatus: (taskId: string | number) => apiClient.get(`/tasks/${taskId}/status`),
   
   // Create new task
-  createTask: (taskData: any) => apiClient.post('/task-queue/', taskData),
+  createTask: (taskData: any) => apiClient.post('/tasks/', taskData),
   
   // Update task
   updateTask: (taskId: string | number, taskData: any) => 
-    apiClient.put(`/task-queue/${taskId}`, taskData),
+    apiClient.put(`/tasks/${taskId}`, taskData),
   
   // Delete task
-  deleteTask: (taskId: string) => apiClient.delete(`/task-queue/${taskId}`),
+  deleteTask: (taskId: string) => apiClient.delete(`/tasks/${taskId}`),
   
   // Cancel task
-  cancelTask: (taskId: string) => apiClient.post(`/task-queue/${taskId}/cancel`),
+  cancelTask: (taskId: string) => apiClient.post(`/tasks/${taskId}/cancel`),
   
   // Get queue status
-  getQueueStatus: () => apiClient.get('/task-queue/status'),
+  getQueueStatus: () => apiClient.get('/tasks/status'),
   
   // Refresh task details (trigger SLURM detail fetch)
   refreshTaskDetails: (taskId: string) => 
-    apiClient.post(`/task-queue/${taskId}/refresh-details`),
+    apiClient.post(`/tasks/${taskId}/refresh-details`),
   
   // Submit task to SLURM
   submitTask: (taskId: string) => 
-    apiClient.post(`/task-queue/${taskId}/submit`),
+    apiClient.post(`/tasks/${taskId}/submit`),
   
   // Get task results
-  getTaskResults: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/results`),
+  getTaskResults: (taskId: string | number) => apiClient.get(`/tasks/${taskId}/results`),
   
   // Get Amumax results (alias for getTaskResults)
-  getAmumaxResults: (taskId: string | number) => apiClient.get(`/task-queue/${taskId}/results`),
+  getAmumaxResults: (taskId: string | number) => apiClient.get(`/tasks/${taskId}/results`),
   
   // Validate file
   validateFile: (filePath: string) => 
-    apiClient.post('/task-queue/validate', { file_path: filePath }),
+    apiClient.post('/tasks/validate', { file_path: filePath }),
     
   // Validate MX3 file specifically
   validateMx3File: (filePath: string) => 
-    apiClient.post('/task-queue/validate', { file_path: filePath }),
+    apiClient.post('/tasks/validate', { file_path: filePath }),
     
   // Get file content for preview
   getFileContent: (filePath: string, options?: { lines?: number }) => 
-    apiClient.get('/task-queue/file-content', { 
+    apiClient.get('/tasks/file-content', { 
       params: { 
         file_path: filePath,
         ...(options?.lines && { lines: options.lines })
@@ -452,7 +452,7 @@ export const taskQueueApi = {
     const formData = new FormData();
     formData.append('file', file);
     formData.append('auto_create_task', autoCreateTask.toString());
-    return apiClient.post('/task-queue/upload-mx3', formData, {
+    return apiClient.post('/tasks/upload-mx3', formData, {
       headers: { 'Content-Type': 'multipart/form-data' }
     });
   },
@@ -482,11 +482,11 @@ export const taskQueueApi = {
       parameters: taskData.description ? { description: taskData.description } : {}
     };
     
-    return apiClient.post('/task-queue/', backendTaskData);
+    return apiClient.post('/tasks/', backendTaskData);
   },
   
   // Process queue
-  processQueue: () => apiClient.post('/task-queue/process'),
+  processQueue: () => apiClient.post('/tasks/process'),
 };
 
 // CLI Tokens API

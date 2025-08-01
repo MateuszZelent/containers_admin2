@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr, field_validator
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 from app.core.utils import make_avatar_url_absolute
 
 
@@ -68,3 +68,8 @@ class User(UserInDBBase):
 
 class UserInDB(UserInDBBase):
     hashed_password: str
+
+
+class UserWithUsage(User):
+    """User schema with current resource usage information."""
+    current_usage: Optional[Dict[str, Any]] = None
