@@ -382,6 +382,18 @@ export const jobsApi = {
 
 // Task Queue API
 export const taskQueueApi = {
+  // Download results as ZIP
+  downloadTaskResults: async (taskId: string | number) => {
+    try {
+      const response = await apiClient.get(`/tasks/${taskId}/download`, {
+        responseType: 'blob',
+        headers: { 'Accept': 'application/zip' },
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
   // Get all tasks for current user
   getTasks: (status?: string, skip?: number, limit?: number) => {
     const params = new URLSearchParams();

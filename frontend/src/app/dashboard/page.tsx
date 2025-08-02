@@ -526,6 +526,34 @@ export default function DashboardPage() {
   // Keep these functions for backward compatibility
   const getActiveJobs = useCallback(() => activeJobsList, [activeJobsList]);
   const getCompletedJobs = useCallback(() => completedJobsList, [completedJobsList]);
+// Download results for a completed task
+const handleDownloadResults = useCallback(async (taskId: number) => {
+  try {
+    const response = await fetch(`/api/v1/tasks/${taskId}/download`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/zip',
+      },
+    });
+    if (!response.ok) {
+      toast.error('Nie udało się pobrać wyników zadania.');
+      return;
+    }
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `task_${taskId}_results.zip`);
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode?.removeChild(link);
+    window.URL.revokeObjectURL(url);
+    toast.success('Wyniki zadania zostały pobrane.');
+  } catch (error) {
+    toast.error('Wystąpił błąd podczas pobierania wyników zadania.');
+    console.error('Download error:', error);
+  }
+}, []);
 
   // Calculate used resources from active jobs
   const getUsedContainers = useCallback(() => {
@@ -904,18 +932,33 @@ export default function DashboardPage() {
                 <AnimatePresence mode="popLayout">
                   <div className="flex flex-wrap justify-center gap-6 mt-6">
                     {getCompletedJobs().map((job) => (
-                      <JobCard 
-                        key={job.id}
-                        job={job}
-                        activeJobData={activeJobsMap.get(job.job_id)}
-                        tunnels={jobTunnels[job.id] || []}
-                        isProcessing={processingJobs[job.id] || false}
-                        onDelete={() => handleDelete(job)}
-                        onOpenCodeServer={() => openCodeServer(job)}
-                        canUseCodeServer={canUseCodeServer(job)}
-                        formatDate={formatDate}
-                        onDetails={() => handleJobDetails(job.id)}
-                      />
+                      <div key={job.id} className="relative">
+                        <JobCard 
+                          job={job}
+                          activeJobData={activeJobsMap.get(job.job_id)}
+                          tunnels={jobTunnels[job.id] || []}
+                          isProcessing={processingJobs[job.id] || false}
+                          onDelete={() => handleDelete(job)}
+                          onOpenCodeServer={() => openCodeServer(job)}
+                          canUseCodeServer={canUseCodeServer(job)}
+                          formatDate={formatDate}
+                          onDetails={() => handleJobDetails(job.id)}
+                        />
+                        {/* Download results button for completed tasks */}
+                        {job.status === "COMPLETED" && (
+                          <div className="absolute top-2 right-2 z-10">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-200 hover:scale-105"
+                              onClick={() => handleDownloadResults(job.id)}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5m0 0l5-5m-5 5V4" /></svg>
+                              Pobierz wyniki
+                            </Button>
+                          </div>
+                        )}
+                      </div>
                     ))}
                   </div>
                 </AnimatePresence>

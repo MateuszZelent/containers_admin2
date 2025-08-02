@@ -9,8 +9,11 @@ import {
   Code2,
   Cpu,
   HardDrive,
-  Server
+  Server,
+  Download
 } from "lucide-react";
+import { taskQueueApi } from "@/lib/api-client";
+import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ModernCardLayout, BaseCardData, CardAction, ResourceInfo, StatusBadge } from "./modern-card-layout";
 
@@ -163,6 +166,33 @@ export const TaskCard = React.memo<TaskCardProps>(({
     tooltip: task.status === 'COMPLETED' ? 'Zobacz wyniki symulacji' : 'Zobacz szczegóły zadania',
     className: "bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-lg hover:shadow-xl border-0"
   });
+
+  // Download results button (only for COMPLETED)
+  if (task.status === "COMPLETED") {
+    actions.push({
+      label: "Pobierz wyniki",
+      icon: Download,
+      onClick: async () => {
+        try {
+          const blob = await taskQueueApi.downloadTaskResults(task.id);
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.setAttribute('download', `task_${task.id}_results.zip`);
+          document.body.appendChild(link);
+          link.click();
+          link.parentNode?.removeChild(link);
+          window.URL.revokeObjectURL(url);
+          toast.success('Wyniki zadania zostały pobrane.');
+        } catch (error) {
+          toast.error('Wystąpił błąd podczas pobierania wyników zadania.');
+        }
+      },
+      variant: "outline",
+      tooltip: "Pobierz wyniki zadania jako ZIP",
+      className: "bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white font-semibold shadow-lg hover:shadow-xl border-0"
+    });
+  }
 
   // Cancel button (for running/pending tasks)
   if (task.status === "PENDING" || task.status === "RUNNING") {
