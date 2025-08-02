@@ -595,7 +595,7 @@ class UnifiedSlurmMonitor:
     async def _create_tunnel_for_job(self, db: Session, job: Job):
         """Create SSH tunnel for a running job"""
         try:
-            tunnel_service = SSHTunnelService(db)
+            tunnel_service = SSHTunnelService()
             tunnel = await tunnel_service.create_tunnel(job)
             
             if tunnel:
@@ -609,7 +609,7 @@ class UnifiedSlurmMonitor:
     async def _close_job_tunnels(self, db: Session, job_id: int):
         """Close SSH tunnels for a job"""
         try:
-            tunnel_service = SSHTunnelService(db)
+            tunnel_service = SSHTunnelService()
             await tunnel_service.close_job_tunnels(job_id)
             self._metrics.active_tunnels = max(0, self._metrics.active_tunnels - 1)
         except Exception as e:

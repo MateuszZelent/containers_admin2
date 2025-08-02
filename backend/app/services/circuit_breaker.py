@@ -69,7 +69,7 @@ class SlurmCircuitBreaker:
         self._last_failure_time: Optional[datetime] = None
         self._last_success_time: Optional[datetime] = None
         self._next_attempt_time: Optional[datetime] = None
-        self._lock = asyncio.Lock()
+        self._lock: Optional[asyncio.Lock] = None
         
         # Metrics
         self._metrics = CircuitBreakerMetrics()
@@ -79,6 +79,12 @@ class SlurmCircuitBreaker:
             f"failure_threshold={failure_threshold}, "
             f"recovery_timeout={recovery_timeout}s"
         )
+    
+    def _get_lock(self) -> asyncio.Lock:
+        """Get or create the asyncio lock (lazy initialization)"""
+        if self._lock is None:
+            self._lock = asyncio.Lock()
+        return self._lock
     
     @property
     def state(self) -> CircuitBreakerState:
@@ -113,7 +119,7 @@ class SlurmCircuitBreaker:
             CircuitBreakerException: When circuit breaker is open
             Original exception: When function fails
         """
-        async with self._lock:
+        async with self._get_lock():
             # Check if we should attempt the call
             if not self._should_attempt_call():
                 raise CircuitBreakerException("SLURM", self._failure_count)
@@ -178,7 +184,7 @@ class SlurmCircuitBreaker:
     
     async def _on_success(self):
         """Handle successful function execution"""
-        async with self._lock:
+        async with self._get_lock():
             self._success_count += 1
             self._last_success_time = datetime.now()
             
@@ -188,7 +194,7 @@ class SlurmCircuitBreaker:
     
     async def _on_failure(self):
         """Handle failed function execution"""
-        async with self._lock:
+        async with self._get_lock():
             self._failure_count += 1
             self._last_failure_time = datetime.now()
             
@@ -223,9 +229,21 @@ class SlurmCircuitBreaker:
         
         cluster_logger.info("Circuit breaker CLOSED - service recovered")
     
+    def is_open(self) -> bool:
+        """Check if circuit breaker is open (blocking requests)"""
+        return self._state == CircuitBreakerState.OPEN
+    
+    async def record_success(self):
+        """Record a successful operation"""
+        await self._on_success()
+    
+    async def record_failure(self):
+        """Record a failed operation"""
+        await self._on_failure()
+    
     async def reset(self):
         """Manually reset the circuit breaker"""
-        async with self._lock:
+        async with self._get_lock():
             self._state = CircuitBreakerState.CLOSED
             self._failure_count = 0
             self._success_count = 0

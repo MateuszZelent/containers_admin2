@@ -194,7 +194,7 @@ async def health_check(db: Session = Depends(get_db)):
 #         # Create SSH tunnel service
 #         from app.services.ssh_tunnel import SSHTunnelService
 
-#         tunnel_service = SSHTunnelService(db)
+#         tunnel_service = SSHTunnelService()
 #         # Restore active tunnels
 #         result = await tunnel_service.restore_active_tunnels()
 #         logger.info(f"SSH tunnel restoration complete: {result}")

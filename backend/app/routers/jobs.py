@@ -595,7 +595,7 @@ def get_job_tunnels(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     return tunnel_service.get_job_tunnels(db, job_id)
 
 
@@ -613,7 +613,7 @@ async def create_job_tunnel(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     tunnel = await tunnel_service.create_tunnel(job)
     if not tunnel:
         raise HTTPException(
@@ -638,7 +638,7 @@ async def close_job_tunnel(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     success = await tunnel_service.close_tunnel(tunnel_id)
     if not success:
         raise HTTPException(
@@ -697,7 +697,7 @@ async def get_code_server_url(
         )
 
     # Create or get existing tunnel
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     tunnel = await tunnel_service.get_or_create_tunnel(job_id)
     if not tunnel:
         raise HTTPException(
@@ -789,7 +789,7 @@ async def check_tunnel_status(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     active_tunnel = (
         db.query(SSHTunnel)
         .filter(SSHTunnel.job_id == job.id, SSHTunnel.status == "ACTIVE")
@@ -934,7 +934,7 @@ async def check_tunnel_health(
     if job.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     health_info = await tunnel_service.health_check(tunnel_id)
 
     return {
@@ -983,7 +983,7 @@ async def check_all_tunnels_health(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     health_results = await tunnel_service.health_check_all_active_tunnels()
 
     return {
@@ -1032,7 +1032,7 @@ async def check_job_tunnel_health(
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found for this job")
 
-    tunnel_service = SSHTunnelService(db)
+    tunnel_service = SSHTunnelService()
     health_info = await tunnel_service.health_check(tunnel_id)
 
     return {

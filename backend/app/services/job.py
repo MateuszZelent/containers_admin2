@@ -28,7 +28,7 @@ from app.core.config import settings
 class JobService:
     def __init__(self, db: Session):
         self.db = db
-        self.ssh_tunnel_service = SSHTunnelService(db)
+        self.ssh_tunnel_service = SSHTunnelService()
 
     @staticmethod
     def sanitize_container_name_for_domain(container_name: str) -> str:
@@ -269,7 +269,7 @@ class JobService:
             return
 
         check_interval = initial_check_interval
-        tunnel_service = SSHTunnelService(db)
+        tunnel_service = SSHTunnelService()
         
         # Add counters for retry limits
         connection_attempts = 0
