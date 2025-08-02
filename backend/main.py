@@ -20,8 +20,8 @@ from app.services.domain_monitor import domain_monitor
 from app.services.resource_usage_task import resource_usage_task
 
 # Debug mode only for development
-# debugpy.listen(("0.0.0.0", 5678))  # Port 5678
-# print("Debugger is active. Waiting for client to attach...")
+debugpy.listen(("0.0.0.0", 5678))  # Port 5678
+print("Debugger is active. Waiting for client to attach...")
 
 # Create database tables
 Base.metadata.create_all(bind=engine)

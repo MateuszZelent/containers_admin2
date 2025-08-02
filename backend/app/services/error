@@ -1,0 +1,1301 @@
+2025-08-02 20:32:43.289 | chmod: changing permissions of '/root/.ssh/id_rsa': Read-only file system
+2025-08-02 20:32:43.302 | chmod: changing permissions of '/root/.ssh/id_rsa': Read-only file system
+2025-08-02 20:32:43.286 | Setting correct permissions for SSH key...
+2025-08-02 20:32:43.289 | SSH key permissions set successfully
+2025-08-02 20:32:43.289 | Mounting network drives...
+2025-08-02 20:32:43.291 | === Network Drive Mounting Script ===
+2025-08-02 20:32:43.291 | Starting network drive mounting process...
+2025-08-02 20:32:43.291 | Creating target directories...
+2025-08-02 20:32:43.303 | Mounting network drives...
+2025-08-02 20:32:43.303 | Attempting to mount /mnt/storage_2/scratch/pl0095-01/zelent/mannga to /mnt/storage_2/scratch/pl0095-01/zelent/mannga...
+2025-08-02 20:32:43.303 |   Attempt 1/3...
+2025-08-02 20:32:43.462 |   ✓ Successfully mounted /mnt/storage_2/scratch/pl0095-01/zelent/mannga to /mnt/storage_2/scratch/pl0095-01/zelent/mannga
+2025-08-02 20:32:43.463 | Attempting to mount /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs to /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs...
+2025-08-02 20:32:43.463 |   Attempt 1/3...
+2025-08-02 20:32:43.612 |   ✓ Successfully mounted /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs to /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs
+2025-08-02 20:32:43.613 | Attempting to mount /mnt/storage_2/scratch/pl0095-01/zelent/olek to /mnt/storage_2/scratch/pl0095-01/zelent/olek...
+2025-08-02 20:32:43.613 |   Attempt 1/3...
+2025-08-02 20:32:43.768 |   ✓ Successfully mounted /mnt/storage_2/scratch/pl0095-01/zelent/olek to /mnt/storage_2/scratch/pl0095-01/zelent/olek
+2025-08-02 20:32:43.768 | Attempting to mount /mnt/storage_2/scratch/pl0095-01/zelent/mannga to /mnt/local/kkingstoun/admin/pcss_storage/mannga/squirclepills/mateusz/fmr...
+2025-08-02 20:32:43.768 |   Attempt 1/3...
+2025-08-02 20:32:43.904 |   ✓ Successfully mounted /mnt/storage_2/scratch/pl0095-01/zelent/mannga to /mnt/local/kkingstoun/admin/pcss_storage/mannga/squirclepills/mateusz/fmr
+2025-08-02 20:32:43.904 | Attempting to mount /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs to /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs...
+2025-08-02 20:32:43.904 |   Attempt 1/3...
+2025-08-02 20:32:44.043 |   ✓ Successfully mounted /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs to /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs
+2025-08-02 20:32:44.043 | 
+2025-08-02 20:32:44.043 | === Mount Status ===
+2025-08-02 20:32:44.050 |   ✓ /mnt/storage_2/scratch/pl0095-01/zelent/mannga is mounted
+2025-08-02 20:32:44.066 |     ✓ Path is accessible and contains files
+2025-08-02 20:32:44.073 |   ✓ /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs is mounted
+2025-08-02 20:32:44.243 |     ✓ Path is accessible and contains files
+2025-08-02 20:32:44.249 |   ✓ /mnt/storage_2/scratch/pl0095-01/zelent/olek is mounted
+2025-08-02 20:32:44.346 |     ✓ Path is accessible and contains files
+2025-08-02 20:32:44.352 |   ✓ /mnt/local/kkingstoun/admin/pcss_storage/mannga/squirclepills/mateusz/fmr is mounted
+2025-08-02 20:32:44.367 |     ✓ Path is accessible and contains files
+2025-08-02 20:32:44.373 |   ✓ /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs is mounted
+2025-08-02 20:32:44.390 |     ✓ Path is accessible and contains files
+2025-08-02 20:32:44.390 | 
+2025-08-02 20:32:44.390 | === SSHFS Processes ===
+2025-08-02 20:32:44.397 | root        20  0.0  0.0 228976  1920 ?        Ssl  18:32   0:00 sshfs -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 -o allow_other -o IdentityFile=/root/.ssh/id_rsa -o cache=yes -o kernel_cache -o compression=no -o Ciphers=chacha20-poly1305@openssh.com -o max_read=262144 -o max_write=262144 -o noatime -o direct_io -o attr_timeout=5 -o entry_timeout=5 -o negative_timeout=5 -o StrictHostKeyChecking=no kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/mannga /mnt/storage_2/scratch/pl0095-01/zelent/mannga
+2025-08-02 20:32:44.398 | root        28  0.0  0.0 228976  2304 ?        Ssl  18:32   0:00 sshfs -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 -o allow_other -o IdentityFile=/root/.ssh/id_rsa -o cache=yes -o kernel_cache -o compression=no -o Ciphers=chacha20-poly1305@openssh.com -o max_read=262144 -o max_write=262144 -o noatime -o direct_io -o attr_timeout=5 -o entry_timeout=5 -o negative_timeout=5 -o StrictHostKeyChecking=no kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs
+2025-08-02 20:32:44.398 | root        36  0.0  0.0 228976  1536 ?        Ssl  18:32   0:00 sshfs -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 -o allow_other -o IdentityFile=/root/.ssh/id_rsa -o cache=yes -o kernel_cache -o compression=no -o Ciphers=chacha20-poly1305@openssh.com -o max_read=262144 -o max_write=262144 -o noatime -o direct_io -o attr_timeout=5 -o entry_timeout=5 -o negative_timeout=5 -o StrictHostKeyChecking=no kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/olek /mnt/storage_2/scratch/pl0095-01/zelent/olek
+2025-08-02 20:32:44.398 | root        44  0.0  0.0 228976  1536 ?        Ssl  18:32   0:00 sshfs -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 -o allow_other -o IdentityFile=/root/.ssh/id_rsa -o cache=yes -o kernel_cache -o compression=no -o Ciphers=chacha20-poly1305@openssh.com -o max_read=262144 -o max_write=262144 -o noatime -o direct_io -o attr_timeout=5 -o entry_timeout=5 -o negative_timeout=5 -o StrictHostKeyChecking=no kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/mannga /mnt/local/kkingstoun/admin/pcss_storage/mannga/squirclepills/mateusz/fmr
+2025-08-02 20:32:44.398 | root        52  0.0  0.0 228976  1536 ?        Ssl  18:32   0:00 sshfs -o reconnect,ServerAliveInterval=15,ServerAliveCountMax=3 -o allow_other -o IdentityFile=/root/.ssh/id_rsa -o cache=yes -o kernel_cache -o compression=no -o Ciphers=chacha20-poly1305@openssh.com -o max_read=262144 -o max_write=262144 -o noatime -o direct_io -o attr_timeout=5 -o entry_timeout=5 -o negative_timeout=5 -o StrictHostKeyChecking=no kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs
+2025-08-02 20:32:44.398 | 
+2025-08-02 20:32:44.398 | === Mounted Filesystems ===
+2025-08-02 20:32:44.536 | kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/mannga               60T   50T   11T  83% /mnt/storage_2/scratch/pl0095-01/zelent/mannga
+2025-08-02 20:32:44.536 | kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs   60T   50T   11T  83% /mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs
+2025-08-02 20:32:44.536 | kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/olek                 60T   50T   11T  83% /mnt/storage_2/scratch/pl0095-01/zelent/olek
+2025-08-02 20:32:44.536 | kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/mannga               60T   50T   11T  83% /mnt/local/kkingstoun/admin/pcss_storage/mannga/squirclepills/mateusz/fmr
+2025-08-02 20:32:44.536 | kkingstoun@eagle.man.poznan.pl:/mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs          60T   50T   11T  83% /mnt/storage_2/scratch/pl0095-01/zelent/tmp/mx3jobs
+2025-08-02 20:32:44.537 | ✓ All network drives mounted successfully
+2025-08-02 20:32:44.538 | Network drives mounted successfully
+2025-08-02 20:32:44.538 | Installing dependencies from requirements.txt...
+2025-08-02 20:32:44.909 | Requirement already satisfied: fastapi==0.104.1 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 1)) (0.104.1)
+2025-08-02 20:32:44.910 | Requirement already satisfied: uvicorn[standard]==0.23.2 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 2)) (0.23.2)
+2025-08-02 20:32:44.910 | Requirement already satisfied: pydantic==2.4.2 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 3)) (2.4.2)
+2025-08-02 20:32:44.911 | Requirement already satisfied: pydantic-settings==2.0.3 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 4)) (2.0.3)
+2025-08-02 20:32:44.911 | Requirement already satisfied: python-jose==3.3.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 5)) (3.3.0)
+2025-08-02 20:32:44.912 | Requirement already satisfied: python-multipart==0.0.6 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 6)) (0.0.6)
+2025-08-02 20:32:44.913 | Requirement already satisfied: paramiko==3.3.1 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 7)) (3.3.1)
+2025-08-02 20:32:44.913 | Requirement already satisfied: asyncssh==2.14.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 8)) (2.14.0)
+2025-08-02 20:32:44.914 | Requirement already satisfied: sqlalchemy==2.0.23 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 9)) (2.0.23)
+2025-08-02 20:32:44.915 | Requirement already satisfied: passlib==1.7.4 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 10)) (1.7.4)
+2025-08-02 20:32:44.915 | Requirement already satisfied: bcrypt==4.0.1 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 11)) (4.0.1)
+2025-08-02 20:32:44.916 | Requirement already satisfied: alembic==1.12.1 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 12)) (1.12.1)
+2025-08-02 20:32:44.916 | Requirement already satisfied: python-dotenv==1.0.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 13)) (1.0.0)
+2025-08-02 20:32:44.917 | Requirement already satisfied: rich==13.7.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 14)) (13.7.0)
+2025-08-02 20:32:44.918 | Requirement already satisfied: httpx==0.25.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 15)) (0.25.0)
+2025-08-02 20:32:44.918 | Requirement already satisfied: caddy_api_client==0.2.4 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 16)) (0.2.4)
+2025-08-02 20:32:44.919 | Requirement already satisfied: aiohttp>=3.8.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 17)) (3.12.14)
+2025-08-02 20:32:44.919 | Requirement already satisfied: debugpy==1.6.7 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 18)) (1.6.7)
+2025-08-02 20:32:44.920 | Requirement already satisfied: email-validator in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 19)) (2.2.0)
+2025-08-02 20:32:44.920 | Requirement already satisfied: psycopg2-binary in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 20)) (2.9.10)
+2025-08-02 20:32:44.921 | Requirement already satisfied: psutil>=5.9.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 21)) (7.0.0)
+2025-08-02 20:32:44.922 | Requirement already satisfied: tenacity>=8.2.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 22)) (9.1.2)
+2025-08-02 20:32:44.923 | Requirement already satisfied: Pillow>=9.0.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 23)) (11.3.0)
+2025-08-02 20:32:44.923 | Requirement already satisfied: websockets>=11.0 in /usr/local/lib/python3.9/site-packages (from -r /app/requirements.txt (line 24)) (15.0.1)
+2025-08-02 20:32:44.938 | Requirement already satisfied: starlette<0.28.0,>=0.27.0 in /usr/local/lib/python3.9/site-packages (from fastapi==0.104.1->-r /app/requirements.txt (line 1)) (0.27.0)
+2025-08-02 20:32:44.938 | Requirement already satisfied: anyio<4.0.0,>=3.7.1 in /usr/local/lib/python3.9/site-packages (from fastapi==0.104.1->-r /app/requirements.txt (line 1)) (3.7.1)
+2025-08-02 20:32:44.939 | Requirement already satisfied: typing-extensions>=4.8.0 in /usr/local/lib/python3.9/site-packages (from fastapi==0.104.1->-r /app/requirements.txt (line 1)) (4.14.1)
+2025-08-02 20:32:44.954 | Requirement already satisfied: h11>=0.8 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (0.14.0)
+2025-08-02 20:32:44.954 | Requirement already satisfied: click>=7.0 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (8.1.8)
+2025-08-02 20:32:44.955 | Requirement already satisfied: watchfiles>=0.13 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (1.1.0)
+2025-08-02 20:32:44.957 | Requirement already satisfied: httptools>=0.5.0 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (0.6.4)
+2025-08-02 20:32:44.957 | Requirement already satisfied: pyyaml>=5.1 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (6.0.2)
+2025-08-02 20:32:44.959 | Requirement already satisfied: uvloop!=0.15.0,!=0.15.1,>=0.14.0 in /usr/local/lib/python3.9/site-packages (from uvicorn[standard]==0.23.2->-r /app/requirements.txt (line 2)) (0.21.0)
+2025-08-02 20:32:44.966 | Requirement already satisfied: pydantic-core==2.10.1 in /usr/local/lib/python3.9/site-packages (from pydantic==2.4.2->-r /app/requirements.txt (line 3)) (2.10.1)
+2025-08-02 20:32:44.967 | Requirement already satisfied: annotated-types>=0.4.0 in /usr/local/lib/python3.9/site-packages (from pydantic==2.4.2->-r /app/requirements.txt (line 3)) (0.7.0)
+2025-08-02 20:32:44.976 | Requirement already satisfied: pyasn1 in /usr/local/lib/python3.9/site-packages (from python-jose==3.3.0->-r /app/requirements.txt (line 5)) (0.6.1)
+2025-08-02 20:32:44.977 | Requirement already satisfied: rsa in /usr/local/lib/python3.9/site-packages (from python-jose==3.3.0->-r /app/requirements.txt (line 5)) (4.9.1)
+2025-08-02 20:32:44.977 | Requirement already satisfied: ecdsa!=0.15 in /usr/local/lib/python3.9/site-packages (from python-jose==3.3.0->-r /app/requirements.txt (line 5)) (0.19.1)
+2025-08-02 20:32:44.998 | Requirement already satisfied: pynacl>=1.5 in /usr/local/lib/python3.9/site-packages (from paramiko==3.3.1->-r /app/requirements.txt (line 7)) (1.5.0)
+2025-08-02 20:32:44.999 | Requirement already satisfied: cryptography>=3.3 in /usr/local/lib/python3.9/site-packages (from paramiko==3.3.1->-r /app/requirements.txt (line 7)) (45.0.5)
+2025-08-02 20:32:45.043 | Requirement already satisfied: greenlet!=0.4.17 in /usr/local/lib/python3.9/site-packages (from sqlalchemy==2.0.23->-r /app/requirements.txt (line 9)) (3.2.3)
+2025-08-02 20:32:45.058 | Requirement already satisfied: Mako in /usr/local/lib/python3.9/site-packages (from alembic==1.12.1->-r /app/requirements.txt (line 12)) (1.3.10)
+2025-08-02 20:32:45.065 | Requirement already satisfied: markdown-it-py>=2.2.0 in /usr/local/lib/python3.9/site-packages (from rich==13.7.0->-r /app/requirements.txt (line 14)) (3.0.0)
+2025-08-02 20:32:45.066 | Requirement already satisfied: pygments<3.0.0,>=2.13.0 in /usr/local/lib/python3.9/site-packages (from rich==13.7.0->-r /app/requirements.txt (line 14)) (2.19.2)
+2025-08-02 20:32:45.075 | Requirement already satisfied: certifi in /usr/local/lib/python3.9/site-packages (from httpx==0.25.0->-r /app/requirements.txt (line 15)) (2025.7.14)
+2025-08-02 20:32:45.076 | Requirement already satisfied: idna in /usr/local/lib/python3.9/site-packages (from httpx==0.25.0->-r /app/requirements.txt (line 15)) (3.10)
+2025-08-02 20:32:45.076 | Requirement already satisfied: httpcore<0.19.0,>=0.18.0 in /usr/local/lib/python3.9/site-packages (from httpx==0.25.0->-r /app/requirements.txt (line 15)) (0.18.0)
+2025-08-02 20:32:45.077 | Requirement already satisfied: sniffio in /usr/local/lib/python3.9/site-packages (from httpx==0.25.0->-r /app/requirements.txt (line 15)) (1.3.1)
+2025-08-02 20:32:45.080 | Requirement already satisfied: requests>=2.31.0 in /usr/local/lib/python3.9/site-packages (from caddy_api_client==0.2.4->-r /app/requirements.txt (line 16)) (2.32.4)
+2025-08-02 20:32:45.094 | Requirement already satisfied: aiosignal>=1.4.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (1.4.0)
+2025-08-02 20:32:45.095 | Requirement already satisfied: yarl<2.0,>=1.17.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (1.20.1)
+2025-08-02 20:32:45.095 | Requirement already satisfied: propcache>=0.2.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (0.3.2)
+2025-08-02 20:32:45.096 | Requirement already satisfied: frozenlist>=1.1.1 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (1.7.0)
+2025-08-02 20:32:45.097 | Requirement already satisfied: attrs>=17.3.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (25.3.0)
+2025-08-02 20:32:45.097 | Requirement already satisfied: multidict<7.0,>=4.5 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (6.6.3)
+2025-08-02 20:32:45.098 | Requirement already satisfied: aiohappyeyeballs>=2.5.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (2.6.1)
+2025-08-02 20:32:45.099 | Requirement already satisfied: async-timeout<6.0,>=4.0 in /usr/local/lib/python3.9/site-packages (from aiohttp>=3.8.0->-r /app/requirements.txt (line 17)) (5.0.1)
+2025-08-02 20:32:45.103 | Requirement already satisfied: dnspython>=2.0.0 in /usr/local/lib/python3.9/site-packages (from email-validator->-r /app/requirements.txt (line 19)) (2.7.0)
+2025-08-02 20:32:45.172 | Requirement already satisfied: exceptiongroup in /usr/local/lib/python3.9/site-packages (from anyio<4.0.0,>=3.7.1->fastapi==0.104.1->-r /app/requirements.txt (line 1)) (1.3.0)
+2025-08-02 20:32:45.267 | Requirement already satisfied: cffi>=1.14 in /usr/local/lib/python3.9/site-packages (from cryptography>=3.3->paramiko==3.3.1->-r /app/requirements.txt (line 7)) (1.17.1)
+2025-08-02 20:32:45.289 | Requirement already satisfied: six>=1.9.0 in /usr/local/lib/python3.9/site-packages (from ecdsa!=0.15->python-jose==3.3.0->-r /app/requirements.txt (line 5)) (1.17.0)
+2025-08-02 20:32:45.338 | Requirement already satisfied: mdurl~=0.1 in /usr/local/lib/python3.9/site-packages (from markdown-it-py>=2.2.0->rich==13.7.0->-r /app/requirements.txt (line 14)) (0.1.2)
+2025-08-02 20:32:45.364 | Requirement already satisfied: charset_normalizer<4,>=2 in /usr/local/lib/python3.9/site-packages (from requests>=2.31.0->caddy_api_client==0.2.4->-r /app/requirements.txt (line 16)) (3.4.2)
+2025-08-02 20:32:45.365 | Requirement already satisfied: urllib3<3,>=1.21.1 in /usr/local/lib/python3.9/site-packages (from requests>=2.31.0->caddy_api_client==0.2.4->-r /app/requirements.txt (line 16)) (2.5.0)
+2025-08-02 20:32:45.410 | Requirement already satisfied: MarkupSafe>=0.9.2 in /usr/local/lib/python3.9/site-packages (from Mako->alembic==1.12.1->-r /app/requirements.txt (line 12)) (3.0.2)
+2025-08-02 20:32:45.425 | Requirement already satisfied: pycparser in /usr/local/lib/python3.9/site-packages (from cffi>=1.14->cryptography>=3.3->paramiko==3.3.1->-r /app/requirements.txt (line 7)) (2.22)
+2025-08-02 20:32:45.497 | WARNING: Running pip as the 'root' user can result in broken permissions and conflicting behaviour with the system package manager. It is recommended to use a virtual environment instead: https://pip.pypa.io/warnings/venv
+2025-08-02 20:32:45.649 | 
+2025-08-02 20:32:45.649 | [notice] A new release of pip is available: 23.0.1 -> 25.2
+2025-08-02 20:32:45.649 | [notice] To update, run: pip install --upgrade pip
+2025-08-02 20:32:45.759 | Waiting for PostgreSQL...
+2025-08-02 20:32:45.763 | PostgreSQL started
+2025-08-02 20:32:45.763 | Testing database connection...
+2025-08-02 20:32:45.798 | Password for user postgres: 
+2025-08-02 20:32:45.801 | psql: error: connection to server at "postgres" (172.19.0.2), port 5432 failed: fe_sendauth: no password supplied
+2025-08-02 20:32:45.803 | Database connection test failed
+2025-08-02 20:32:45.803 | Running database migrations...
+2025-08-02 20:32:46.280 | INFO  [alembic.runtime.migration] Context impl PostgresqlImpl.
+2025-08-02 20:32:46.280 | INFO  [alembic.runtime.migration] Will assume transactional DDL.
+2025-08-02 20:32:46.290 | FAILED: Multiple head revisions are present for given argument 'head'; please specify a specific target revision, '<branchname>@head' to narrow to a specific head, or 'heads' for all heads
+2025-08-02 20:32:46.290 | ERROR [alembic.util.messaging] Multiple head revisions are present for given argument 'head'; please specify a specific target revision, '<branchname>@head' to narrow to a specific head, or 'heads' for all heads
+2025-08-02 20:32:46.450 | Alembic migrations failed
+2025-08-02 20:32:46.450 | Current database schema:
+2025-08-02 20:32:46.482 | Password for user postgres: 
+2025-08-02 20:32:46.486 | psql: error: connection to server at "postgres" (172.19.0.2), port 5432 failed: fe_sendauth: no password supplied
+2025-08-02 20:32:46.524 | Password for user postgres: 
+2025-08-02 20:32:46.527 | psql: error: connection to server at "postgres" (172.19.0.2), port 5432 failed: fe_sendauth: no password supplied
+2025-08-02 20:32:46.529 | Starting FastAPI server...
+2025-08-02 20:32:46.638 | INFO:     Will watch for changes in these directories: ['/app']
+2025-08-02 20:32:46.640 | INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-08-02 20:32:46.641 | INFO:     Started reloader process [1] using WatchFiles
+2025-08-02 20:32:47.438 | [18:32:47] INFO     Database pool configured: size=20,             session.py:26
+2025-08-02 20:32:47.438 |                     max_overflow=30, timeout=60s                                
+2025-08-02 20:32:47.506 |            DEBUG    loaded lazy attr 'SafeConfigParser': <class  __init__.py:449
+2025-08-02 20:32:47.506 |                     'configparser.ConfigParser'>                                
+2025-08-02 20:32:47.507 |            DEBUG    loaded lazy attr 'NativeStringIO': <class    __init__.py:449
+2025-08-02 20:32:47.507 |                     '_io.StringIO'>                                             
+2025-08-02 20:32:47.508 |            DEBUG    loaded lazy attr 'BytesIO': <class           __init__.py:449
+2025-08-02 20:32:47.508 |                     '_io.BytesIO'>                                              
+2025-08-02 20:32:47.512 |            DEBUG    registered 'bcrypt' handler: <class          registry.py:296
+2025-08-02 20:32:47.512 |                     'passlib.handlers.bcrypt.bcrypt'>                           
+2025-08-02 20:32:47.514 | /usr/local/lib/python3.9/site-packages/pydantic/_internal/_config.py:317: UserWarning: Valid config keys have changed in V2:
+2025-08-02 20:32:47.514 | * 'schema_extra' has been renamed to 'json_schema_extra'
+2025-08-02 20:32:47.514 |   warnings.warn(message, UserWarning)
+2025-08-02 20:32:47.690 | /usr/local/lib/python3.9/site-packages/asyncssh/crypto/cipher.py:29: CryptographyDeprecationWarning: ARC4 has been moved to cryptography.hazmat.decrepit.ciphers.algorithms.ARC4 and will be removed from cryptography.hazmat.primitives.ciphers.algorithms in 48.0.0.
+2025-08-02 20:32:47.690 |   from cryptography.hazmat.primitives.ciphers.algorithms import AES, ARC4
+2025-08-02 20:32:47.690 | /usr/local/lib/python3.9/site-packages/asyncssh/crypto/cipher.py:30: CryptographyDeprecationWarning: TripleDES has been moved to cryptography.hazmat.decrepit.ciphers.algorithms.TripleDES and will be removed from cryptography.hazmat.primitives.ciphers.algorithms in 48.0.0.
+2025-08-02 20:32:47.690 |   from cryptography.hazmat.primitives.ciphers.algorithms import TripleDES
+2025-08-02 20:32:47.834 | /usr/local/lib/python3.9/site-packages/paramiko/pkey.py:100: CryptographyDeprecationWarning: TripleDES has been moved to cryptography.hazmat.decrepit.ciphers.algorithms.TripleDES and will be removed from cryptography.hazmat.primitives.ciphers.algorithms in 48.0.0.
+2025-08-02 20:32:47.834 |   "cipher": algorithms.TripleDES,
+2025-08-02 20:32:47.846 | /usr/local/lib/python3.9/site-packages/paramiko/transport.py:258: CryptographyDeprecationWarning: TripleDES has been moved to cryptography.hazmat.decrepit.ciphers.algorithms.TripleDES and will be removed from cryptography.hazmat.primitives.ciphers.algorithms in 48.0.0.
+2025-08-02 20:32:47.846 |   "class": algorithms.TripleDES,
+2025-08-02 20:32:47.907 | /usr/local/lib/python3.9/site-packages/pydantic/_internal/_config.py:317: UserWarning: Valid config keys have changed in V2:
+2025-08-02 20:32:47.907 | * 'orm_mode' has been renamed to 'from_attributes'
+2025-08-02 20:32:47.907 |   warnings.warn(message, UserWarning)
+2025-08-02 20:32:48.045 | /usr/local/lib/python3.9/site-packages/pydantic/_internal/_config.py:317: UserWarning: Valid config keys have changed in V2:
+2025-08-02 20:32:48.045 | * 'schema_extra' has been renamed to 'json_schema_extra'
+2025-08-02 20:32:48.045 |   warnings.warn(message, UserWarning)
+2025-08-02 20:32:48.260 | INFO:     Started server process [85]
+2025-08-02 20:32:48.260 | INFO:     Waiting for application startup.
+2025-08-02 20:32:48.262 | [18:32:48] INFO     Starting SLURM Container Manager                  main.py:72
+2025-08-02 20:32:48.263 |            INFO     Starting SLURM Container Manager                  main.py:72
+2025-08-02 20:32:48.264 |            INFO     Debug mode: True                                  main.py:73
+2025-08-02 20:32:48.265 |            INFO     Debug mode: True                                  main.py:73
+2025-08-02 20:32:48.266 |            INFO     Log level: DEBUG                                  main.py:74
+2025-08-02 20:32:48.267 |            INFO     Log level: DEBUG                                  main.py:74
+2025-08-02 20:32:48.268 |            INFO     Configuration loaded:                             main.py:75
+2025-08-02 20:32:48.269 |            INFO     Configuration loaded:                             main.py:75
+2025-08-02 20:32:48.270 |            INFO       SLURM Host: eagle.man.poznan.pl                 main.py:76
+2025-08-02 20:32:48.271 |            INFO       SLURM Host: eagle.man.poznan.pl                 main.py:76
+2025-08-02 20:32:48.272 |            INFO       SLURM User: kkingstoun                          main.py:77
+2025-08-02 20:32:48.273 |            INFO       SLURM User: kkingstoun                          main.py:77
+2025-08-02 20:32:48.274 |            INFO       Template Directory: /app/slurm_templates        main.py:78
+2025-08-02 20:32:48.275 |            INFO       Template Directory: /app/slurm_templates        main.py:78
+2025-08-02 20:32:48.277 |            INFO       Container Output Directory:                     main.py:79
+2025-08-02 20:32:48.277 |                     /mnt/storage_3/home/kkingstoun/containers/run               
+2025-08-02 20:32:48.278 |            INFO       Container Output Directory:                     main.py:79
+2025-08-02 20:32:48.278 |                     /mnt/storage_3/home/kkingstoun/containers/run               
+2025-08-02 20:32:48.279 |            INFO     Starting task queue processor                     main.py:84
+2025-08-02 20:32:48.280 |            INFO     Starting task queue processor                     main.py:84
+2025-08-02 20:32:48.283 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:48.283 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:48.283 |                       Port: 22                                                  
+2025-08-02 20:32:48.283 |                       Username: kkingstoun                                      
+2025-08-02 20:32:48.283 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:48.283 |            INFO     Task queue processor started successfully         main.py:92
+2025-08-02 20:32:48.284 |            INFO     Task queue processor started successfully         main.py:92
+2025-08-02 20:32:48.285 |            INFO     Starting SLURM monitoring service                 main.py:97
+2025-08-02 20:32:48.286 |            INFO     Starting SLURM monitoring service                 main.py:97
+2025-08-02 20:32:48.288 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:48.288 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:48.288 |                       Port: 22                                                  
+2025-08-02 20:32:48.288 |                       Username: kkingstoun                                      
+2025-08-02 20:32:48.288 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:48.290 |            INFO     Starting SLURM monitoring with 120s      slurm_monitor.py:64
+2025-08-02 20:32:48.290 |                     interval                                                    
+2025-08-02 20:32:48.291 |            INFO     SLURM monitoring service started (120s interval) main.py:103
+2025-08-02 20:32:48.292 |            INFO     SLURM monitoring service started (120s interval) main.py:103
+2025-08-02 20:32:48.293 |            INFO     Starting SLURM detail fetcher service            main.py:108
+2025-08-02 20:32:48.294 |            INFO     Starting SLURM detail fetcher service            main.py:108
+2025-08-02 20:32:48.296 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:48.296 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:48.296 |                       Port: 22                                                  
+2025-08-02 20:32:48.296 |                       Username: kkingstoun                                      
+2025-08-02 20:32:48.296 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:48.298 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:48.298 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:48.298 |                       Port: 22                                                  
+2025-08-02 20:32:48.298 |                       Username: kkingstoun                                      
+2025-08-02 20:32:48.298 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:48.299 |            INFO     Starting SLURM detail fetcher     slurm_detail_fetcher.py:54
+2025-08-02 20:32:48.299 |                     service                                                     
+2025-08-02 20:32:48.300 |            INFO     SLURM detail fetcher service started             main.py:130
+2025-08-02 20:32:48.301 |            INFO     SLURM detail fetcher service started             main.py:130
+2025-08-02 20:32:48.302 |            INFO     Started cluster monitoring     cluster_monitoring_task.py:28
+2025-08-02 20:32:48.302 |                     with 5 minute intervals                                     
+2025-08-02 20:32:48.303 |            INFO     Background cluster monitoring started            main.py:136
+2025-08-02 20:32:48.304 |            INFO     Background cluster monitoring started            main.py:136
+2025-08-02 20:32:48.305 |            INFO     Started resource usage monitoring  resource_usage_task.py:26
+2025-08-02 20:32:48.305 |                     with 10 minute intervals                                    
+2025-08-02 20:32:48.306 |            INFO     Started resource usage monitoring  resource_usage_task.py:26
+2025-08-02 20:32:48.306 |                     with 10 minute intervals                                    
+2025-08-02 20:32:48.307 |            INFO     Resource usage monitoring started                main.py:140
+2025-08-02 20:32:48.308 |            INFO     Resource usage monitoring started                main.py:140
+2025-08-02 20:32:48.309 |            INFO     Domain monitoring service started as    domain_monitor.py:39
+2025-08-02 20:32:48.309 |                     background task                                             
+2025-08-02 20:32:48.310 |            INFO     Background domain monitoring started             main.py:144
+2025-08-02 20:32:48.311 |            INFO     Background domain monitoring started             main.py:144
+2025-08-02 20:32:48.312 |            DEBUG    Cleared monitoring cache before update  slurm_monitor.py:106
+2025-08-02 20:32:48.313 |            DEBUG    Checking SLURM cluster status...                slurm.py:160
+2025-08-02 20:32:48.434 |            DEBUG    No running jobs to fetch details  slurm_detail_fetcher.py:84
+2025-08-02 20:32:48.434 |                     for                                                         
+2025-08-02 20:32:48.436 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:48.437 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:48.437 |                       Port: 22                                                  
+2025-08-02 20:32:48.437 |                       Username: kkingstoun                                      
+2025-08-02 20:32:48.437 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:48.438 |            DEBUG    Executing cluster stats command: cluster_stats_monitor.py:30
+2025-08-02 20:32:48.438 |                     bash                                                        
+2025-08-02 20:32:48.438 |                     /mnt/storage_3/home/kkingstoun/s                            
+2025-08-02 20:32:48.438 |                     cripts/check.sh -j                                          
+2025-08-02 20:32:48.547 |            INFO     Domain monitoring service started       domain_monitor.py:46
+2025-08-02 20:32:48.552 | INFO:     Application startup complete.
+2025-08-02 20:32:48.554 |            INFO     Opening SSH connection to eagle.man.poznan.pl, logging.py:92
+2025-08-02 20:32:48.554 |                     port 22                                                     
+2025-08-02 20:32:48.558 |            INFO     Opening SSH connection to eagle.man.poznan.pl, logging.py:92
+2025-08-02 20:32:48.558 |                     port 22                                                     
+2025-08-02 20:32:48.569 |            INFO      Connected to SSH server at                    logging.py:92
+2025-08-02 20:32:48.569 |                     eagle.man.poznan.pl, port 22                                
+2025-08-02 20:32:48.570 |            INFO        Local address: 172.21.0.2, port 44538       logging.py:92
+2025-08-02 20:32:48.571 |            INFO        Peer address: 150.254.160.193, port 22      logging.py:92
+2025-08-02 20:32:48.572 |            DEBUG     Sending version SSH-2.0-AsyncSSH_2.14.0       logging.py:92
+2025-08-02 20:32:48.577 |            INFO      Connected to SSH server at                    logging.py:92
+2025-08-02 20:32:48.577 |                     eagle.man.poznan.pl, port 22                                
+2025-08-02 20:32:48.578 |            INFO        Local address: 172.21.0.2, port 44540       logging.py:92
+2025-08-02 20:32:48.579 |            INFO        Peer address: 150.254.160.193, port 22      logging.py:92
+2025-08-02 20:32:48.580 |            DEBUG     Sending version SSH-2.0-AsyncSSH_2.14.0       logging.py:92
+2025-08-02 20:32:48.581 |            DEBUG     Received version SSH-2.0-OpenSSH_8.7          logging.py:92
+2025-08-02 20:32:48.582 |            DEBUG     Requesting key exchange                       logging.py:92
+2025-08-02 20:32:48.585 |            DEBUG     Received version SSH-2.0-OpenSSH_8.7          logging.py:92
+2025-08-02 20:32:48.586 |            DEBUG     Requesting key exchange                       logging.py:92
+2025-08-02 20:32:48.587 |            DEBUG     Received key exchange request                 logging.py:92
+2025-08-02 20:32:48.588 |            DEBUG     Beginning key exchange                        logging.py:92
+2025-08-02 20:32:48.589 |            DEBUG     Received key exchange request                 logging.py:92
+2025-08-02 20:32:48.590 |            DEBUG     Beginning key exchange                        logging.py:92
+2025-08-02 20:32:48.603 |            DEBUG     Completed key exchange                        logging.py:92
+2025-08-02 20:32:48.605 |            DEBUG     Completed key exchange                        logging.py:92
+2025-08-02 20:32:48.607 |            INFO      Beginning auth for user kkingstoun            logging.py:92
+2025-08-02 20:32:48.609 |            INFO      Beginning auth for user kkingstoun            logging.py:92
+2025-08-02 20:32:48.611 |            DEBUG     Trying public key auth with rsa-sha2-256 key  logging.py:92
+2025-08-02 20:32:48.615 |            DEBUG     Trying public key auth with rsa-sha2-256 key  logging.py:92
+2025-08-02 20:32:48.617 |            DEBUG     Signing request with rsa-sha2-256 key         logging.py:92
+2025-08-02 20:32:48.621 |            DEBUG     Signing request with rsa-sha2-256 key         logging.py:92
+2025-08-02 20:32:48.632 |            INFO      Auth for user kkingstoun succeeded            logging.py:92
+2025-08-02 20:32:48.633 |            DEBUG    SSH connection established successfully          slurm.py:75
+2025-08-02 20:32:48.634 |            DEBUG     Set write buffer limits: low-water=16384,     logging.py:92
+2025-08-02 20:32:48.634 |                     high-water=65536                                            
+2025-08-02 20:32:48.635 |            INFO      Requesting new SSH session                    logging.py:92
+2025-08-02 20:32:48.637 |            INFO      Auth for user kkingstoun succeeded            logging.py:92
+2025-08-02 20:32:48.638 |            DEBUG    SSH connection established successfully          slurm.py:75
+2025-08-02 20:32:48.639 |            DEBUG     Set write buffer limits: low-water=16384,     logging.py:92
+2025-08-02 20:32:48.639 |                     high-water=65536                                            
+2025-08-02 20:32:48.640 |            INFO      Requesting new SSH session                    logging.py:92
+2025-08-02 20:32:48.643 |            DEBUG     Received unknown global request:              logging.py:92
+2025-08-02 20:32:48.643 |                     hostkeys-00@openssh.com                                     
+2025-08-02 20:32:48.645 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:48.645 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:48.645 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:48.645 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:48.647 |            DEBUG     Received unknown global request:              logging.py:92
+2025-08-02 20:32:48.647 |                     hostkeys-00@openssh.com                                     
+2025-08-02 20:32:48.648 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:48.648 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:48.648 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:48.648 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:48.687 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:48.687 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:48.687 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:48.687 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:48.688 |            INFO        Command: bash                               logging.py:92
+2025-08-02 20:32:48.688 |                     /mnt/storage_3/home/kkingstoun/scripts/check.s              
+2025-08-02 20:32:48.688 |                     h -j                                                        
+2025-08-02 20:32:48.693 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:48.693 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:48.693 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:48.693 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:48.694 |            INFO        Command: sinfo -h                           logging.py:92
+2025-08-02 20:32:48.963 |            INFO      Received exit status 0                        logging.py:92
+2025-08-02 20:32:48.964 |            INFO      Received channel close                        logging.py:92
+2025-08-02 20:32:48.966 |            INFO      Channel closed                                logging.py:92
+2025-08-02 20:32:48.967 |            INFO      Closing connection                            logging.py:92
+2025-08-02 20:32:48.968 |            INFO      Sending disconnect: Disconnected by           logging.py:92
+2025-08-02 20:32:48.968 |                     application (11)                                            
+2025-08-02 20:32:48.969 |            INFO      Connection closed                             logging.py:92
+2025-08-02 20:32:48.971 |            DEBUG    Cluster Operation: Status Check               logging.py:122
+2025-08-02 20:32:48.971 |                       connected: True                                           
+2025-08-02 20:32:48.971 |                       slurm_running: True                                       
+2025-08-02 20:32:48.972 |            DEBUG    Updated status: connected=True          slurm_monitor.py:148
+2025-08-02 20:32:48.974 |            DEBUG    Pobieranie wszystkich aktywnych zadań z slurm_monitor.py:173
+2025-08-02 20:32:48.974 |                     SLURM (RAW)                                                 
+2025-08-02 20:32:48.975 |            DEBUG    Fetching all active jobs from SLURM (no         slurm.py:197
+2025-08-02 20:32:48.975 |                     filtering)                                                  
+2025-08-02 20:32:49.104 | DEBUG: WebSocket connection attempt to /jobs/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:49.104 | DEBUG: User agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+2025-08-02 20:32:49.104 | DEBUG: Origin: https://amucontainers.orion.zfns.eu.org
+2025-08-02 20:32:49.104 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:49.104 | [18:32:49] INFO     WebSocket job_status connection attempt by      routes.py:49
+2025-08-02 20:32:49.104 |                     user: admin                                                 
+2025-08-02 20:32:49.105 | INFO:     ('172.21.0.1', 42720) - "WebSocket /ws/jobs/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:49.106 | DEBUG: Attempting to connect WebSocket to channel 'job_status' for user '1'
+2025-08-02 20:32:49.106 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:49.106 | DEBUG: Added to channel 'job_status', now has 1 connections
+2025-08-02 20:32:49.106 | DEBUG: Added to user '1' channel 'job_status', user now has 1 connections in this channel
+2025-08-02 20:32:49.106 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:49.106 | DEBUG: Total connections: 1
+2025-08-02 20:32:49.106 | DEBUG: Total users: 1
+2025-08-02 20:32:49.106 | DEBUG: All channels: ['job_status']
+2025-08-02 20:32:49.106 |            INFO     WebSocket connected to channel 'job_status'    manager.py:65
+2025-08-02 20:32:49.106 |                     (user: 1)                                                   
+2025-08-02 20:32:49.107 | INFO:     connection open
+2025-08-02 20:32:49.109 |            INFO     Opening SSH connection to eagle.man.poznan.pl, logging.py:92
+2025-08-02 20:32:49.109 |                     port 22                                                     
+2025-08-02 20:32:49.117 |            INFO      Connected to SSH server at                    logging.py:92
+2025-08-02 20:32:49.117 |                     eagle.man.poznan.pl, port 22                                
+2025-08-02 20:32:49.118 |            INFO        Local address: 172.21.0.2, port 44542       logging.py:92
+2025-08-02 20:32:49.119 |            INFO        Peer address: 150.254.160.193, port 22      logging.py:92
+2025-08-02 20:32:49.120 |            DEBUG     Sending version SSH-2.0-AsyncSSH_2.14.0       logging.py:92
+2025-08-02 20:32:49.126 |            DEBUG     Received version SSH-2.0-OpenSSH_8.7          logging.py:92
+2025-08-02 20:32:49.126 |            DEBUG     Requesting key exchange                       logging.py:92
+2025-08-02 20:32:49.131 |            DEBUG     Received key exchange request                 logging.py:92
+2025-08-02 20:32:49.132 |            DEBUG     Beginning key exchange                        logging.py:92
+2025-08-02 20:32:49.146 |            DEBUG     Completed key exchange                        logging.py:92
+2025-08-02 20:32:49.151 |            INFO      Beginning auth for user kkingstoun            logging.py:92
+2025-08-02 20:32:49.156 |            DEBUG     Trying public key auth with rsa-sha2-256 key  logging.py:92
+2025-08-02 20:32:49.161 |            DEBUG     Signing request with rsa-sha2-256 key         logging.py:92
+2025-08-02 20:32:49.177 |            INFO      Auth for user kkingstoun succeeded            logging.py:92
+2025-08-02 20:32:49.178 |            DEBUG    SSH connection established successfully          slurm.py:75
+2025-08-02 20:32:49.179 |            DEBUG     Set write buffer limits: low-water=16384,     logging.py:92
+2025-08-02 20:32:49.179 |                     high-water=65536                                            
+2025-08-02 20:32:49.180 |            INFO      Requesting new SSH session                    logging.py:92
+2025-08-02 20:32:49.188 |            DEBUG     Received unknown global request:              logging.py:92
+2025-08-02 20:32:49.188 |                     hostkeys-00@openssh.com                                     
+2025-08-02 20:32:49.190 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:49.190 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:49.190 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:49.190 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:49.238 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:49.238 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:49.238 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:49.238 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:49.239 |            INFO        Command: squeue --me -o                     logging.py:92
+2025-08-02 20:32:49.239 |                     '%A|%P|%j|%u|%t|%m|%M|%L|%D|%N|%S|%R|%b|%V' -h              
+2025-08-02 20:32:49.268 |            INFO      Received exit status 0                        logging.py:92
+2025-08-02 20:32:49.269 |            INFO      Received channel close                        logging.py:92
+2025-08-02 20:32:49.270 |            INFO      Channel closed                                logging.py:92
+2025-08-02 20:32:49.271 |            INFO      Closing connection                            logging.py:92
+2025-08-02 20:32:49.272 |            INFO      Sending disconnect: Disconnected by           logging.py:92
+2025-08-02 20:32:49.272 |                     application (11)                                            
+2025-08-02 20:32:49.273 |            INFO      Connection closed                             logging.py:92
+2025-08-02 20:32:49.275 |            DEBUG    Found 6 total active jobs in SLURM              slurm.py:266
+2025-08-02 20:32:49.276 |            DEBUG    Pobrano 6 RAW zadań z SLURM             slurm_monitor.py:189
+2025-08-02 20:32:49.277 |            DEBUG    Filtered 6 container jobs from 6 total jobs     slurm.py:331
+2025-08-02 20:32:49.277 |            DEBUG    Filtered 0 task queue jobs from 6 total jobs    slurm.py:357
+2025-08-02 20:32:49.278 |            DEBUG    Filtered 0 admin jobs from 6 total jobs         slurm.py:389
+2025-08-02 20:32:49.279 |            DEBUG    Po filtrowaniu: kontenery=6,            slurm_monitor.py:208
+2025-08-02 20:32:49.279 |                     task_queue=0, admin=0                                       
+2025-08-02 20:32:49.308 |            INFO     Aktualizacja zadań zakończona. Aktywne: slurm_monitor.py:265
+2025-08-02 20:32:49.308 |                     6 (kontenery: 6, task_queue: 0, admin:                      
+2025-08-02 20:32:49.308 |                     0)                                                          
+2025-08-02 20:32:49.309 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:49.309 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:49.309 |                       Port: 22                                                  
+2025-08-02 20:32:49.309 |                       Username: kkingstoun                                      
+2025-08-02 20:32:49.309 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:49.310 |            DEBUG    Executing cluster stats command: cluster_stats_monitor.py:30
+2025-08-02 20:32:49.310 |                     bash                                                        
+2025-08-02 20:32:49.310 |                     /mnt/storage_3/home/kkingstoun/s                            
+2025-08-02 20:32:49.310 |                     cripts/check.sh -j                                          
+2025-08-02 20:32:49.405 |            INFO     Opening SSH connection to eagle.man.poznan.pl, logging.py:92
+2025-08-02 20:32:49.405 |                     port 22                                                     
+2025-08-02 20:32:49.415 |            INFO      Connected to SSH server at                    logging.py:92
+2025-08-02 20:32:49.415 |                     eagle.man.poznan.pl, port 22                                
+2025-08-02 20:32:49.416 |            INFO        Local address: 172.21.0.2, port 44552       logging.py:92
+2025-08-02 20:32:49.417 |            INFO        Peer address: 150.254.160.193, port 22      logging.py:92
+2025-08-02 20:32:49.418 |            DEBUG     Sending version SSH-2.0-AsyncSSH_2.14.0       logging.py:92
+2025-08-02 20:32:49.427 |            INFO     WebSocket tunnel_health connection by user:    routes.py:176
+2025-08-02 20:32:49.427 |                     admin                                                       
+2025-08-02 20:32:49.428 | INFO:     ('172.21.0.1', 42732) - "WebSocket /ws/tunnels/health?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:49.429 | DEBUG: Attempting to connect WebSocket to channel 'tunnel_health' for user '1'
+2025-08-02 20:32:49.429 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:49.429 | DEBUG: Added to channel 'tunnel_health', now has 1 connections
+2025-08-02 20:32:49.429 | DEBUG: Added to user '1' channel 'tunnel_health', user now has 1 connections in this channel
+2025-08-02 20:32:49.429 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:49.429 | DEBUG: Total connections: 2
+2025-08-02 20:32:49.429 | DEBUG: Total users: 1
+2025-08-02 20:32:49.429 | DEBUG: All channels: ['job_status', 'tunnel_health']
+2025-08-02 20:32:49.429 |            INFO     WebSocket connected to channel 'tunnel_health' manager.py:65
+2025-08-02 20:32:49.429 |                     (user: 1)                                                   
+2025-08-02 20:32:49.430 |            DEBUG     Received version SSH-2.0-OpenSSH_8.7          logging.py:92
+2025-08-02 20:32:49.431 |            DEBUG     Requesting key exchange                       logging.py:92
+2025-08-02 20:32:49.432 | INFO:     connection open
+2025-08-02 20:32:49.436 |            DEBUG     Received key exchange request                 logging.py:92
+2025-08-02 20:32:49.437 |            DEBUG     Beginning key exchange                        logging.py:92
+2025-08-02 20:32:49.452 |            DEBUG     Completed key exchange                        logging.py:92
+2025-08-02 20:32:49.457 |            INFO      Beginning auth for user kkingstoun            logging.py:92
+2025-08-02 20:32:49.462 |            DEBUG     Trying public key auth with rsa-sha2-256 key  logging.py:92
+2025-08-02 20:32:49.466 |            DEBUG     Signing request with rsa-sha2-256 key         logging.py:92
+2025-08-02 20:32:49.481 |            INFO      Auth for user kkingstoun succeeded            logging.py:92
+2025-08-02 20:32:49.482 |            DEBUG    SSH connection established successfully          slurm.py:75
+2025-08-02 20:32:49.484 |            DEBUG     Set write buffer limits: low-water=16384,     logging.py:92
+2025-08-02 20:32:49.484 |                     high-water=65536                                            
+2025-08-02 20:32:49.484 |            INFO      Requesting new SSH session                    logging.py:92
+2025-08-02 20:32:49.493 |            DEBUG     Received unknown global request:              logging.py:92
+2025-08-02 20:32:49.493 |                     hostkeys-00@openssh.com                                     
+2025-08-02 20:32:49.494 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:49.494 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:49.494 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:49.494 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:49.533 |            DEBUG     Received debug message:                       logging.py:92
+2025-08-02 20:32:49.533 |                     /mnt/storage_3/home/kkingstoun//.ssh/authorize              
+2025-08-02 20:32:49.533 |                     d_keys:8: key options: agent-forwarding                     
+2025-08-02 20:32:49.533 |                     port-forwarding pty user-rc x11-forwarding                  
+2025-08-02 20:32:49.534 |            INFO        Command: bash                               logging.py:92
+2025-08-02 20:32:49.534 |                     /mnt/storage_3/home/kkingstoun/scripts/check.s              
+2025-08-02 20:32:49.534 |                     h -j                                                        
+2025-08-02 20:32:49.744 | INFO:     ('172.21.0.1', 42746) - "WebSocket /ws/notifications?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:49.746 | DEBUG: Attempting to connect WebSocket to channel 'notifications' for user 'None'
+2025-08-02 20:32:49.746 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:49.746 | DEBUG: Added to channel 'notifications', now has 1 connections
+2025-08-02 20:32:49.746 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:49.746 | DEBUG: Total connections: 3
+2025-08-02 20:32:49.746 | DEBUG: Total users: 1
+2025-08-02 20:32:49.746 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:49.746 |            INFO     WebSocket connected to channel 'notifications' manager.py:65
+2025-08-02 20:32:49.746 |                     (user: None)                                                
+2025-08-02 20:32:49.746 | INFO:     connection open
+2025-08-02 20:32:50.182 | INFO:     ('172.21.0.1', 42762) - "WebSocket /ws/notifications?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:50.183 | DEBUG: Attempting to connect WebSocket to channel 'notifications' for user 'None'
+2025-08-02 20:32:50.183 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:50.183 | DEBUG: Added to channel 'notifications', now has 2 connections
+2025-08-02 20:32:50.183 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:50.183 | DEBUG: Total connections: 4
+2025-08-02 20:32:50.183 | DEBUG: Total users: 1
+2025-08-02 20:32:50.183 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:50.183 | [18:32:50] INFO     WebSocket connected to channel 'notifications' manager.py:65
+2025-08-02 20:32:50.183 |                     (user: None)                                                
+2025-08-02 20:32:50.183 | INFO:     connection open
+2025-08-02 20:32:50.495 | INFO:     ('172.21.0.1', 42766) - "WebSocket /ws/notifications?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:50.497 | DEBUG: Attempting to connect WebSocket to channel 'notifications' for user 'None'
+2025-08-02 20:32:50.497 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:50.497 | DEBUG: Added to channel 'notifications', now has 3 connections
+2025-08-02 20:32:50.497 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:50.497 | DEBUG: Total connections: 5
+2025-08-02 20:32:50.497 | DEBUG: Total users: 1
+2025-08-02 20:32:50.497 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:50.497 |            INFO     WebSocket connected to channel 'notifications' manager.py:65
+2025-08-02 20:32:50.497 |                     (user: None)                                                
+2025-08-02 20:32:50.497 | INFO:     connection open
+2025-08-02 20:32:50.818 | INFO:     ('172.21.0.1', 42774) - "WebSocket /ws/notifications?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:50.820 | DEBUG: Attempting to connect WebSocket to channel 'notifications' for user 'None'
+2025-08-02 20:32:50.820 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:50.820 | DEBUG: Added to channel 'notifications', now has 4 connections
+2025-08-02 20:32:50.820 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:50.820 | DEBUG: Total connections: 6
+2025-08-02 20:32:50.820 | DEBUG: Total users: 1
+2025-08-02 20:32:50.820 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:50.820 |            INFO     WebSocket connected to channel 'notifications' manager.py:65
+2025-08-02 20:32:50.820 |                     (user: None)                                                
+2025-08-02 20:32:50.820 | INFO:     connection open
+2025-08-02 20:32:51.146 | DEBUG: WebSocket connection attempt to /jobs/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:51.146 | DEBUG: User agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+2025-08-02 20:32:51.146 | DEBUG: Origin: https://amucontainers.orion.zfns.eu.org
+2025-08-02 20:32:51.146 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:51.146 | [18:32:51] INFO     WebSocket job_status connection attempt by      routes.py:49
+2025-08-02 20:32:51.146 |                     user: admin                                                 
+2025-08-02 20:32:51.147 | INFO:     ('172.21.0.1', 42780) - "WebSocket /ws/jobs/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:51.148 | DEBUG: Attempting to connect WebSocket to channel 'job_status' for user '1'
+2025-08-02 20:32:51.148 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:51.148 | DEBUG: Added to channel 'job_status', now has 2 connections
+2025-08-02 20:32:51.148 | DEBUG: Added to user '1' channel 'job_status', user now has 2 connections in this channel
+2025-08-02 20:32:51.148 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:51.148 | DEBUG: Total connections: 7
+2025-08-02 20:32:51.148 | DEBUG: Total users: 1
+2025-08-02 20:32:51.148 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:51.148 |            INFO     WebSocket connected to channel 'job_status'    manager.py:65
+2025-08-02 20:32:51.148 |                     (user: 1)                                                   
+2025-08-02 20:32:51.148 | INFO:     connection open
+2025-08-02 20:32:51.469 |            INFO     WebSocket tunnel_health connection by user:    routes.py:176
+2025-08-02 20:32:51.469 |                     admin                                                       
+2025-08-02 20:32:51.470 | INFO:     ('172.21.0.1', 42786) - "WebSocket /ws/tunnels/health?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:51.471 | DEBUG: Attempting to connect WebSocket to channel 'tunnel_health' for user '1'
+2025-08-02 20:32:51.471 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:51.471 | DEBUG: Added to channel 'tunnel_health', now has 2 connections
+2025-08-02 20:32:51.471 | DEBUG: Added to user '1' channel 'tunnel_health', user now has 2 connections in this channel
+2025-08-02 20:32:51.471 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:51.471 | DEBUG: Total connections: 8
+2025-08-02 20:32:51.471 | DEBUG: Total users: 1
+2025-08-02 20:32:51.471 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications']
+2025-08-02 20:32:51.471 |            INFO     WebSocket connected to channel 'tunnel_health' manager.py:65
+2025-08-02 20:32:51.471 |                     (user: 1)                                                   
+2025-08-02 20:32:51.471 | INFO:     connection open
+2025-08-02 20:32:51.808 | INFO:     ('172.21.0.1', 42790) - "WebSocket /ws/cluster/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:51.808 | DEBUG: WebSocket connection attempt to /cluster/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:51.808 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:51.808 |            INFO     WebSocket cluster_status connection attempt by routes.py:449
+2025-08-02 20:32:51.808 |                     user: admin                                                 
+2025-08-02 20:32:51.809 | DEBUG: Attempting to connect WebSocket to channel 'cluster_status' for user '1'
+2025-08-02 20:32:51.809 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:51.809 | DEBUG: Added to channel 'cluster_status', now has 1 connections
+2025-08-02 20:32:51.809 | DEBUG: Added to user '1' channel 'cluster_status', user now has 1 connections in this channel
+2025-08-02 20:32:51.809 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:51.809 | DEBUG: Total connections: 9
+2025-08-02 20:32:51.809 | DEBUG: Total users: 1
+2025-08-02 20:32:51.809 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:51.809 |            INFO     WebSocket connected to channel                 manager.py:65
+2025-08-02 20:32:51.809 |                     'cluster_status' (user: 1)                                  
+2025-08-02 20:32:51.809 | INFO:     connection open
+2025-08-02 20:32:51.811 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:51.811 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:51.811 |                       Port: 22                                                  
+2025-08-02 20:32:51.811 |                       Username: kkingstoun                                      
+2025-08-02 20:32:51.811 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:51.812 |            INFO     DEBUG: Fetching initial cluster status...      routes.py:488
+2025-08-02 20:32:51.817 |            INFO     DEBUG: Got initial status: <class 'dict'>      routes.py:490
+2025-08-02 20:32:51.818 |            INFO     DEBUG: Sent initial cluster status             routes.py:496
+2025-08-02 20:32:51.820 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:51.820 |                     '{"type":"ping","timestamp":"2025-08-02T18:30:              
+2025-08-02 20:32:51.820 |                     26.948Z"}'                                                  
+2025-08-02 20:32:51.821 |            DEBUG    Parsed message data: {'type': 'ping',          routes.py:529
+2025-08-02 20:32:51.821 |                     'timestamp': '2025-08-02T18:30:26.948Z'},                   
+2025-08-02 20:32:51.821 |                     type: <class 'dict'>                                        
+2025-08-02 20:32:52.122 | DEBUG: WebSocket connection attempt to /jobs/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:52.122 | DEBUG: User agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+2025-08-02 20:32:52.122 | DEBUG: Origin: https://amucontainers.orion.zfns.eu.org
+2025-08-02 20:32:52.122 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:52.122 | [18:32:52] INFO     WebSocket job_status connection attempt by      routes.py:49
+2025-08-02 20:32:52.122 |                     user: admin                                                 
+2025-08-02 20:32:52.123 | INFO:     ('172.21.0.1', 42792) - "WebSocket /ws/jobs/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:52.124 | DEBUG: Attempting to connect WebSocket to channel 'job_status' for user '1'
+2025-08-02 20:32:52.124 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:52.124 | DEBUG: Added to channel 'job_status', now has 3 connections
+2025-08-02 20:32:52.124 | DEBUG: Added to user '1' channel 'job_status', user now has 3 connections in this channel
+2025-08-02 20:32:52.124 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:52.124 | DEBUG: Total connections: 10
+2025-08-02 20:32:52.124 | DEBUG: Total users: 1
+2025-08-02 20:32:52.124 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:52.124 |            INFO     WebSocket connected to channel 'job_status'    manager.py:65
+2025-08-02 20:32:52.124 |                     (user: 1)                                                   
+2025-08-02 20:32:52.125 | INFO:     connection open
+2025-08-02 20:32:52.156 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:52.156 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:52.157 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:52.157 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:52.736 |            INFO     WebSocket tunnel_health connection by user:    routes.py:176
+2025-08-02 20:32:52.736 |                     admin                                                       
+2025-08-02 20:32:52.737 | INFO:     ('172.21.0.1', 42796) - "WebSocket /ws/tunnels/health?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:52.738 | DEBUG: Attempting to connect WebSocket to channel 'tunnel_health' for user '1'
+2025-08-02 20:32:52.738 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:52.738 | DEBUG: Added to channel 'tunnel_health', now has 3 connections
+2025-08-02 20:32:52.738 | DEBUG: Added to user '1' channel 'tunnel_health', user now has 3 connections in this channel
+2025-08-02 20:32:52.738 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:52.738 | DEBUG: Total connections: 11
+2025-08-02 20:32:52.738 | DEBUG: Total users: 1
+2025-08-02 20:32:52.738 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:52.738 |            INFO     WebSocket connected to channel 'tunnel_health' manager.py:65
+2025-08-02 20:32:52.738 |                     (user: 1)                                                   
+2025-08-02 20:32:52.738 | INFO:     connection open
+2025-08-02 20:32:53.068 | [18:32:53] DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:53.068 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:53.069 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:53.069 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:53.170 | DEBUG: WebSocket connection attempt to /jobs/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:53.170 | DEBUG: User agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+2025-08-02 20:32:53.170 | DEBUG: Origin: https://amucontainers.orion.zfns.eu.org
+2025-08-02 20:32:53.170 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:53.170 |            INFO     WebSocket job_status connection attempt by      routes.py:49
+2025-08-02 20:32:53.170 |                     user: admin                                                 
+2025-08-02 20:32:53.172 | DEBUG: Attempting to connect WebSocket to channel 'job_status' for user '1'
+2025-08-02 20:32:53.172 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:53.172 | DEBUG: Added to channel 'job_status', now has 4 connections
+2025-08-02 20:32:53.172 | DEBUG: Added to user '1' channel 'job_status', user now has 4 connections in this channel
+2025-08-02 20:32:53.172 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:53.172 | DEBUG: Total connections: 12
+2025-08-02 20:32:53.172 | DEBUG: Total users: 1
+2025-08-02 20:32:53.172 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:53.172 |            INFO     WebSocket connected to channel 'job_status'    manager.py:65
+2025-08-02 20:32:53.172 |                     (user: 1)                                                   
+2025-08-02 20:32:53.171 | INFO:     ('172.21.0.1', 42810) - "WebSocket /ws/jobs/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:53.172 | INFO:     connection open
+2025-08-02 20:32:53.254 |            ERROR    Error handling WebSocket message: 1001         routes.py:137
+2025-08-02 20:32:53.255 | DEBUG: Starting disconnect for WebSocket 131363743816288
+2025-08-02 20:32:53.255 | DEBUG: Disconnecting WebSocket from channel 'job_status' (user: 1)
+2025-08-02 20:32:53.255 | DEBUG: Removed from channel 'job_status', remaining: 3
+2025-08-02 20:32:53.255 | DEBUG: Removed from user '1' channel 'job_status', remaining: 3
+2025-08-02 20:32:53.255 | DEBUG: Removed metadata for WebSocket 131363743816288
+2025-08-02 20:32:53.255 | DEBUG: Disconnect completed. Total connections: 11, Total users: 1
+2025-08-02 20:32:53.255 |            INFO     WebSocket disconnected from channel           manager.py:119
+2025-08-02 20:32:53.255 |                     'job_status' (user: 1)                                      
+2025-08-02 20:32:53.256 |            ERROR    Error handling tunnel WebSocket message: 1001  routes.py:244
+2025-08-02 20:32:53.258 | DEBUG: Starting disconnect for WebSocket 131363743381296
+2025-08-02 20:32:53.258 | DEBUG: Disconnecting WebSocket from channel 'tunnel_health' (user: 1)
+2025-08-02 20:32:53.258 | DEBUG: Removed from channel 'tunnel_health', remaining: 2
+2025-08-02 20:32:53.258 | DEBUG: Removed from user '1' channel 'tunnel_health', remaining: 2
+2025-08-02 20:32:53.258 | DEBUG: Removed metadata for WebSocket 131363743381296
+2025-08-02 20:32:53.258 | DEBUG: Disconnect completed. Total connections: 10, Total users: 1
+2025-08-02 20:32:53.258 |            INFO     WebSocket disconnected from channel           manager.py:119
+2025-08-02 20:32:53.258 |                     'tunnel_health' (user: 1)                                   
+2025-08-02 20:32:53.259 | INFO:     connection closed
+2025-08-02 20:32:53.260 |            ERROR    Error handling notification WebSocket message: routes.py:321
+2025-08-02 20:32:53.260 |                     1001                                                        
+2025-08-02 20:32:53.262 | DEBUG: Starting disconnect for WebSocket 131363743004656
+2025-08-02 20:32:53.262 | DEBUG: Disconnecting WebSocket from channel 'notifications' (user: None)
+2025-08-02 20:32:53.262 | DEBUG: Removed from channel 'notifications', remaining: 3
+2025-08-02 20:32:53.262 | DEBUG: Removed metadata for WebSocket 131363743004656
+2025-08-02 20:32:53.262 | DEBUG: Disconnect completed. Total connections: 9, Total users: 1
+2025-08-02 20:32:53.262 |            INFO     WebSocket disconnected from channel           manager.py:119
+2025-08-02 20:32:53.262 |                     'notifications' (user: None)                                
+2025-08-02 20:32:53.262 | INFO:     connection closed
+2025-08-02 20:32:53.262 | INFO:     connection closed
+2025-08-02 20:32:53.493 | INFO:     ('172.21.0.1', 42820) - "WebSocket /ws/cluster/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:53.495 | INFO:     connection open
+2025-08-02 20:32:53.493 | DEBUG: WebSocket connection attempt to /cluster/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:53.493 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:53.493 |            INFO     WebSocket cluster_status connection attempt by routes.py:449
+2025-08-02 20:32:53.493 |                     user: admin                                                 
+2025-08-02 20:32:53.494 | DEBUG: Attempting to connect WebSocket to channel 'cluster_status' for user '1'
+2025-08-02 20:32:53.494 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:53.494 | DEBUG: Added to channel 'cluster_status', now has 2 connections
+2025-08-02 20:32:53.494 | DEBUG: Added to user '1' channel 'cluster_status', user now has 2 connections in this channel
+2025-08-02 20:32:53.494 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:53.494 | DEBUG: Total connections: 10
+2025-08-02 20:32:53.494 | DEBUG: Total users: 1
+2025-08-02 20:32:53.494 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:53.494 |            INFO     WebSocket connected to channel                 manager.py:65
+2025-08-02 20:32:53.494 |                     'cluster_status' (user: 1)                                  
+2025-08-02 20:32:53.497 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:53.497 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:53.497 |                       Port: 22                                                  
+2025-08-02 20:32:53.497 |                       Username: kkingstoun                                      
+2025-08-02 20:32:53.497 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:53.497 |            INFO     DEBUG: Fetching initial cluster status...      routes.py:488
+2025-08-02 20:32:53.501 |            INFO     DEBUG: Got initial status: <class 'dict'>      routes.py:490
+2025-08-02 20:32:53.502 |            INFO     DEBUG: Sent initial cluster status             routes.py:496
+2025-08-02 20:32:53.509 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:53.509 |                     '{"type":"ping","timestamp":"2025-08-02T18:30:              
+2025-08-02 20:32:53.509 |                     28.786Z"}'                                                  
+2025-08-02 20:32:53.511 |            DEBUG    Parsed message data: {'type': 'ping',          routes.py:529
+2025-08-02 20:32:53.511 |                     'timestamp': '2025-08-02T18:30:28.786Z'},                   
+2025-08-02 20:32:53.511 |                     type: <class 'dict'>                                        
+2025-08-02 20:32:53.519 | INFO:     127.0.0.1:42024 - "GET /health HTTP/1.1" 200 OK
+2025-08-02 20:32:53.815 |            INFO     WebSocket tunnel_health connection by user:    routes.py:176
+2025-08-02 20:32:53.816 |                     admin                                                       
+2025-08-02 20:32:53.816 | INFO:     ('172.21.0.1', 42826) - "WebSocket /ws/tunnels/health?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:53.817 | DEBUG: Attempting to connect WebSocket to channel 'tunnel_health' for user '1'
+2025-08-02 20:32:53.818 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:53.818 | DEBUG: Added to channel 'tunnel_health', now has 3 connections
+2025-08-02 20:32:53.818 | DEBUG: Added to user '1' channel 'tunnel_health', user now has 3 connections in this channel
+2025-08-02 20:32:53.818 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:53.818 | DEBUG: Total connections: 11
+2025-08-02 20:32:53.818 | DEBUG: Total users: 1
+2025-08-02 20:32:53.818 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:53.818 |            INFO     WebSocket connected to channel 'tunnel_health' manager.py:65
+2025-08-02 20:32:53.818 |                     (user: 1)                                                   
+2025-08-02 20:32:53.818 | INFO:     connection open
+2025-08-02 20:32:53.910 | INFO:     172.21.0.1:42838 - "GET /api/v1/cluster/usage/time-ranges HTTP/1.1" 200 OK
+2025-08-02 20:32:53.921 | INFO:     172.21.0.1:42850 - "GET /api/v1/cluster/usage/optimized?time_range=24h HTTP/1.1" 200 OK
+2025-08-02 20:32:53.925 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:32:53.927 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:32:53.938 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:32:53.938 | INFO:     172.21.0.1:42874 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:32:53.941 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:53.941 |                     failure_threshold=5,                                        
+2025-08-02 20:32:53.941 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:53.942 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:32:54.006 | [18:32:54] DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:32:54.052 | INFO:     172.21.0.1:42872 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:32:54.053 | INFO:     172.21.0.1:42866 - "GET /api/v1/users/active HTTP/1.1" 200 OK
+2025-08-02 20:32:54.055 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:54.055 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:54.057 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:54.058 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:54.061 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:54.061 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:54.062 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:54.062 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:54.067 | INFO:     172.21.0.1:42870 - "GET /api/v1/users/me HTTP/1.1" 200 OK
+2025-08-02 20:32:54.127 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.127 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.127 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.131 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.131 |                     async context                                               
+2025-08-02 20:32:54.135 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.135 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.135 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.138 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.138 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.138 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.140 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.140 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.140 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.142 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.142 |                     async context                                               
+2025-08-02 20:32:54.145 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.145 |                     async context                                               
+2025-08-02 20:32:54.148 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.148 |                     async context                                               
+2025-08-02 20:32:54.151 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.151 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.151 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.155 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.155 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.155 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.158 | INFO:     172.21.0.1:42866 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:32:54.159 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.159 |                     async context                                               
+2025-08-02 20:32:54.162 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:32:54.163 |                     async context                                               
+2025-08-02 20:32:54.166 | INFO:     172.21.0.1:42870 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:32:54.169 | INFO:     172.21.0.1:42872 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:32:54.181 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:32:54.181 |                     failure_threshold=5,                                        
+2025-08-02 20:32:54.181 |                     recovery_timeout=60s                                        
+2025-08-02 20:32:54.182 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:32:54.410 | INFO:     172.21.0.1:42874 - "GET /api/v1/jobs/admin/all HTTP/1.1" 200 OK
+2025-08-02 20:32:54.413 | INFO:     172.21.0.1:42866 - "GET /api/v1/users/ HTTP/1.1" 200 OK
+2025-08-02 20:32:54.490 | INFO:     ('172.21.0.1', 42878) - "WebSocket /ws/cluster/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:54.490 | DEBUG: WebSocket connection attempt to /cluster/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:54.490 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:54.490 |            INFO     WebSocket cluster_status connection attempt by routes.py:449
+2025-08-02 20:32:54.490 |                     user: admin                                                 
+2025-08-02 20:32:54.491 | DEBUG: Attempting to connect WebSocket to channel 'cluster_status' for user '1'
+2025-08-02 20:32:54.491 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:54.491 | DEBUG: Added to channel 'cluster_status', now has 3 connections
+2025-08-02 20:32:54.491 | DEBUG: Added to user '1' channel 'cluster_status', user now has 3 connections in this channel
+2025-08-02 20:32:54.491 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:54.491 | DEBUG: Total connections: 12
+2025-08-02 20:32:54.491 | DEBUG: Total users: 1
+2025-08-02 20:32:54.491 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:54.491 |            INFO     WebSocket connected to channel                 manager.py:65
+2025-08-02 20:32:54.491 |                     'cluster_status' (user: 1)                                  
+2025-08-02 20:32:54.491 | INFO:     connection open
+2025-08-02 20:32:54.493 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:54.493 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:54.493 |                       Port: 22                                                  
+2025-08-02 20:32:54.493 |                       Username: kkingstoun                                      
+2025-08-02 20:32:54.493 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:54.494 |            INFO     DEBUG: Fetching initial cluster status...      routes.py:488
+2025-08-02 20:32:54.498 |            INFO     DEBUG: Got initial status: <class 'dict'>      routes.py:490
+2025-08-02 20:32:54.499 |            INFO     DEBUG: Sent initial cluster status             routes.py:496
+2025-08-02 20:32:54.500 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:54.500 |                     '{"type":"ping","timestamp":"2025-08-02T18:30:              
+2025-08-02 20:32:54.500 |                     29.873Z"}'                                                  
+2025-08-02 20:32:54.502 |            DEBUG    Parsed message data: {'type': 'ping',          routes.py:529
+2025-08-02 20:32:54.502 |                     'timestamp': '2025-08-02T18:30:29.873Z'},                   
+2025-08-02 20:32:54.502 |                     type: <class 'dict'>                                        
+2025-08-02 20:32:54.726 |            INFO      Received exit status 0                        logging.py:92
+2025-08-02 20:32:54.727 |            INFO      Received channel close                        logging.py:92
+2025-08-02 20:32:54.728 |            INFO      Channel closed                                logging.py:92
+2025-08-02 20:32:54.729 |            INFO      Closing connection                            logging.py:92
+2025-08-02 20:32:54.730 |            INFO      Sending disconnect: Disconnected by           logging.py:92
+2025-08-02 20:32:54.730 |                     application (11)                                            
+2025-08-02 20:32:54.731 |            INFO      Connection closed                             logging.py:92
+2025-08-02 20:32:54.734 |            DEBUG    Cluster stats output:            cluster_stats_monitor.py:37
+2025-08-02 20:32:54.734 |                     === MONITOR KOLEJKI PROXIMA ===                             
+2025-08-02 20:32:54.734 |                     Sprawdzanie stanu na: Sat Aug  2                            
+2025-08-02 20:32:54.734 |                     20:32:49 CEST 2025                                          
+2025-08-02 20:32:54.734 |                                                                                 
+2025-08-02 20:32:54.734 |                     {                                                           
+2025-08-02 20:32:54.734 |                       "timestamp":                                              
+2025-08-02 20:32:54.734 |                     "2025-08-02T20:32:55+02:00",                                
+2025-08-02 20:32:54.734 |                       "nodes": {                                                
+2025-08-02 20:32:54.734 |                         "free": 0,                                              
+2025-08-02 20:32:54.734 |                         "busy": 9,                                              
+2025-08-02 20:32:54.734 |                         "sleeping": 68,                                         
+2025-08-02 20:32:54.734 |                         "total": 77                                             
+2025-08-02 20:32:54.734 |                       },                                                        
+2025-08-02 20:32:54.734 |                       "gpus": {                                                 
+2025-08-02 20:32:54.734 |                         "free": 265,                                            
+2025-08-02 20:32:54.734 |                         "busy": 27,                                             
+2025-08-02 20:32:54.734 |                         "total": 308                                            
+2025-08-02 20:32:54.734 |                       }                                                         
+2025-08-02 20:32:54.734 |                     }                                                           
+2025-08-02 20:32:54.734 |                                                                                 
+2025-08-02 20:32:54.736 |            DEBUG    Extracted JSON: {               cluster_stats_monitor.py:107
+2025-08-02 20:32:54.736 |                       "timestamp":                                              
+2025-08-02 20:32:54.736 |                     "2025-08-02T20:32:55+02:00",                                
+2025-08-02 20:32:54.736 |                       "nodes": {                                                
+2025-08-02 20:32:54.736 |                         "free": 0,                                              
+2025-08-02 20:32:54.736 |                         "busy": 9,                                              
+2025-08-02 20:32:54.736 |                         "sleeping": 68,                                         
+2025-08-02 20:32:54.736 |                         "total": 77                                             
+2025-08-02 20:32:54.736 |                       },                                                        
+2025-08-02 20:32:54.736 |                       "gpus": {                                                 
+2025-08-02 20:32:54.736 |                         "free": 265,                                            
+2025-08-02 20:32:54.736 |                         "busy": 27,                                             
+2025-08-02 20:32:54.736 |                         "total": 308                                            
+2025-08-02 20:32:54.736 |                       }                                                         
+2025-08-02 20:32:54.736 |                     }                                                           
+2025-08-02 20:32:54.737 |            INFO     Parsed cluster stats:            cluster_stats_monitor.py:43
+2025-08-02 20:32:54.737 |                     nodes=free:0/busy:9/sleeping:68/                            
+2025-08-02 20:32:54.737 |                     total:77,                                                   
+2025-08-02 20:32:54.737 |                     gpus=free:265/busy:27/total:308                             
+2025-08-02 20:32:54.751 |            INFO     Successfully updated cluster    cluster_stats_monitor.py:280
+2025-08-02 20:32:54.751 |                     stats in database:                                          
+2025-08-02 20:32:54.751 |                     nodes=free:0/busy:9/sleeping:68                             
+2025-08-02 20:32:54.751 |                     /total:77,                                                  
+2025-08-02 20:32:54.751 |                     gpus=free:265/busy:27/total:308                             
+2025-08-02 20:32:54.752 |            DEBUG    Cluster stats updated          cluster_monitoring_task.py:81
+2025-08-02 20:32:54.752 |                     successfully                                                
+2025-08-02 20:32:54.906 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:54.906 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:54.907 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:54.907 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:55.390 | [18:32:55] INFO      Received exit status 0                        logging.py:92
+2025-08-02 20:32:55.391 |            INFO      Received channel close                        logging.py:92
+2025-08-02 20:32:55.393 |            INFO      Channel closed                                logging.py:92
+2025-08-02 20:32:55.395 |            INFO      Closing connection                            logging.py:92
+2025-08-02 20:32:55.396 |            INFO      Sending disconnect: Disconnected by           logging.py:92
+2025-08-02 20:32:55.396 |                     application (11)                                            
+2025-08-02 20:32:55.397 |            INFO      Connection closed                             logging.py:92
+2025-08-02 20:32:55.401 |            DEBUG    Cluster stats output:            cluster_stats_monitor.py:37
+2025-08-02 20:32:55.401 |                     === MONITOR KOLEJKI PROXIMA ===                             
+2025-08-02 20:32:55.401 |                     Sprawdzanie stanu na: Sat Aug  2                            
+2025-08-02 20:32:55.401 |                     20:32:50 CEST 2025                                          
+2025-08-02 20:32:55.401 |                                                                                 
+2025-08-02 20:32:55.401 |                     {                                                           
+2025-08-02 20:32:55.401 |                       "timestamp":                                              
+2025-08-02 20:32:55.401 |                     "2025-08-02T20:32:56+02:00",                                
+2025-08-02 20:32:55.401 |                       "nodes": {                                                
+2025-08-02 20:32:55.401 |                         "free": 0,                                              
+2025-08-02 20:32:55.401 |                         "busy": 9,                                              
+2025-08-02 20:32:55.401 |                         "sleeping": 68,                                         
+2025-08-02 20:32:55.401 |                         "total": 77                                             
+2025-08-02 20:32:55.401 |                       },                                                        
+2025-08-02 20:32:55.401 |                       "gpus": {                                                 
+2025-08-02 20:32:55.401 |                         "free": 265,                                            
+2025-08-02 20:32:55.401 |                         "busy": 27,                                             
+2025-08-02 20:32:55.401 |                         "total": 308                                            
+2025-08-02 20:32:55.401 |                       }                                                         
+2025-08-02 20:32:55.401 |                     }                                                           
+2025-08-02 20:32:55.401 |                                                                                 
+2025-08-02 20:32:55.403 |            DEBUG    Extracted JSON: {               cluster_stats_monitor.py:107
+2025-08-02 20:32:55.403 |                       "timestamp":                                              
+2025-08-02 20:32:55.403 |                     "2025-08-02T20:32:56+02:00",                                
+2025-08-02 20:32:55.403 |                       "nodes": {                                                
+2025-08-02 20:32:55.403 |                         "free": 0,                                              
+2025-08-02 20:32:55.403 |                         "busy": 9,                                              
+2025-08-02 20:32:55.403 |                         "sleeping": 68,                                         
+2025-08-02 20:32:55.403 |                         "total": 77                                             
+2025-08-02 20:32:55.403 |                       },                                                        
+2025-08-02 20:32:55.403 |                       "gpus": {                                                 
+2025-08-02 20:32:55.403 |                         "free": 265,                                            
+2025-08-02 20:32:55.403 |                         "busy": 27,                                             
+2025-08-02 20:32:55.403 |                         "total": 308                                            
+2025-08-02 20:32:55.403 |                       }                                                         
+2025-08-02 20:32:55.403 |                     }                                                           
+2025-08-02 20:32:55.404 |            INFO     Parsed cluster stats:            cluster_stats_monitor.py:43
+2025-08-02 20:32:55.404 |                     nodes=free:0/busy:9/sleeping:68/                            
+2025-08-02 20:32:55.404 |                     total:77,                                                   
+2025-08-02 20:32:55.404 |                     gpus=free:265/busy:27/total:308                             
+2025-08-02 20:32:55.497 |            INFO     Successfully updated cluster    cluster_stats_monitor.py:280
+2025-08-02 20:32:55.497 |                     stats in database:                                          
+2025-08-02 20:32:55.497 |                     nodes=free:0/busy:9/sleeping:68                             
+2025-08-02 20:32:55.497 |                     /total:77,                                                  
+2025-08-02 20:32:55.497 |                     gpus=free:265/busy:27/total:308                             
+2025-08-02 20:32:55.498 |            DEBUG    Successfully updated cluster statistics slurm_monitor.py:335
+2025-08-02 20:32:55.500 |            DEBUG    Successfully updated cluster data       slurm_monitor.py:118
+2025-08-02 20:32:55.819 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:55.819 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:55.820 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:55.820 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:56.382 | INFO:     ('172.21.0.1', 42882) - "WebSocket /ws/notifications?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:56.383 | DEBUG: Attempting to connect WebSocket to channel 'notifications' for user 'None'
+2025-08-02 20:32:56.384 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:56.384 | DEBUG: Added to channel 'notifications', now has 4 connections
+2025-08-02 20:32:56.384 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:56.384 | DEBUG: Total connections: 13
+2025-08-02 20:32:56.384 | DEBUG: Total users: 1
+2025-08-02 20:32:56.384 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:56.384 | [18:32:56] INFO     WebSocket connected to channel 'notifications' manager.py:65
+2025-08-02 20:32:56.384 |                     (user: None)                                                
+2025-08-02 20:32:56.384 | INFO:     connection open
+2025-08-02 20:32:56.709 |            INFO     WebSocket tunnel_health connection by user:    routes.py:176
+2025-08-02 20:32:56.709 |                     admin                                                       
+2025-08-02 20:32:56.711 | DEBUG: Attempting to connect WebSocket to channel 'tunnel_health' for user '1'
+2025-08-02 20:32:56.711 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:56.711 | DEBUG: Added to channel 'tunnel_health', now has 4 connections
+2025-08-02 20:32:56.711 | DEBUG: Added to user '1' channel 'tunnel_health', user now has 4 connections in this channel
+2025-08-02 20:32:56.711 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:56.711 | DEBUG: Total connections: 14
+2025-08-02 20:32:56.711 | DEBUG: Total users: 1
+2025-08-02 20:32:56.711 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:56.711 |            INFO     WebSocket connected to channel 'tunnel_health' manager.py:65
+2025-08-02 20:32:56.711 |                     (user: 1)                                                   
+2025-08-02 20:32:56.710 | INFO:     ('172.21.0.1', 42892) - "WebSocket /ws/tunnels/health?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:56.711 | INFO:     connection open
+2025-08-02 20:32:57.654 | INFO:     ('172.21.0.1', 42896) - "WebSocket /ws/cluster/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:57.653 | DEBUG: WebSocket connection attempt to /cluster/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:57.654 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:57.654 | [18:32:57] INFO     WebSocket cluster_status connection attempt by routes.py:449
+2025-08-02 20:32:57.654 |                     user: admin                                                 
+2025-08-02 20:32:57.655 | DEBUG: Attempting to connect WebSocket to channel 'cluster_status' for user '1'
+2025-08-02 20:32:57.655 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:57.655 | DEBUG: Added to channel 'cluster_status', now has 4 connections
+2025-08-02 20:32:57.655 | DEBUG: Added to user '1' channel 'cluster_status', user now has 4 connections in this channel
+2025-08-02 20:32:57.655 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:57.655 | DEBUG: Total connections: 15
+2025-08-02 20:32:57.655 | DEBUG: Total users: 1
+2025-08-02 20:32:57.655 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:57.655 |            INFO     WebSocket connected to channel                 manager.py:65
+2025-08-02 20:32:57.655 |                     'cluster_status' (user: 1)                                  
+2025-08-02 20:32:57.655 | INFO:     connection open
+2025-08-02 20:32:57.657 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:57.657 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:57.657 |                       Port: 22                                                  
+2025-08-02 20:32:57.657 |                       Username: kkingstoun                                      
+2025-08-02 20:32:57.657 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:57.659 |            INFO     DEBUG: Fetching initial cluster status...      routes.py:488
+2025-08-02 20:32:57.662 |            INFO     DEBUG: Got initial status: <class 'dict'>      routes.py:490
+2025-08-02 20:32:57.663 |            INFO     DEBUG: Sent initial cluster status             routes.py:496
+2025-08-02 20:32:57.665 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:57.665 |                     '{"type":"ping","timestamp":"2025-08-02T18:30:              
+2025-08-02 20:32:57.665 |                     33.324Z"}'                                                  
+2025-08-02 20:32:57.666 |            DEBUG    Parsed message data: {'type': 'ping',          routes.py:529
+2025-08-02 20:32:57.666 |                     'timestamp': '2025-08-02T18:30:33.324Z'},                   
+2025-08-02 20:32:57.666 |                     type: <class 'dict'>                                        
+2025-08-02 20:32:57.802 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:57.802 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:57.803 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:57.803 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:58.138 | [18:32:58] DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:58.138 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:58.139 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:58.139 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:58.191 | INFO:     172.21.0.1:42866 - "GET /api/v1/jobs/status HTTP/1.1" 200 OK
+2025-08-02 20:32:58.298 | DEBUG: WebSocket connection attempt to /jobs/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:58.298 | DEBUG: User agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/138.0.0.0 Safari/537.36
+2025-08-02 20:32:58.298 | DEBUG: Origin: https://amucontainers.orion.zfns.eu.org
+2025-08-02 20:32:58.298 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:58.298 |            INFO     WebSocket job_status connection attempt by      routes.py:49
+2025-08-02 20:32:58.298 |                     user: admin                                                 
+2025-08-02 20:32:58.299 | INFO:     ('172.21.0.1', 42910) - "WebSocket /ws/jobs/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:58.300 | DEBUG: Attempting to connect WebSocket to channel 'job_status' for user '1'
+2025-08-02 20:32:58.300 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:58.300 | DEBUG: Added to channel 'job_status', now has 4 connections
+2025-08-02 20:32:58.300 | DEBUG: Added to user '1' channel 'job_status', user now has 4 connections in this channel
+2025-08-02 20:32:58.300 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:58.300 | DEBUG: Total connections: 16
+2025-08-02 20:32:58.300 | DEBUG: Total users: 1
+2025-08-02 20:32:58.300 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:58.300 |            INFO     WebSocket connected to channel 'job_status'    manager.py:65
+2025-08-02 20:32:58.300 |                     (user: 1)                                                   
+2025-08-02 20:32:58.300 | INFO:     connection open
+2025-08-02 20:32:59.239 | INFO:     ('172.21.0.1', 36380) - "WebSocket /ws/cluster/status?token=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsImV4cCI6MTc1NDE2MDYzMn0.dlYRTl1qMyecB6LYckK6zM3tHYbnxilv9rkbcpXfc_I" [accepted]
+2025-08-02 20:32:59.239 | DEBUG: WebSocket connection attempt to /cluster/status with token: eyJhbGciOiJIUzI1NiIs...
+2025-08-02 20:32:59.239 | DEBUG: Authentication successful for user: admin (id: 1)
+2025-08-02 20:32:59.239 | [18:32:59] INFO     WebSocket cluster_status connection attempt by routes.py:449
+2025-08-02 20:32:59.239 |                     user: admin                                                 
+2025-08-02 20:32:59.240 | DEBUG: Attempting to connect WebSocket to channel 'cluster_status' for user '1'
+2025-08-02 20:32:59.240 | DEBUG: WebSocket accepted successfully
+2025-08-02 20:32:59.240 | DEBUG: Added to channel 'cluster_status', now has 5 connections
+2025-08-02 20:32:59.240 | DEBUG: Added to user '1' channel 'cluster_status', user now has 5 connections in this channel
+2025-08-02 20:32:59.240 | DEBUG: Connection registered successfully!
+2025-08-02 20:32:59.240 | DEBUG: Total connections: 17
+2025-08-02 20:32:59.240 | DEBUG: Total users: 1
+2025-08-02 20:32:59.240 | DEBUG: All channels: ['job_status', 'tunnel_health', 'notifications', 'cluster_status']
+2025-08-02 20:32:59.240 |            INFO     WebSocket connected to channel                 manager.py:65
+2025-08-02 20:32:59.240 |                     'cluster_status' (user: 1)                                  
+2025-08-02 20:32:59.240 | INFO:     connection open
+2025-08-02 20:32:59.242 |            DEBUG    Initializing SLURM SSH Service                   slurm.py:44
+2025-08-02 20:32:59.242 |                       Host: eagle.man.poznan.pl                                 
+2025-08-02 20:32:59.242 |                       Port: 22                                                  
+2025-08-02 20:32:59.242 |                       Username: kkingstoun                                      
+2025-08-02 20:32:59.242 |                       Key file: /root/.ssh/id_rsa                               
+2025-08-02 20:32:59.243 |            INFO     DEBUG: Fetching initial cluster status...      routes.py:488
+2025-08-02 20:32:59.246 |            INFO     DEBUG: Got initial status: <class 'dict'>      routes.py:490
+2025-08-02 20:32:59.247 |            INFO     DEBUG: Sent initial cluster status             routes.py:496
+2025-08-02 20:32:59.248 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:59.248 |                     '{"type":"ping","timestamp":"2025-08-02T18:30:              
+2025-08-02 20:32:59.248 |                     35.053Z"}'                                                  
+2025-08-02 20:32:59.249 |            DEBUG    Parsed message data: {'type': 'ping',          routes.py:529
+2025-08-02 20:32:59.249 |                     'timestamp': '2025-08-02T18:30:35.053Z'},                   
+2025-08-02 20:32:59.249 |                     type: <class 'dict'>                                        
+2025-08-02 20:32:59.397 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:59.397 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:59.398 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:59.398 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:32:59.726 |            DEBUG    Received WebSocket message:                    routes.py:527
+2025-08-02 20:32:59.726 |                     '{"type":"request_status"}'                                 
+2025-08-02 20:32:59.727 |            DEBUG    Parsed message data: {'type':                  routes.py:529
+2025-08-02 20:32:59.727 |                     'request_status'}, type: <class 'dict'>                     
+2025-08-02 20:33:16.660 | [18:33:16] INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:16.660 |                     failure_threshold=5,                                        
+2025-08-02 20:33:16.660 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:16.661 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:16.662 |            DEBUG    Created port allocation lock in loop        ssh_tunnel.py:73
+2025-08-02 20:33:16.662 |                     106781593023648                                             
+2025-08-02 20:33:16.664 |            DEBUG    get_or_create_tunnel: got lock:            ssh_tunnel.py:484
+2025-08-02 20:33:16.664 |                     <asyncio.locks.Lock object at                               
+2025-08-02 20:33:16.664 |                     0x77798138e910 >                                            
+2025-08-02 20:33:16.665 |            DEBUG    get_or_create_tunnel: entering async with  ssh_tunnel.py:495
+2025-08-02 20:33:16.665 |                     lock                                                        
+2025-08-02 20:33:16.666 |            INFO     Starting atomic tunnel restoration after   ssh_tunnel.py:265
+2025-08-02 20:33:16.666 |                     backend restart                                             
+2025-08-02 20:33:16.677 |            INFO     No candidate tunnels found for restoration ssh_tunnel.py:290
+2025-08-02 20:33:16.682 |            INFO     Getting or creating tunnel for job 947     ssh_tunnel.py:514
+2025-08-02 20:33:16.687 |            INFO     Creating new tunnel for job 947            ssh_tunnel.py:570
+2025-08-02 20:33:16.688 |            DEBUG    [DEBUG] create_tunnel: job_id=947          ssh_tunnel.py:573
+2025-08-02 20:33:16.693 |            DEBUG    Created cleanup lock                       ssh_tunnel.py:654
+2025-08-02 20:33:16.694 |            INFO     Starting cleanup of inactive tunnels       ssh_tunnel.py:709
+2025-08-02 20:33:16.698 |            INFO     Found 0 tunnels marked as ACTIVE in        ssh_tunnel.py:720
+2025-08-02 20:33:16.699 |                     database                                                    
+2025-08-02 20:33:16.705 |            INFO     Cleanup completed in 0.01 seconds          ssh_tunnel.py:820
+2025-08-02 20:33:16.715 | INFO:     172.21.0.1:35234 - "GET /api/v1/jobs/947/domain-status HTTP/1.1" 200 OK
+2025-08-02 20:33:22.378 | [18:33:22] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:22.379 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:22.379 |                     <class 'dict'>                                              
+2025-08-02 20:33:24.116 | [18:33:24] INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.116 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.116 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.117 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:24.172 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:24.220 | INFO:     172.21.0.1:54116 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:33:24.223 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:24.224 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:24.229 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:24.229 | INFO:     172.21.0.1:54110 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:33:24.232 |            DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:24.234 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:24.234 |                     <class 'dict'>                                              
+2025-08-02 20:33:24.261 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.261 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.261 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.264 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.264 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.264 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.266 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.266 |                     async context                                               
+2025-08-02 20:33:24.268 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.268 |                     async context                                               
+2025-08-02 20:33:24.271 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.271 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.271 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.274 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.274 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.274 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.275 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.275 |                     async context                                               
+2025-08-02 20:33:24.278 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.278 |                     async context                                               
+2025-08-02 20:33:24.280 | INFO:     172.21.0.1:54116 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:24.282 | INFO:     172.21.0.1:54110 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:24.290 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.290 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.290 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.291 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.291 |                     async context                                               
+2025-08-02 20:33:24.295 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:24.295 |                     failure_threshold=5,                                        
+2025-08-02 20:33:24.295 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:24.296 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:24.296 |                     async context                                               
+2025-08-02 20:33:24.299 | INFO:     172.21.0.1:54116 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:25.139 | [18:33:25] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:25.140 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:25.140 |                     <class 'dict'>                                              
+2025-08-02 20:33:26.330 | INFO:     127.0.0.1:44206 - "GET /health HTTP/1.1" 200 OK
+2025-08-02 20:33:27.904 | [18:33:27] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:27.905 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:27.905 |                     <class 'dict'>                                              
+2025-08-02 20:33:29.723 | [18:33:29] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:29.724 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:29.724 |                     <class 'dict'>                                              
+2025-08-02 20:33:33.691 | [18:33:33] INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.691 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.691 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.692 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:33.738 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:33.782 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:33:33.785 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:33.786 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:33.791 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:33.791 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:33:33.799 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.799 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.799 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.801 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:33.852 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:33.893 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:33:33.901 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:33.901 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:33.906 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:33.906 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:33:33.913 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.913 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.913 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.915 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.915 |                     async context                                               
+2025-08-02 20:33:33.919 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.919 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.919 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.921 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.921 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.921 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.923 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.923 |                     async context                                               
+2025-08-02 20:33:33.926 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.926 |                     async context                                               
+2025-08-02 20:33:33.928 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:33.931 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.931 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.931 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.932 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.932 |                     async context                                               
+2025-08-02 20:33:33.937 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:33.941 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.941 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.941 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.945 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.945 |                     async context                                               
+2025-08-02 20:33:33.949 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.949 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.949 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.951 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:33.951 |                     failure_threshold=5,                                        
+2025-08-02 20:33:33.951 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:33.952 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:33.952 |                     async context                                               
+2025-08-02 20:33:33.954 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:34.010 | [18:33:34] DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:34.055 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:33:34.057 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.068 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:34.068 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:34.073 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:34.073 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:33:34.075 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.075 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.075 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.077 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.077 |                     async context                                               
+2025-08-02 20:33:34.083 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.083 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.083 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.086 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.086 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.086 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.088 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.088 |                     async context                                               
+2025-08-02 20:33:34.090 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.091 |                     async context                                               
+2025-08-02 20:33:34.092 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.095 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.095 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.095 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.097 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.097 |                     async context                                               
+2025-08-02 20:33:34.102 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.105 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.105 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.105 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.107 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.107 |                     async context                                               
+2025-08-02 20:33:34.112 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.112 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.112 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.116 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.116 |                     async context                                               
+2025-08-02 20:33:34.120 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.120 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.120 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.123 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.123 |                     async context                                               
+2025-08-02 20:33:34.124 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.128 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.128 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.128 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.131 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.131 |                     async context                                               
+2025-08-02 20:33:34.137 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.137 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.137 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.138 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.141 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.141 |                     async context                                               
+2025-08-02 20:33:34.146 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.146 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.146 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.148 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.148 |                     async context                                               
+2025-08-02 20:33:34.153 | INFO:     172.21.0.1:55866 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:34.157 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.157 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.157 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.159 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.159 |                     async context                                               
+2025-08-02 20:33:34.162 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:34.162 |                     failure_threshold=5,                                        
+2025-08-02 20:33:34.162 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:34.163 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:34.163 |                     async context                                               
+2025-08-02 20:33:34.165 | INFO:     172.21.0.1:55856 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:48.569 | INFO:     172.21.0.1:37240 - "GET /api/v1/jobs/947/domain-status HTTP/1.1" 200 OK
+2025-08-02 20:33:48.637 | INFO:     172.21.0.1:37240 - "GET /api/v1/jobs/947/domain-status HTTP/1.1" 200 OK
+2025-08-02 20:33:52.619 | [18:33:52] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:52.620 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:52.620 |                     <class 'dict'>                                              
+2025-08-02 20:33:54.440 | [18:33:54] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:54.441 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:54.441 |                     <class 'dict'>                                              
+2025-08-02 20:33:54.745 | INFO:     172.21.0.1:41964 - "GET /api/v1/users/active HTTP/1.1" 200 OK
+2025-08-02 20:33:54.748 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:54.750 |            DEBUG    Fetching active jobs for user: admin             jobs.py:127
+2025-08-02 20:33:54.756 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:54.756 | INFO:     172.21.0.1:41996 - "GET /api/v1/jobs/active-jobs HTTP/1.1" 200 OK
+2025-08-02 20:33:54.759 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.759 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.759 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.760 |            INFO     Background cleanup task started            ssh_tunnel.py:126
+2025-08-02 20:33:54.811 |            DEBUG    Pobrano 3 zadań dla użytkownika admin   slurm_monitor.py:370
+2025-08-02 20:33:54.855 | INFO:     172.21.0.1:41980 - "GET /api/v1/jobs/ HTTP/1.1" 200 OK
+2025-08-02 20:33:54.903 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.903 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.903 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.905 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.905 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.905 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.908 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.908 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.908 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.909 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.909 |                     async context                                               
+2025-08-02 20:33:54.911 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.911 |                     async context                                               
+2025-08-02 20:33:54.914 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.914 |                     async context                                               
+2025-08-02 20:33:54.916 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.916 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.916 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.918 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.918 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.918 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.920 |            INFO     SLURM Circuit Breaker initialized:     circuit_breaker.py:87
+2025-08-02 20:33:54.920 |                     failure_threshold=5,                                        
+2025-08-02 20:33:54.920 |                     recovery_timeout=60s                                        
+2025-08-02 20:33:54.922 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.922 |                     async context                                               
+2025-08-02 20:33:54.924 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.924 |                     async context                                               
+2025-08-02 20:33:54.927 |            DEBUG    Background tasks will start when entering  ssh_tunnel.py:129
+2025-08-02 20:33:54.927 |                     async context                                               
+2025-08-02 20:33:54.930 | INFO:     172.21.0.1:41964 - "GET /api/v1/jobs/944/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:54.930 | INFO:     172.21.0.1:41980 - "GET /api/v1/jobs/947/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:54.932 | INFO:     172.21.0.1:41996 - "GET /api/v1/jobs/950/tunnels HTTP/1.1" 200 OK
+2025-08-02 20:33:55.368 | [18:33:55] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:55.369 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:55.369 |                     <class 'dict'>                                              
+2025-08-02 20:33:59.022 | [18:33:59] DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:59.023 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:59.023 |                     <class 'dict'>                                              
+2025-08-02 20:33:59.151 | INFO:     127.0.0.1:51566 - "GET /health HTTP/1.1" 200 OK
+2025-08-02 20:33:59.954 |            DEBUG    Received WebSocket message: '{"type":"ping"}'  routes.py:527
+2025-08-02 20:33:59.955 |            DEBUG    Parsed message data: {'type': 'ping'}, type:   routes.py:529
+2025-08-02 20:33:59.955 |                     <class 'dict'>                                              
+2025-08-02 20:34:01.156 | [18:34:01] INFO     Graceful shutdown initiated - closing all  ssh_tunnel.py:158
+2025-08-02 20:34:01.156 |                     tunnels                                                     
+2025-08-02 20:34:01.161 |            INFO     Marked all active tunnels as closed in     ssh_tunnel.py:183
+2025-08-02 20:34:01.161 |                     database                                                    

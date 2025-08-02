@@ -370,7 +370,9 @@ class JobService:
                                 setattr(db_job, "node", str(node))
 
                                 # Create SSH tunnel
-                                tunnel = await tunnel_service.create_tunnel(db_job)
+                                tunnel = await tunnel_service.create_tunnel(
+                                    db_job.id  # type: ignore
+                                )
                                 if tunnel:
                                     msg = f"Created tunnel: {job_id}"
                                     cluster_logger.info(msg)
@@ -384,13 +386,20 @@ class JobService:
 
                         # Check if this is a final state - if so, stop monitoring
                         if mapped_status in completed_states:
-                            cluster_logger.info(f"Job {job_id} reached final state: {mapped_status}, stopping monitoring")
+                            cluster_logger.info(
+                                f"Job {job_id} reached final state: "
+                                f"{mapped_status}, stopping monitoring"
+                            )
                             # Close tunnels and cleanup
                             try:
-                                await tunnel_service.close_job_tunnels(int(db_job.id))
+                                await tunnel_service.close_job_tunnels(
+                                    db_job.id  # type: ignore
+                                )
                             except Exception as e:
                                 err = str(e).replace("[", "«").replace("]", "»")
-                                cluster_logger.warning(f"Error closing tunnels for job {job_id}: {err}")
+                                cluster_logger.warning(
+                                    f"Error closing tunnels for job {job_id}: {err}"
+                                )
                             job_service._cleanup_caddy_for_job(db_job)
                             break
 
@@ -419,19 +428,26 @@ class JobService:
                             
                             # Check if job still exists in DB before updating
                             try:
-                                # Refresh the job from database to ensure it's still there
-                                job_check = db.query(Job).filter(Job.job_id == job_id).first()
+                                # Refresh job from database to ensure it exists
+                                job_check = db.query(Job).filter(
+                                    Job.job_id == job_id
+                                ).first()
                                 if job_check:
                                     setattr(db_job, "status", "COMPLETED")
                                     db.commit()
                                     
                                     # Close tunnels and cleanup Caddy
                                     try:
-                                        await tunnel_service.close_job_tunnels(int(db_job.id))
+                                        await tunnel_service.close_job_tunnels(
+                                            db_job.id  # type: ignore
+                                        )
                                     except Exception as e:
-                                        err = str(e).replace("[", "«").replace("]", "»")
+                                        err = str(e).replace("[", "«").replace(
+                                            "]", "»"
+                                        )
                                         cluster_logger.warning(
-                                            f"Error closing tunnels for job {job_id}: {err}"
+                                            f"Error closing tunnels for job "
+                                            f"{job_id}: {err}"
                                         )
                                     job_service._cleanup_caddy_for_job(db_job)
                                 else:
@@ -465,10 +481,15 @@ class JobService:
                     final_status = str(final_job.status)
                     completed_states = ["COMPLETED", "FAILED", "CANCELLED"]
                     if final_status in completed_states:
-                        cluster_logger.info(f"Job {job_id} monitoring ended, final status: {final_status}")
+                        cluster_logger.info(
+                            f"Job {job_id} monitoring ended, "
+                            f"final status: {final_status}"
+                        )
                         # Final cleanup
                         try:
-                            await tunnel_service.close_job_tunnels(int(final_job.id))
+                            await tunnel_service.close_job_tunnels(
+                                final_job.id  # type: ignore
+                            )
                         except Exception:
                             pass
                         try:

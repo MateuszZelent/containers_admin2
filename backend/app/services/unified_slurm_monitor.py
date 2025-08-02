@@ -19,7 +19,7 @@ from sqlalchemy import create_engine, func
 from app.core.config import settings
 from app.core.logging import cluster_logger
 from app.db.models import Job, TaskQueueJob, User, SSHTunnel, ClusterStatus
-from app.services.slurm import get_slurm_service
+from app.services.slurm import SlurmSSHService
 from app.services.ssh_tunnel import SSHTunnelService
 
 
@@ -74,7 +74,7 @@ class UnifiedSlurmMonitor:
     
     def __init__(self, db_session_factory: sessionmaker = None):
         """Initialize the unified monitor"""
-        self.slurm_service = get_slurm_service()
+        self.slurm_service = SlurmSSHService()
         
         if db_session_factory:
             self.SessionLocal = db_session_factory
@@ -596,7 +596,7 @@ class UnifiedSlurmMonitor:
         """Create SSH tunnel for a running job"""
         try:
             tunnel_service = SSHTunnelService()
-            tunnel = await tunnel_service.create_tunnel(job)
+            tunnel = await tunnel_service.create_tunnel(job.id)  # type: ignore
             
             if tunnel:
                 self._metrics.active_tunnels += 1

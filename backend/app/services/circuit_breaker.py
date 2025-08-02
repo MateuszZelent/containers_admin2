@@ -58,6 +58,16 @@ class SlurmCircuitBreaker:
         success_threshold: int = 2,
         timeout: int = 30
     ):
+        # Validate parameters
+        if failure_threshold <= 0:
+            raise ValueError("failure_threshold must be > 0")
+        if recovery_timeout <= 0:
+            raise ValueError("recovery_timeout must be > 0")
+        if success_threshold <= 0:
+            raise ValueError("success_threshold must be > 0")
+        if timeout <= 0:
+            raise ValueError("timeout must be > 0")
+            
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout  # seconds
         self.success_threshold = success_threshold
@@ -93,7 +103,8 @@ class SlurmCircuitBreaker:
     
     @property
     def metrics(self) -> CircuitBreakerMetrics:
-        """Get circuit breaker metrics"""
+        """Get circuit breaker metrics (thread-safe)"""
+        # Create consistent snapshot without async complications
         self._metrics.failure_count = self._failure_count
         self._metrics.success_count = self._success_count
         total_reqs = self._failure_count + self._success_count
@@ -102,6 +113,19 @@ class SlurmCircuitBreaker:
         self._metrics.last_success_time = self._last_success_time
         self._metrics.current_state = self._state
         return self._metrics
+
+    async def get_metrics_async(self) -> CircuitBreakerMetrics:
+        """Get circuit breaker metrics (fully thread-safe async version)"""
+        async with self._get_lock():
+            metrics = CircuitBreakerMetrics()
+            metrics.failure_count = self._failure_count
+            metrics.success_count = self._success_count
+            metrics.total_requests = self._failure_count + self._success_count
+            metrics.last_failure_time = self._last_failure_time
+            metrics.last_success_time = self._last_success_time
+            metrics.current_state = self._state
+            metrics.state_changes = self._metrics.state_changes
+            return metrics
     
     async def call(self, func: Callable, *args, **kwargs) -> Any:
         """
@@ -124,39 +148,39 @@ class SlurmCircuitBreaker:
             if not self._should_attempt_call():
                 raise CircuitBreakerException("SLURM", self._failure_count)
             
-            # If in HALF_OPEN state, only allow limited requests
-            if (self._state == CircuitBreakerState.HALF_OPEN and
-                    self._success_count >= self.success_threshold):
-                # Enough successes to close the circuit
-                await self._close_circuit()
-        
-        # Execute the function with timeout
-        try:
-            if asyncio.iscoroutinefunction(func):
-                result = await asyncio.wait_for(
-                    func(*args, **kwargs),
-                    timeout=self.timeout
-                )
-            else:
-                result = await asyncio.wait_for(
-                    asyncio.get_event_loop().run_in_executor(
-                        None, func, *args, **kwargs
-                    ),
-                    timeout=self.timeout
-                )
-            
-            # Success - handle state transitions
-            await self._on_success()
-            return result
-            
-        except asyncio.TimeoutError as e:
-            cluster_logger.warning("SLURM operation timed out after "
-                                   f"{self.timeout}s")
-            await self._on_failure()
-            raise e
-        except Exception as e:
-            await self._on_failure()
-            raise e
+            # Execute function with timeout (within lock for thread safety)
+            try:
+                if asyncio.iscoroutinefunction(func):
+                    result = await asyncio.wait_for(
+                        func(*args, **kwargs),
+                        timeout=self.timeout
+                    )
+                else:
+                    result = await asyncio.wait_for(
+                        asyncio.get_running_loop().run_in_executor(
+                            None, func, *args, **kwargs
+                        ),
+                        timeout=self.timeout
+                    )
+                
+                # Handle success (internal - no additional lock needed)
+                self._success_count += 1
+                self._last_success_time = datetime.now()
+                
+                if self._state == CircuitBreakerState.HALF_OPEN:
+                    if self._success_count >= self.success_threshold:
+                        self._close_circuit_internal()
+                
+                return result
+                
+            except asyncio.TimeoutError as e:
+                cluster_logger.warning("SLURM operation timed out after "
+                                       f"{self.timeout}s")
+                self._handle_failure_internal()
+                raise e
+            except Exception as e:
+                self._handle_failure_internal()
+                raise e
     
     def _should_attempt_call(self) -> bool:
         """Check if we should attempt to call the function"""
@@ -195,19 +219,23 @@ class SlurmCircuitBreaker:
     async def _on_failure(self):
         """Handle failed function execution"""
         async with self._get_lock():
-            self._failure_count += 1
-            self._last_failure_time = datetime.now()
-            
-            if self._state == CircuitBreakerState.CLOSED:
-                if self._failure_count >= self.failure_threshold:
-                    await self._open_circuit()
-            
-            elif self._state == CircuitBreakerState.HALF_OPEN:
-                # Any failure in HALF_OPEN state opens the circuit again
-                await self._open_circuit()
+            self._handle_failure_internal()
     
     async def _open_circuit(self):
         """Open the circuit breaker"""
+        self._state = CircuitBreakerState.OPEN
+        timeout_delta = timedelta(seconds=self.recovery_timeout)
+        recovery_time = datetime.now() + timeout_delta
+        self._next_attempt_time = recovery_time
+        self._metrics.state_changes += 1
+        
+        cluster_logger.warning(
+            f"Circuit breaker OPENED. Failures: {self._failure_count}. "
+            f"Next attempt at: {self._next_attempt_time}"
+        )
+
+    def _open_circuit_internal(self):
+        """Internal open circuit - assumes lock is already held"""
         self._state = CircuitBreakerState.OPEN
         timeout_delta = timedelta(seconds=self.recovery_timeout)
         recovery_time = datetime.now() + timeout_delta
@@ -228,6 +256,28 @@ class SlurmCircuitBreaker:
         self._metrics.state_changes += 1
         
         cluster_logger.info("Circuit breaker CLOSED - service recovered")
+
+    def _close_circuit_internal(self):
+        """Internal close circuit - assumes lock is already held"""
+        self._state = CircuitBreakerState.CLOSED
+        self._failure_count = 0
+        self._success_count = 0
+        self._next_attempt_time = None
+        self._metrics.state_changes += 1
+        
+        cluster_logger.info("Circuit breaker CLOSED - service recovered")
+
+    def _handle_failure_internal(self):
+        """Internal failure handler - assumes lock is already held"""
+        self._failure_count += 1
+        self._last_failure_time = datetime.now()
+        
+        if self._state == CircuitBreakerState.CLOSED:
+            if self._failure_count >= self.failure_threshold:
+                self._open_circuit_internal()
+        elif self._state == CircuitBreakerState.HALF_OPEN:
+            # Any failure in HALF_OPEN state opens the circuit again
+            self._open_circuit_internal()
     
     def is_open(self) -> bool:
         """Check if circuit breaker is open (blocking requests)"""
@@ -254,7 +304,7 @@ class SlurmCircuitBreaker:
             cluster_logger.info("Circuit breaker manually reset")
     
     def get_status(self) -> dict:
-        """Get current status for monitoring"""
+        """Get current status for monitoring (thread-safe snapshot)"""
         return {
             "state": self._state.value,
             "failure_count": self._failure_count,
@@ -268,6 +318,23 @@ class SlurmCircuitBreaker:
             "next_attempt": (self._next_attempt_time.isoformat()
                              if self._next_attempt_time else None)
         }
+
+    async def get_status_async(self) -> dict:
+        """Get current status for monitoring (fully thread-safe)"""
+        async with self._get_lock():
+            return {
+                "state": self._state.value,
+                "failure_count": self._failure_count,
+                "success_count": self._success_count,
+                "failure_threshold": self.failure_threshold,
+                "recovery_timeout": self.recovery_timeout,
+                "last_failure": (self._last_failure_time.isoformat()
+                                 if self._last_failure_time else None),
+                "last_success": (self._last_success_time.isoformat()
+                                 if self._last_success_time else None),
+                "next_attempt": (self._next_attempt_time.isoformat()
+                                 if self._next_attempt_time else None)
+            }
 
 
 # Global circuit breaker instance

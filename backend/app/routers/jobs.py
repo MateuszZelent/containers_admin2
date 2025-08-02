@@ -614,7 +614,7 @@ async def create_job_tunnel(
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     tunnel_service = SSHTunnelService()
-    tunnel = await tunnel_service.create_tunnel(job)
+    tunnel = await tunnel_service.create_tunnel(job_id)
     if not tunnel:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -685,25 +685,53 @@ async def get_code_server_url(
     """
     Get code-server URL for a job, creating SSH tunnel if needed and configuring Caddy.
     """
+    jobs_logger.info(
+        f"🚀 CODE-SERVER REQUEST: Starting for job_id={job_id}, "
+        f"user={current_user.username}"
+    )
+    
     job = JobService.get(db=db, job_id=job_id)
     if not job:
+        jobs_logger.error(f"❌ CODE-SERVER: Job {job_id} not found")
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    jobs_logger.info(
+        f"✅ CODE-SERVER: Job {job_id} found - status={job.status}, "
+        f"port={job.port}, node={job.node}"
+    )
     if job.owner_id != current_user.id:
+        jobs_logger.error(
+            f"❌ CODE-SERVER: Access denied for job {job_id}, "
+            f"owner_id={job.owner_id}, user_id={current_user.id}"
+        )
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
     if not job.port or not job.node or job.status != "RUNNING":
+        jobs_logger.error(
+            f"❌ CODE-SERVER: Job {job_id} not ready - "
+            f"status={job.status}, port={job.port}, node={job.node}"
+        )
         raise HTTPException(
             status_code=400, detail="Job is not running or missing port/node info"
         )
 
+    jobs_logger.info(f"🔀 CODE-SERVER: Starting tunnel creation for job {job_id}")
     # Create or get existing tunnel
     tunnel_service = SSHTunnelService()
     tunnel = await tunnel_service.get_or_create_tunnel(job_id)
+    
     if not tunnel:
+        jobs_logger.error(f"❌ CODE-SERVER: Tunnel creation failed for job {job_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not establish SSH tunnel. Please try again later.",
         )
+    
+    jobs_logger.info(
+        f"✅ CODE-SERVER: Tunnel created/found for job {job_id} - "
+        f"tunnel_id={tunnel.id}, local_port={tunnel.local_port}, "
+        f"status={tunnel.status}"
+    )
 
     # Generate domain name using username and container name
     # Extract the user-provided container name from job_name
@@ -728,26 +756,41 @@ async def get_code_server_url(
     # Generate domain using username and clean container name
     domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
 
+    jobs_logger.info(
+        f"🌐 CODE-SERVER: Configuring Caddy for domain={domain}, "
+        f"target_port={tunnel.local_port}"
+    )
+    
     # Configure Caddy to route the domain to the local tunnel port
     caddy_client = CaddyAPIClient(CADDY_API_URL)
 
     try:
+        jobs_logger.info(f"🔧 CODE-SERVER: Calling Caddy API for domain {domain}")
         success = caddy_client.add_domain_with_auto_tls(
             domain=domain, target="localhost", target_port=tunnel.local_port
         )
+        jobs_logger.info(f"📋 CODE-SERVER: Caddy API response: {success}")
 
         if not success:
+            jobs_logger.error(f"❌ CODE-SERVER: Caddy returned false for {domain}")
             raise Exception("Caddy configuration returned false")
+        
+        jobs_logger.info(f"✅ CODE-SERVER: Caddy configured successfully for {domain}")
         
         # Mark domain as ready after successful Caddy configuration
         job_service = JobService(db)
         job_service.update_domain_ready_status(job.id, True)
-        jobs_logger.info(f"Domain {domain} configured and marked as ready for job {job.id}")
+        jobs_logger.info(
+            f"✅ CODE-SERVER: Domain {domain} marked as ready for job {job.id}"
+        )
 
     except Exception as e:
-        jobs_logger.error(f"Failed to configure Caddy domain {domain}: {e}")
+        jobs_logger.error(
+            f"❌ CODE-SERVER: Caddy configuration failed for {domain}: {e}"
+        )
 
         # If Caddy configuration fails, clean up the tunnel
+        jobs_logger.info(f"🧹 CODE-SERVER: Cleaning up tunnel {tunnel.id}")
         await tunnel_service.close_tunnel(tunnel.id)
 
         # Return more specific error message about Caddy unavailability
