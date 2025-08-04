@@ -70,10 +70,8 @@ async def get_jobs(
     db_jobs_map = {job.job_id: job for job in db_jobs}
 
     # Get active jobs directly from database instead of snapshots
-    active_jobs = await monitor_service.get_user_active_jobs(
-        db, current_user.username
-    )
-    
+    active_jobs = await monitor_service.get_user_active_jobs(db, current_user.username)
+
     # We don't need to update anything here as the monitor service
     # already keeps the job statuses up to date
 
@@ -124,9 +122,7 @@ async def get_active_jobs(
     try:
         from app.services.slurm_monitor import monitor_service
 
-        jobs_logger.debug(
-            f"Fetching active jobs for user: {current_user.username}"
-        )
+        jobs_logger.debug(f"Fetching active jobs for user: {current_user.username}")
 
         # Get active jobs from database
         active_jobs = await monitor_service.get_user_active_jobs(
@@ -188,7 +184,10 @@ async def get_templates(
     for filename in os.listdir(template_dir):
         if not filename.endswith(".template"):
             continue
-        if current_user.allowed_templates is not None and filename not in current_user.allowed_templates:
+        if (
+            current_user.allowed_templates is not None
+            and filename not in current_user.allowed_templates
+        ):
             continue
         templates.append(filename)
 
@@ -201,7 +200,10 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
     Raises HTTPException if limits are exceeded.
     """
     # Check template permissions
-    if user.allowed_templates is not None and job_in.template_name not in user.allowed_templates:
+    if (
+        user.allowed_templates is not None
+        and job_in.template_name not in user.allowed_templates
+    ):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="User not allowed to use this template",
@@ -212,24 +214,24 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
         db.query(Job)
         .filter(
             Job.owner_id == user.id,
-            Job.status.in_(["RUNNING", "PENDING", "CONFIGURING"])
+            Job.status.in_(["RUNNING", "PENDING", "CONFIGURING"]),
         )
         .all()
     )
-    
+
     # Check max containers limit
     if user.max_containers is not None:
         active_jobs_count = len(active_jobs)
-        
+
         if active_jobs_count >= user.max_containers:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"❌ Przekroczono limit kontenerów!\n"
-                       f"🔸 Maksymalna liczba: {user.max_containers}\n"
-                       f"🔸 Aktualnie aktywnych: {active_jobs_count}\n"
-                       f"💡 Usuń nieużywane kontenery, aby zwolnić miejsce."
+                f"🔸 Maksymalna liczba: {user.max_containers}\n"
+                f"🔸 Aktualnie aktywnych: {active_jobs_count}\n"
+                f"💡 Usuń nieużywane kontenery, aby zwolnić miejsce.",
             )
-    
+
     # Check per-job GPU limit
     if user.max_gpus_per_job is not None and job_in.num_gpus > user.max_gpus_per_job:
         raise HTTPException(
@@ -244,23 +246,25 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
     # Check max GPUs limit
     if user.max_gpus is not None and job_in.num_gpus > 0:
         total_gpus_used = sum([job.num_gpus or 0 for job in active_jobs])
-        
+
         if total_gpus_used + job_in.num_gpus > user.max_gpus:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"❌ Przekroczono limit kart graficznych!\n"
-                       f"🔸 Maksymalna liczba GPU: {user.max_gpus}\n"
-                       f"🔸 Aktualnie używanych: {total_gpus_used}\n"
-                       f"🔸 Żądanych dla nowego joba: {job_in.num_gpus}\n"
-                       f"🔸 Po utworzeniu wykorzystanie: "
-                       f"{total_gpus_used + job_in.num_gpus}\n"
-                       f"💡 Usuń kontenery używające GPU lub zmniejsz liczbę GPU."
+                f"🔸 Maksymalna liczba GPU: {user.max_gpus}\n"
+                f"🔸 Aktualnie używanych: {total_gpus_used}\n"
+                f"🔸 Żądanych dla nowego joba: {job_in.num_gpus}\n"
+                f"🔸 Po utworzeniu wykorzystanie: "
+                f"{total_gpus_used + job_in.num_gpus}\n"
+                f"💡 Usuń kontenery używające GPU lub zmniejsz liczbę GPU.",
             )
 
     # Check max job time limit
     if user.max_time_limit_hours is not None:
         try:
-            hours, minutes, seconds = [int(part) for part in job_in.time_limit.split(":")]
+            hours, minutes, seconds = [
+                int(part) for part in job_in.time_limit.split(":")
+            ]
             requested_hours = hours + minutes / 60 + seconds / 3600
         except Exception:
             requested_hours = 0
@@ -274,57 +278,57 @@ async def _check_user_limits(db: Session, user: User, job_in: JobCreate) -> None
                     f"🔸 Żądane: {requested_hours:.2f}"
                 ),
             )
-    
+
     # Check max CPU cores limit (if exists)
-    if hasattr(user, 'max_cpu_cores') and user.max_cpu_cores is not None:
+    if hasattr(user, "max_cpu_cores") and user.max_cpu_cores is not None:
         total_cpus_used = sum([job.num_cpus or 0 for job in active_jobs])
-        
+
         if total_cpus_used + job_in.num_cpus > user.max_cpu_cores:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"❌ Przekroczono limit rdzeni CPU!\n"
-                       f"🔸 Maksymalna liczba rdzeni: {user.max_cpu_cores}\n"
-                       f"🔸 Aktualnie używanych: {total_cpus_used}\n"
-                       f"🔸 Żądanych dla nowego joba: {job_in.num_cpus}\n"
-                       f"🔸 Po utworzeniu wykorzystanie: "
-                       f"{total_cpus_used + job_in.num_cpus}\n"
-                       f"💡 Usuń kontenery lub zmniejsz liczbę rdzeni CPU."
+                f"🔸 Maksymalna liczba rdzeni: {user.max_cpu_cores}\n"
+                f"🔸 Aktualnie używanych: {total_cpus_used}\n"
+                f"🔸 Żądanych dla nowego joba: {job_in.num_cpus}\n"
+                f"🔸 Po utworzeniu wykorzystanie: "
+                f"{total_cpus_used + job_in.num_cpus}\n"
+                f"💡 Usuń kontenery lub zmniejsz liczbę rdzeni CPU.",
             )
-    
+
     # Check max memory limit (if exists)
-    if hasattr(user, 'max_memory_gb') and user.max_memory_gb is not None:
+    if hasattr(user, "max_memory_gb") and user.max_memory_gb is not None:
         total_memory_used = sum([job.memory_gb or 0 for job in active_jobs])
-        
+
         if total_memory_used + job_in.memory_gb > user.max_memory_gb:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"❌ Przekroczono limit pamięci RAM!\n"
-                       f"🔸 Maksymalna pamięć: {user.max_memory_gb} GB\n"
-                       f"🔸 Aktualnie używana: {total_memory_used} GB\n"
-                       f"🔸 Żądana dla nowego joba: {job_in.memory_gb} GB\n"
-                       f"🔸 Po utworzeniu wykorzystanie: "
-                       f"{total_memory_used + job_in.memory_gb} GB\n"
-                       f"💡 Usuń kontenery lub zmniejsz ilość pamięci RAM."
+                f"🔸 Maksymalna pamięć: {user.max_memory_gb} GB\n"
+                f"🔸 Aktualnie używana: {total_memory_used} GB\n"
+                f"🔸 Żądana dla nowego joba: {job_in.memory_gb} GB\n"
+                f"🔸 Po utworzeniu wykorzystanie: "
+                f"{total_memory_used + job_in.memory_gb} GB\n"
+                f"💡 Usuń kontenery lub zmniejsz ilość pamięci RAM.",
             )
-    
+
     # Check max nodes limit (if exists)
-    if hasattr(user, 'max_nodes') and user.max_nodes is not None:
+    if hasattr(user, "max_nodes") and user.max_nodes is not None:
         active_nodes = set()
         for job in active_jobs:
             if job.node:
                 active_nodes.add(job.node)
-        
+
         # Assume new job will use 1 node if not specified
-        requested_nodes = getattr(job_in, 'num_nodes', 1)
-        
+        requested_nodes = getattr(job_in, "num_nodes", 1)
+
         if len(active_nodes) + requested_nodes > user.max_nodes:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"❌ Przekroczono limit węzłów obliczeniowych!\n"
-                       f"🔸 Maksymalna liczba węzłów: {user.max_nodes}\n"
-                       f"🔸 Aktualnie używanych węzłów: {len(active_nodes)}\n"
-                       f"🔸 Żądanych dla nowego joba: {requested_nodes}\n"
-                       f"💡 Usuń kontenery z innych węzłów."
+                f"🔸 Maksymalna liczba węzłów: {user.max_nodes}\n"
+                f"🔸 Aktualnie używanych węzłów: {len(active_nodes)}\n"
+                f"🔸 Żądanych dla nowego joba: {requested_nodes}\n"
+                f"💡 Usuń kontenery z innych węzłów.",
             )
 
 
@@ -342,8 +346,9 @@ async def create_job(
     """
     # Check user limits and permissions
     await _check_user_limits(db, current_user, job_in)
-    
+
     from app.services.slurm import SlurmSSHService
+
     slurm_service = SlurmSSHService()
     job_service = JobService(db)
     job_name = f"container_{current_user.username}_{job_in.job_name}"
@@ -507,34 +512,32 @@ async def get_job_log(
         raise HTTPException(status_code=404, detail="Job not found")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
-    
+
     try:
         job_service = JobService(db)
         log_content = job_service.get_job_log(job.job_id, "out")
-        
+
         if log_content is None:
             return {
                 "job_id": job_id,
                 "slurm_job_id": job.job_id,
                 "log_content": "",
                 "message": "Log file not found or not yet created",
-                "has_content": False
+                "has_content": False,
             }
-        
+
         return {
             "job_id": job_id,
             "slurm_job_id": job.job_id,
             "log_content": log_content,
             "message": "Log retrieved successfully",
             "has_content": True,
-            "content_length": len(log_content)
+            "content_length": len(log_content),
         }
-        
+
     except Exception as e:
         jobs_logger.error(f"Error getting log for job {job_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve job log"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve job log")
 
 
 @router.get("/{job_id}/error")
@@ -551,34 +554,32 @@ async def get_job_error(
         raise HTTPException(status_code=404, detail="Job not found")
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
-    
+
     try:
         job_service = JobService(db)
         error_content = job_service.get_job_error(job.job_id)
-        
+
         if error_content is None:
             return {
                 "job_id": job_id,
                 "slurm_job_id": job.job_id,
                 "error_content": "",
                 "message": "Error file not found or not yet created",
-                "has_content": False
+                "has_content": False,
             }
-        
+
         return {
             "job_id": job_id,
             "slurm_job_id": job.job_id,
             "error_content": error_content,
             "message": "Error log retrieved successfully",
             "has_content": True,
-            "content_length": len(error_content)
+            "content_length": len(error_content),
         }
-        
+
     except Exception as e:
         jobs_logger.error(f"Error getting error log for job {job_id}: {str(e)}")
-        raise HTTPException(
-            status_code=500, detail="Failed to retrieve job error log"
-        )
+        raise HTTPException(status_code=500, detail="Failed to retrieve job error log")
 
 
 @router.get("/{job_id}/tunnels", response_model=List[SSHTunnelInfo])
@@ -689,12 +690,12 @@ async def get_code_server_url(
         f"🚀 CODE-SERVER REQUEST: Starting for job_id={job_id}, "
         f"user={current_user.username}"
     )
-    
+
     job = JobService.get(db=db, job_id=job_id)
     if not job:
         jobs_logger.error(f"❌ CODE-SERVER: Job {job_id} not found")
         raise HTTPException(status_code=404, detail="Job not found")
-    
+
     jobs_logger.info(
         f"✅ CODE-SERVER: Job {job_id} found - status={job.status}, "
         f"port={job.port}, node={job.node}"
@@ -719,14 +720,14 @@ async def get_code_server_url(
     # Create or get existing tunnel
     tunnel_service = SSHTunnelService()
     tunnel = await tunnel_service.get_or_create_tunnel(job_id)
-    
+
     if not tunnel:
         jobs_logger.error(f"❌ CODE-SERVER: Tunnel creation failed for job {job_id}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Could not establish SSH tunnel. Please try again later.",
         )
-    
+
     jobs_logger.info(
         f"✅ CODE-SERVER: Tunnel created/found for job {job_id} - "
         f"tunnel_id={tunnel.id}, local_port={tunnel.local_port}, "
@@ -760,7 +761,7 @@ async def get_code_server_url(
         f"🌐 CODE-SERVER: Configuring Caddy for domain={domain}, "
         f"target_port={tunnel.local_port}"
     )
-    
+
     # Configure Caddy to route the domain to the local tunnel port
     caddy_client = CaddyAPIClient(CADDY_API_URL)
 
@@ -774,9 +775,9 @@ async def get_code_server_url(
         if not success:
             jobs_logger.error(f"❌ CODE-SERVER: Caddy returned false for {domain}")
             raise Exception("Caddy configuration returned false")
-        
+
         jobs_logger.info(f"✅ CODE-SERVER: Caddy configured successfully for {domain}")
-        
+
         # Mark domain as ready after successful Caddy configuration
         job_service = JobService(db)
         job_service.update_domain_ready_status(job.id, True)
@@ -1127,9 +1128,7 @@ async def get_active_all_jobs(
     try:
         from app.services.slurm_monitor import monitor_service
 
-        jobs_logger.debug(
-            f"Fetching all active jobs for user: {current_user.username}"
-        )
+        jobs_logger.debug(f"Fetching all active jobs for user: {current_user.username}")
 
         # Get all active jobs (containers + task_queue) from monitoring service
         all_active_jobs = await monitor_service.get_user_all_active_jobs(
@@ -1160,14 +1159,12 @@ async def get_active_all_jobs(
                 "reason": "",
                 "monitoring_active": True,
                 "last_updated": (
-                    job["updated_at"].isoformat() 
-                    if job["updated_at"] else None
+                    job["updated_at"].isoformat() if job["updated_at"] else None
                 ),
                 "template": job.get("template_name", "unknown"),
                 "created_at": job["created_at"].isoformat(),
                 "updated_at": (
-                    job["updated_at"].isoformat() 
-                    if job["updated_at"] else None
+                    job["updated_at"].isoformat() if job["updated_at"] else None
                 ),
                 # Additional fields for task_queue
                 "simulation_file": job.get("simulation_file"),
@@ -1198,42 +1195,42 @@ async def mark_domain_ready(
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """Mark a job's domain as ready (called by Caddy or monitoring system)."""
-    
+
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job with ID {job_id} not found"
+                detail=f"Job with ID {job_id} not found",
             )
-        
-        # Check if user owns the job or is superuser  
+
+        # Check if user owns the job or is superuser
         if job.owner_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions to update this job"
+                detail="Not enough permissions to update this job",
             )
-        
+
         # Update domain_ready status
         job.domain_ready = True
         db.commit()
         db.refresh(job)
-        
+
         jobs_logger.info(f"Domain marked as ready for job {job_id}")
-        
+
         return {
             "message": f"Domain marked as ready for job {job_id}",
             "job_id": job.id,
-            "domain_ready": job.domain_ready
+            "domain_ready": job.domain_ready,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
         jobs_logger.error(f"Error marking domain ready for job {job_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to mark domain ready: {str(e)}"
+            detail=f"Failed to mark domain ready: {str(e)}",
         )
 
 
@@ -1244,60 +1241,57 @@ async def get_domain_status(
     current_user: User = Depends(get_current_active_user),
 ) -> Dict[str, Any]:
     """Get domain readiness status for a job."""
-    
+
     try:
         job = db.query(Job).filter(Job.id == job_id).first()
         if not job:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job with ID {job_id} not found"
+                detail=f"Job with ID {job_id} not found",
             )
-        
+
         # Check if user owns the job or is superuser
         if job.owner_id != current_user.id and not current_user.is_superuser:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
-                detail="Not enough permissions to access this job"
+                detail="Not enough permissions to access this job",
             )
-        
+
         # Generate URL if domain is ready
         url = None
         if job.domain_ready and job.status == "RUNNING":
             # Generate domain name using same logic as code-server endpoint
             username_prefix = f"container_{current_user.username}_"
             if job.job_name.startswith(username_prefix):
-                user_container_name = job.job_name[len(username_prefix):]
+                user_container_name = job.job_name[len(username_prefix) :]
             else:
                 user_container_name = job.job_name
-            
+
             # Sanitize container name using centralized method
             safe_container_name = JobService.sanitize_container_name_for_domain(
                 user_container_name
             )
             if not safe_container_name:
                 safe_container_name = f"job{job.id}"
-            
+
             # Generate domain using username and clean container name
-            domain = (f"{current_user.username}-{safe_container_name}"
-                      f".orion.zfns.eu.org")
+            domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
             url = f"https://{domain}"
-        
+
         return {
             "job_id": job.id,
             "domain_ready": job.domain_ready,
             "status": job.status,
             "node": job.node,
             "port": job.port,
-            "url": url
+            "url": url,
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        jobs_logger.error(f"Error getting domain status for job "
-                          f"{job_id}: {str(e)}")
+        jobs_logger.error(f"Error getting domain status for job {job_id}: {str(e)}")
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to get domain status: {str(e)}"
+            detail=f"Failed to get domain status: {str(e)}",
         )
-

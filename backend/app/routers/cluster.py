@@ -10,7 +10,7 @@ from app.services.resource_usage import ResourceUsageService
 from app.services.chart_optimization import (
     ChartOptimizationService,
     TimeRange,
-    ChartConfiguration
+    ChartConfiguration,
 )
 from app.core.auth import (
     get_current_active_user_with_cli_support,
@@ -146,28 +146,30 @@ async def get_optimized_usage_data(
             "7d": TimeRange.LAST_7_DAYS,
             "14d": TimeRange.LAST_14_DAYS,
         }
-        
+
         if time_range not in time_range_map:
             raise HTTPException(
-                status_code=400, 
-                detail=f"Invalid time range. Available: {list(time_range_map.keys())}"
+                status_code=400,
+                detail=f"Invalid time range. Available: {list(time_range_map.keys())}",
             )
-        
+
         range_enum = time_range_map[time_range]
         config = ChartOptimizationService.get_optimal_config(range_enum)
         data = ChartOptimizationService.get_aggregated_data(db, config)
-        
+
         return {
             "data": data,
             "metadata": {
                 "time_range": time_range,
-                "aggregation_level": config.aggregation.value if config.aggregation else "raw",
+                "aggregation_level": config.aggregation.value
+                if config.aggregation
+                else "raw",
                 "max_points": config.max_points,
                 "actual_points": len(data),
-                "optimized": True
-            }
+                "optimized": True,
+            },
         }
-        
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -179,5 +181,5 @@ async def get_available_time_ranges(
     """Get list of available time ranges for optimized chart data."""
     return {
         "time_ranges": ChartOptimizationService.get_available_time_ranges(),
-        "default": "24h"
+        "default": "24h",
     }

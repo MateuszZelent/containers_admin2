@@ -199,6 +199,11 @@ class TaskQueueJob(Base):
     results_file = Column(String, nullable=True)  # Path to results file
     logs = Column(Text, nullable=True)  # Capture logs from simulation
 
+    # Upload/original file tracking
+    used_original = Column(Boolean, default=False, nullable=False)
+    original_path = Column(String, nullable=True)
+    original_md5 = Column(String, nullable=True)
+
     # Job execution tracking
     retry_count = Column(Integer, default=0)  # Number of retry attempts
     priority = Column(Integer, default=0)  # Task priority (higher = more important)
@@ -375,11 +380,9 @@ class ClusterStats(Base):
 
     def __repr__(self):
         return (
-            f"<ClusterStats("
-            f"nodes=free:{self.free_nodes}/busy:{self.busy_nodes}/"
+            f"<ClusterStats(nodes=free:{self.free_nodes}/busy:{self.busy_nodes}/"
             f"sleeping:{self.sleeping_nodes}/total:{self.total_nodes}, "
-            f"gpus=free:{self.free_gpus}/busy:{self.busy_gpus}/"
-            f"total:{self.total_gpus})>"
+            f"gpus=free:{self.free_gpus}/busy:{self.busy_gpus}/total:{self.total_gpus})>"
         )
 
 

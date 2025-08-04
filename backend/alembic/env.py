@@ -33,8 +33,6 @@ target_metadata = Base.metadata
 
 # Override the sqlalchemy.url from the INI file
 config.set_main_option("sqlalchemy.url", settings.DATABASE_URL)
-# Use SQLite for testing
-# config.set_main_option("sqlalchemy.url", "sqlite:///./slurm_containers.db")
 
 
 def run_migrations_offline():

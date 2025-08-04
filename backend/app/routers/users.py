@@ -54,14 +54,15 @@ def read_user_me(
 ) -> Any:
     """
     Get current user with optional usage information.
-    
+
     Args:
         include_usage: If True, includes current resource usage statistics
     """
     if include_usage:
         from app.services.user import UserService
+
         usage_data = UserService.get_user_current_usage(db, current_user)
-        
+
         # Convert user model to dict and add usage
         user_dict = {
             "id": current_user.id,
@@ -79,10 +80,10 @@ def read_user_me(
             "is_active": current_user.is_active,
             "is_superuser": current_user.is_superuser,
             "code_server_password": current_user.code_server_password,
-            "current_usage": usage_data
+            "current_usage": usage_data,
         }
         return user_dict
-    
+
     return current_user
 
 
@@ -96,7 +97,7 @@ def get_user_usage(
     Get current user's resource usage and limits.
     """
     from app.services.user import UserService
-    
+
     usage_data = UserService.get_user_current_usage(db, current_user)
     return usage_data
 
@@ -237,7 +238,7 @@ async def upload_avatar(
     *,
     db: Session = Depends(get_db),
     current_user: UserModel = Depends(get_current_active_user),
-    file: UploadFile = File(...)
+    file: UploadFile = File(...),
 ) -> Any:
     """
     Upload avatar for current user.
@@ -245,56 +246,53 @@ async def upload_avatar(
     # Validate file type
     if not file.content_type or not file.content_type.startswith("image/"):
         raise HTTPException(
-            status_code=400, 
-            detail="File must be an image (jpg, png, gif, etc.)"
+            status_code=400, detail="File must be an image (jpg, png, gif, etc.)"
         )
-    
+
     # Validate file size (max 2MB)
     MAX_SIZE = 2 * 1024 * 1024  # 2MB
     file_content = await file.read()
     if len(file_content) > MAX_SIZE:
-        raise HTTPException(
-            status_code=400,
-            detail="File size must be less than 2MB"
-        )
-    
+        raise HTTPException(status_code=400, detail="File size must be less than 2MB")
+
     try:
         # Reset file pointer
         await file.seek(0)
-        
+
         # Create avatars directory if it doesn't exist
         avatars_dir = Path("static/avatars")
         avatars_dir.mkdir(parents=True, exist_ok=True)
-        
+
         # Generate filename
-        file_extension = file.filename.split(".")[-1].lower() if file.filename else "jpg"
+        file_extension = (
+            file.filename.split(".")[-1].lower() if file.filename else "jpg"
+        )
         avatar_filename = f"{current_user.username}.{file_extension}"
         avatar_path = avatars_dir / avatar_filename
-        
+
         # Open and process image with PIL
         image = Image.open(file.file)
-        
+
         # Convert to RGB if necessary (for PNG with transparency)
         if image.mode in ("RGBA", "P"):
             image = image.convert("RGB")
-        
+
         # Resize to 128x128 (square avatar)
         image = image.resize((128, 128), Image.Resampling.LANCZOS)
-        
+
         # Save processed image
         image.save(avatar_path, "JPEG", quality=90)
-        
+
         # Update user avatar_url in database
         avatar_url = get_avatar_url(avatar_filename)
         user_update = UserUpdate(avatar_url=avatar_url)
         UserService.update(db, user=current_user, user_in=user_update)
-        
+
         return {"message": "Avatar uploaded successfully", "avatar_url": avatar_url}
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to process avatar: {str(e)}"
+            status_code=500, detail=f"Failed to process avatar: {str(e)}"
         )
 
 
@@ -313,17 +311,16 @@ def delete_avatar(
             avatar_path = Path(current_user.avatar_url.lstrip("/"))
             if avatar_path.exists():
                 os.unlink(avatar_path)
-        
+
         # Update user avatar_url in database
         user_update = UserUpdate(avatar_url=None)
         UserService.update(db, user=current_user, user_in=user_update)
-        
+
         return {"message": "Avatar deleted successfully"}
-        
+
     except Exception as e:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to delete avatar: {str(e)}"
+            status_code=500, detail=f"Failed to delete avatar: {str(e)}"
         )
 
 
@@ -347,12 +344,10 @@ def update_user_language(
     if language_data.preferred_language not in supported_languages:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported language. Use one of: {supported_languages}"
+            detail=f"Unsupported language. Use one of: {supported_languages}",
         )
-    
+
     # Update user language
-    user_update = UserUpdate(
-        preferred_language=language_data.preferred_language
-    )
+    user_update = UserUpdate(preferred_language=language_data.preferred_language)
     user = UserService.update(db, user=current_user, user_in=user_update)
     return user

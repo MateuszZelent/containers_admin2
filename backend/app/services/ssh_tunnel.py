@@ -834,9 +834,9 @@ class SSHTunnelService:
                     )
 
             cleanup_duration = time.time() - cleanup_start_time
-            cluster_logger.info(
-                f"Cleanup completed in {cleanup_duration:.2f} seconds"
-            )
+            # cluster_logger.info(
+            #     f"Cleanup completed in {cleanup_duration:.2f} seconds"
+            # )
             return cleaned_count
 
         except Exception as e:
@@ -968,7 +968,7 @@ class SSHTunnelService:
             # Upewnij się, że stan tuneli jest aktualny tylko raz na początku
             cluster_logger.info(f"🔄 TUNNEL CREATE: Ensuring tunnels restored for job {job_id}")
             await self.ensure_tunnels_restored()
-            await self.cleanup_inactive_tunnels()
+            # Note: cleanup_inactive_tunnels() removed - periodic cleanup task handles this
 
             # Get job data within this method's session scope
             cluster_logger.info(f"🔍 TUNNEL CREATE: Fetching job data for job {job_id}")

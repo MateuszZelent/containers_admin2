@@ -111,7 +111,9 @@ class TaskQueueService:
             self.db.query(TaskQueueJob).filter(TaskQueueJob.task_id == task_id).first()
         )
 
-    def get_task_by_id(self, task_id: Union[str, int], owner_id: int) -> Optional[TaskQueueJob]:
+    def get_task_by_id(
+        self, task_id: Union[str, int], owner_id: int
+    ) -> Optional[TaskQueueJob]:
         """Get a task by ID or task_id with ownership check."""
         task = self.get_task(task_id)
         if task and task.owner_id == owner_id:
@@ -141,24 +143,26 @@ class TaskQueueService:
     def _translate_path(self, filepath: str) -> str:
         """
         Translate container paths to host filesystem paths.
+        Converts paths of the form:
+            /mnt/local/kkingstoun/{user}/{project}/...
+        into:
+            /mnt/storage_2/scratch/pl0095-01/zelent/{project}/...
 
-        This handles the virtual mount mapping differences between
-        container and host.
+        If the path is already in host format, it returns it unchanged.
         """
-        # Check if this is a container path that needs translation
-        if filepath and filepath.startswith(
-            "/mnt/local/kkingstoun/admin/pcss_storage/mannga"
-        ):
-            # Replace the prefix with the host prefix
-            translated_path = filepath.replace(
-                "/mnt/local/kkingstoun/admin/pcss_storage/mannga",
-                "/mnt/storage_2/scratch/pl0095-01/zelent/mannga",
-                1,  # Replace only the first occurrence
-            )
-            cluster_logger.debug(
-                f"Translated path: {filepath} -> {translated_path}"
-            )
-            return translated_path
+        import re
+
+        if filepath.startswith("/mnt/storage_2/scratch/pl0095-01/zelent"):
+            return filepath
+
+        pattern = (
+            r"^/mnt/local/kkingstoun/(?P<user>[^/]+)/(?P<project>[^/]+)(?P<rest>/.*)"
+        )
+        match = re.match(pattern, filepath)
+        if match:
+            project = match.group("project")
+            rest = match.group("rest")
+            return f"/mnt/storage_2/scratch/pl0095-01/zelent/{project}{rest}"
 
         return filepath
 
@@ -167,116 +171,113 @@ class TaskQueueService:
     ) -> str:
         """
         Determine output directory based on simulation file location.
-        
+
         For uploaded files (mx3), use same directory as input file.
         For container files, use standard output directory structure.
-        
+
         Args:
             simulation_file: Path to the simulation file
             username: Username for directory structure
             task_id: Task ID for directory name
-            
+
         Returns:
             Output directory path
         """
         from app.core.config import settings
-        
+
         # Check if this is an uploaded mx3 file
         if "/mx3jobs/" in simulation_file:
             # For uploaded files, output goes to same directory as input
             return os.path.dirname(simulation_file)
-        
+
         # For container-based files, use standard structure
         return os.path.join(settings.SIMULATION_OUTPUT_DIR, username, task_id)
 
     def _detect_task_type(self, simulation_file: str) -> str:
         """
         Detect task type based on simulation file extension.
-        
+
         Args:
             simulation_file: Path to the simulation file
-            
+
         Returns:
             str: Task type ('amumax' for .mx3 files, 'general' for others)
         """
-        if simulation_file.endswith('.mx3'):
-            return 'amumax'
-        return 'general'
+        if simulation_file.endswith(".mx3"):
+            return "amumax"
+        return "general"
 
     def _validate_task_by_type(self, task_type: str, simulation_file: str) -> None:
         """
         Validate task based on its type.
-        
+
         Args:
             task_type: Type of task ('amumax' or 'general')
             simulation_file: Path to simulation file
-            
+
         Raises:
             HTTPException: If validation fails
         """
-        if task_type == 'amumax':
-            if not simulation_file.endswith('.mx3'):
+        if task_type == "amumax":
+            if not simulation_file.endswith(".mx3"):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Amumax tasks require .mx3 simulation files"
+                    detail="Amumax tasks require .mx3 simulation files",
                 )
 
     def validate_file(self, file_path: str) -> Dict[str, Any]:
         """
         Validate if the simulation file is properly formatted and accessible.
-        
+
         Args:
             file_path: Path to the simulation file
-            
+
         Returns:
             Dict with validation results including file type, existence, content
         """
         try:
             # Translate to host path for validation
             host_path = self._translate_path(file_path)
-            
+
             # Detect file type
             file_type = "other"
-            if file_path.endswith('.mx3'):
+            if file_path.endswith(".mx3"):
                 file_type = "amumax"
-            elif file_path.endswith('.py'):
+            elif file_path.endswith(".py"):
                 file_type = "python"
-            
+
             # Check if file exists and is readable
             file_exists = False
             file_content = None
             file_size = None
-            
+
             try:
                 if Path(host_path).exists():
                     file_exists = True
                     file_size = Path(host_path).stat().st_size
-                    
+
                     # Read file content for preview (limit to 5000 chars)
-                    with open(
-                        host_path, 'r', encoding='utf-8', errors='ignore'
-                    ) as f:
+                    with open(host_path, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read(5000)
-                        
+
             except Exception as read_error:
                 cluster_logger.warning(
                     f"Error reading file {host_path}: {str(read_error)}"
                 )
-            
+
             # Basic validation based on file type
             is_valid = file_exists
             validation_message = "File is valid and accessible"
-            
+
             if not file_exists:
                 validation_message = "File not found"
                 is_valid = False
             elif file_type == "amumax" and file_content:
                 # Basic Amumax file validation
-                required_keywords = ['setgridsize', 'setcellsize', 'run']
+                required_keywords = ["setgridsize", "setcellsize", "run"]
                 if not any(kw in file_content.lower() for kw in required_keywords):
                     validation_message = (
-                        "File may not be a valid Amumax script "
-                        "(missing basic commands)"
+                        "File may not be a valid Amumax script (missing basic commands)"
                     )
                     is_valid = False
             elif file_type == "python" and file_content:
@@ -284,7 +285,7 @@ class TaskQueueService:
                 if not file_content.strip():
                     validation_message = "Python file appears to be empty"
                     is_valid = False
-            
+
             return {
                 "is_valid": is_valid,
                 "message": validation_message,
@@ -293,13 +294,11 @@ class TaskQueueService:
                 "file_size": file_size,
                 "file_content": file_content[:2000] if file_content else None,
                 "file_path": file_path,
-                "host_path": host_path
+                "host_path": host_path,
             }
-            
+
         except Exception as e:
-            cluster_logger.warning(
-                f"Error validating file {file_path}: {str(e)}"
-            )
+            cluster_logger.warning(f"Error validating file {file_path}: {str(e)}")
             return {
                 "is_valid": False,
                 "message": f"Error validating file: {str(e)}",
@@ -308,19 +307,84 @@ class TaskQueueService:
                 "file_size": None,
                 "file_content": None,
                 "file_path": file_path,
-                "host_path": None
+                "host_path": None,
             }
 
-    def create_task(
-        self, data: TaskQueueJobCreate, owner_id: int
-    ) -> TaskQueueJob:
+    def _check_duplicate_simulation(
+        self, original_path: str, original_md5: Optional[str], owner_id: int
+    ) -> Optional[TaskQueueJob]:
+        """
+        Check if a simulation with the same original path already exists.
+
+        Args:
+            original_path: Original file path from client
+            original_md5: MD5 hash of original file (optional)
+            owner_id: Owner's user ID
+
+        Returns:
+            Existing TaskQueueJob if duplicate found, None otherwise
+        """
+        # Query for tasks with same original path and owner
+        query = self.db.query(TaskQueueJob).filter(
+            TaskQueueJob.owner_id == owner_id,
+            TaskQueueJob.original_path == original_path,
+        )
+
+        # Only prevent duplication for ACTIVE tasks (PENDING, CONFIGURING, RUNNING)
+        # Allow re-running tasks that are in error, completed, cancelled, or timeout states
+        active_statuses = [
+            TaskStatus.PENDING,
+            TaskStatus.CONFIGURING,
+            TaskStatus.RUNNING,
+        ]
+        query = query.filter(TaskQueueJob.status.in_(active_statuses))
+
+        # Check for any active task with the same original path
+        existing_task = query.first()
+        if existing_task:
+            cluster_logger.warning(
+                "Active simulation detected: "
+                f"original_path={original_path}, "
+                f"existing_task={existing_task.task_id}, "
+                f"status={existing_task.status}"
+            )
+            return existing_task
+
+        return None
+
+    def create_task(self, data: TaskQueueJobCreate, owner_id: int) -> TaskQueueJob:
         """Create a new task in the queue."""
         try:
             # Detect task type based on simulation file
             task_type = self._detect_task_type(data.simulation_file)
-            
+
             # Validate task based on its type
             self._validate_task_by_type(task_type, data.simulation_file)
+
+            # Check for duplicate simulation based on original path and MD5
+            # Extract from parameters if available
+            original_path = None
+            original_md5 = None
+            used_original = False
+
+            if data.parameters:
+                original_path = data.parameters.get("original_path")
+                original_md5 = data.parameters.get("original_md5")
+                used_original = data.parameters.get("used_original", False)
+
+            if original_path:
+                existing_task = self._check_duplicate_simulation(
+                    original_path, original_md5, owner_id
+                )
+                if existing_task:
+                    raise HTTPException(
+                        status_code=status.HTTP_400_BAD_REQUEST,
+                        detail=(
+                            f"Symulacja z tym plikiem już istnieje "
+                            f"(Task ID: {existing_task.task_id}, "
+                            f"Status: {existing_task.status})"
+                        ),
+                    )
 
             # Generate unique task ID
             task_id = f"task_{uuid.uuid4().hex[:8]}"
@@ -331,7 +395,7 @@ class TaskQueueService:
                 raise ValueError(f"Owner ID {owner_id} not found")
 
             username = user.username
-            
+
             # Determine output directory based on input file location
             output_dir = self._determine_output_directory(
                 data.simulation_file, username, task_id
@@ -361,6 +425,10 @@ class TaskQueueService:
                 output_dir=output_dir,
                 priority=data.priority,
                 owner_id=owner_id,
+                # Store original file tracking information
+                used_original=used_original,
+                original_path=original_path,
+                original_md5=original_md5,
             )
 
             # Save to database
@@ -393,8 +461,13 @@ class TaskQueueService:
 
         try:
             # Store old status for state change detection
-            old_status = task.status.value if task.status else None
-            
+            # old_status = task.status.value if task.status else None
+            old_status = (
+                task.status.value
+                if isinstance(task.status, TaskStatus)
+                else task.status
+            )
+
             # Apply updates
             update_dict = update_data.dict(exclude_unset=True)
             for key, value in update_dict.items():
@@ -428,6 +501,7 @@ class TaskQueueService:
                     try:
                         # Run the state change handler asynchronously
                         import asyncio
+
                         loop = asyncio.get_event_loop()
                         if loop.is_running():
                             asyncio.create_task(
@@ -464,8 +538,7 @@ class TaskQueueService:
             if not task:
                 cluster_logger.warning(f"Task {task_id} not found for deletion")
                 raise HTTPException(
-                    status_code=status.HTTP_404_NOT_FOUND,
-                    detail="Task not found"
+                    status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
                 )
 
             # Check ownership
@@ -483,12 +556,18 @@ class TaskQueueService:
                 try:
                     # Cancel in SLURM if job_id exists
                     if task.slurm_job_id:
-                        cancel_success = await self.slurm_service.cancel_job(task.slurm_job_id)
+                        cancel_success = await self.slurm_service.cancel_job(
+                            task.slurm_job_id
+                        )
                         if cancel_success:
-                            cluster_logger.info(f"Successfully cancelled SLURM job {task.slurm_job_id}")
+                            cluster_logger.info(
+                                f"Successfully cancelled SLURM job {task.slurm_job_id}"
+                            )
                         else:
-                            cluster_logger.warning(f"Failed to cancel SLURM job {task.slurm_job_id}")
-                    
+                            cluster_logger.warning(
+                                f"Failed to cancel SLURM job {task.slurm_job_id}"
+                            )
+
                     # Update status to cancelled
                     task.status = TaskStatus.CANCELLED
                     task.finished_at = datetime.now(timezone.utc)
@@ -503,10 +582,8 @@ class TaskQueueService:
             # Delete from database
             self.db.delete(task)
             self.db.commit()
-            cluster_logger.info(
-                f"Task {task.task_id} deleted by user {owner_id}"
-            )
-            
+            cluster_logger.info(f"Task {task.task_id} deleted by user {owner_id}")
+
         except HTTPException:
             # Re-raise HTTP exceptions
             raise
@@ -516,7 +593,7 @@ class TaskQueueService:
             cluster_logger.error(f"Traceback: {traceback.format_exc()}")
             raise HTTPException(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail=f"Failed to delete task: {str(e)}"
+                detail=f"Failed to delete task: {str(e)}",
             )
 
     def get_queue_status(self, owner_id: Optional[int] = None) -> TaskQueueStatus:
@@ -548,7 +625,7 @@ class TaskQueueService:
                 if created_at.tzinfo is None:
                     # If timezone-naive, assume UTC
                     created_at = created_at.replace(tzinfo=timezone.utc)
-                
+
                 wait_time = (now - created_at).total_seconds()
                 wait_times.append(wait_time)
             avg_wait_time = sum(wait_times) / len(wait_times) if wait_times else 0
@@ -633,8 +710,8 @@ class TaskQueueService:
 
             # Detect task type and choose appropriate template
             task_type = self._detect_task_type(task.simulation_file)
-            
-            if task_type == 'amumax':
+
+            if task_type == "amumax":
                 template_name = "amumax.template"
                 # Parameters for Amumax template
                 params = {
@@ -766,7 +843,7 @@ class TaskQueueService:
             )
             .all()
         )
-        
+
         # Filter tasks that are past their retry time, handling timezone issues
         filtered_retry_tasks = []
         for task in retry_tasks:
@@ -777,7 +854,7 @@ class TaskQueueService:
                     next_retry_at = next_retry_at.replace(tzinfo=timezone.utc)
                 if next_retry_at <= now:
                     filtered_retry_tasks.append(task)
-        
+
         retry_tasks = filtered_retry_tasks
 
         for task in retry_tasks:
@@ -817,8 +894,7 @@ class TaskQueueService:
             self.db.commit()
 
             retry_msg = (
-                f"Task {task.task_id} scheduled for retry "
-                f"(attempt {task.retry_count})"
+                f"Task {task.task_id} scheduled for retry (attempt {task.retry_count})"
             )
             cluster_logger.info(retry_msg)
 
@@ -855,10 +931,10 @@ class TaskQueueService:
 
                 if job_snapshot:
                     # Job is still active in SLURM (from cache)
-                    if hasattr(job_snapshot, 'state'):
+                    if hasattr(job_snapshot, "state"):
                         slurm_state = job_snapshot.state
                     else:
-                        slurm_state = job_snapshot.get('state', 'UNKNOWN')
+                        slurm_state = job_snapshot.get("state", "UNKNOWN")
 
                     # Map SLURM state to our task state
                     new_status = self.SLURM_STATE_MAPPING.get(
@@ -1130,14 +1206,14 @@ class TaskQueueService:
     async def get_amumax_results(self, task: TaskQueueJob) -> Dict[str, Any]:
         """
         Get results for a completed Amumax simulation task.
-        
+
         # This method provides specialized handling for Amumax simulation
         # results, including parsing output files, magnetic field data, and
         # energy plots.
-        
+
         Args:
             task: The completed TaskQueueJob
-            
+
         Returns:
             Dict containing simulation results and file paths
         """
@@ -1146,12 +1222,12 @@ class TaskQueueService:
                 "task_id": task.task_id,
                 "status": task.status,
                 "message": "Amumax simulation has not completed yet",
-                "simulation_file": task.simulation_file
+                "simulation_file": task.simulation_file,
             }
 
         # Get basic results first
         basic_results = await self.get_task_results(task)
-        
+
         # Enhance with Amumax-specific data
         amumax_results = {
             **basic_results,
@@ -1162,23 +1238,21 @@ class TaskQueueService:
         # Look for typical Amumax output files if output directory exists
         if task.output_dir and os.path.exists(self._translate_path(task.output_dir)):
             output_dir = self._translate_path(task.output_dir)
-            
+
             # Common Amumax output file patterns
             output_patterns = {
-                "table_files": "*.txt",      # Table files with scalar values
-                "ovf_files": "*.ovf",        # OVF magnetization files  
-                "zarr_files": "*.zarr",      # Zarr format files
-                "log_files": "*.log",        # Log files
+                "table_files": "*.txt",  # Table files with scalar values
+                "ovf_files": "*.ovf",  # OVF magnetization files
+                "zarr_files": "*.zarr",  # Zarr format files
+                "log_files": "*.log",  # Log files
                 "energy_files": "*energy*",  # Energy-related files
-                "field_files": "*field*",    # Field-related files
+                "field_files": "*field*",  # Field-related files
             }
-            
+
             for file_type, pattern in output_patterns.items():
                 matching_files = list(Path(output_dir).glob(pattern))
                 if matching_files:
-                    amumax_results[file_type] = [
-                        str(f) for f in matching_files
-                    ]
+                    amumax_results[file_type] = [str(f) for f in matching_files]
 
             # Try to parse table files for key simulation parameters
             table_files = amumax_results.get("table_files", [])
@@ -1199,30 +1273,32 @@ class TaskQueueService:
     def _parse_amumax_table(self, table_file_path: str) -> Dict[str, Any]:
         """
         Parse an Amumax table file to extract key simulation data.
-        
+
         Args:
             table_file_path: Path to the .txt table file
-            
+
         Returns:
             Dict containing parsed data
         """
         try:
             import pandas as pd
-            
+
             # Read the table file (typically space-separated)
-            df = pd.read_csv(table_file_path, sep=r'\s+', comment='#')
-            
+            df = pd.read_csv(table_file_path, sep=r"\s+", comment="#")
+
             # Extract basic statistics
             table_info = {
                 "total_steps": len(df),
                 "columns": list(df.columns),
                 "time_range": {
                     "start": float(df.iloc[0, 0]) if len(df) > 0 else 0,
-                    "end": float(df.iloc[-1, 0]) if len(df) > 0 else 0
-                } if 't' in df.columns or df.columns[0].lower().startswith('t') else None,
-                "final_values": {}
+                    "end": float(df.iloc[-1, 0]) if len(df) > 0 else 0,
+                }
+                if "t" in df.columns or df.columns[0].lower().startswith("t")
+                else None,
+                "final_values": {},
             }
-            
+
             # Extract final values for each column
             if len(df) > 0:
                 for col in df.columns:
@@ -1230,9 +1306,9 @@ class TaskQueueService:
                         table_info["final_values"][col] = float(df[col].iloc[-1])
                     except (ValueError, TypeError):
                         table_info["final_values"][col] = str(df[col].iloc[-1])
-            
+
             return table_info
-            
+
         except ImportError:
             cluster_logger.warning(
                 "pandas not available for parsing Amumax table files"
@@ -1299,41 +1375,39 @@ class TaskQueueService:
     ) -> List[TaskQueueJob]:
         """
         Get Amumax simulation tasks for a user.
-        
+
         This method filters tasks to only return those that are Amumax
         simulations (based on .mx3 file extension).
-        
+
         Args:
             owner_id: ID of the task owner
             skip: Number of tasks to skip
             limit: Maximum number of tasks to return
-            
+
         Returns:
             List of TaskQueueJob objects for Amumax simulations
         """
         query = (
             self.db.query(TaskQueueJob)
             .filter(TaskQueueJob.owner_id == owner_id)
-            .filter(TaskQueueJob.simulation_file.like('%.mx3'))
+            .filter(TaskQueueJob.simulation_file.like("%.mx3"))
         )
-        
+
         return (
-            query.order_by(
-                TaskQueueJob.priority.desc(),
-                TaskQueueJob.created_at.asc()
-            )
+            query.order_by(TaskQueueJob.priority.desc(), TaskQueueJob.created_at.asc())
             .offset(skip)
             .limit(limit)
             .all()
         )
 
-    async def get_task_output(self, task_id: Union[str, int], owner_id: int) -> Dict[str, Any]:
+    async def get_task_output(
+        self, task_id: Union[str, int], owner_id: int
+    ) -> Dict[str, Any]:
         """Get SLURM output logs for a task."""
         task = self.get_task(task_id)
         if not task:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Task not found"
+                status_code=status.HTTP_404_NOT_FOUND, detail="Task not found"
             )
 
         # Check ownership
@@ -1345,44 +1419,38 @@ class TaskQueueService:
 
         output_content = ""
         output_file = None
-        
+
         # If task has SLURM job ID, try to read output file
         if task.slurm_job_id:
             try:
-                logs_dir = (
-                    "/mnt/storage_2/scratch/pl0095-01/zelent/"
-                    "amucontainers/logs"
-                )
+                logs_dir = "/mnt/storage_2/scratch/pl0095-01/zelent/amucontainers/logs"
                 import glob
                 import os
-                
+
                 # Define patterns upfront
                 relaxed_pattern = f"*.{task.slurm_job_id}.*.out"
                 amumax_pattern = (
-                    f"amumax_task_*_admin-"
-                    f"amumax_task_*_admin.{task.slurm_job_id}.*.out"
+                    f"amumax_task_*_admin-amumax_task_*_admin.{task.slurm_job_id}.*.out"
                 )
-                
+
                 # Use a relaxed pattern: any file with SLURM job ID and .out
                 # For Amumax, the output file is named as:
                 # amumax_task_<id>_admin-amumax_task_<id>_admin.<slurm_job_id>.<node>.out
                 # Try to match this pattern first
                 amumax_pattern_path = os.path.join(logs_dir, amumax_pattern)
                 matching_files = glob.glob(amumax_pattern_path)
-                
+
                 # Fallback: match any file with the job id and .out
                 if not matching_files:
                     pattern_path = os.path.join(logs_dir, relaxed_pattern)
                     matching_files = glob.glob(pattern_path)
-                    
+
                 if matching_files:
                     output_file = matching_files[0]
-                    cluster_logger.info(
-                        f"Found output file: {output_file}"
-                    )
+                    cluster_logger.info(f"Found output file: {output_file}")
                     if os.path.exists(output_file):
                         with open(
-                            output_file, 'r', encoding='utf-8', errors='ignore'
+                            output_file, "r", encoding="utf-8", errors="ignore"
                         ) as f:
                             output_content = f.read()
                         cluster_logger.info(
@@ -1390,13 +1458,9 @@ class TaskQueueService:
                             f"characters from output file"
                         )
                     else:
-                        output_content = (
-                            "Output file exists but cannot be read"
-                        )
+                        output_content = "Output file exists but cannot be read"
                 else:
-                    relaxed_pattern_path = os.path.join(
-                        logs_dir, relaxed_pattern
-                    )
+                    relaxed_pattern_path = os.path.join(logs_dir, relaxed_pattern)
                     cluster_logger.warning(
                         f"No output files found for patterns: "
                         f"{amumax_pattern_path} or {relaxed_pattern_path}"
@@ -1419,7 +1483,7 @@ class TaskQueueService:
             "slurm_job_id": task.slurm_job_id,
             "output_file": output_file,
             "output_content": output_content,
-            "node": task.node
+            "node": task.node,
         }
 
     def _find_task_log_file(
@@ -1427,21 +1491,19 @@ class TaskQueueService:
     ) -> Optional[str]:
         """Find log file for a task based on slurm_job_id and log type."""
         # Base paths for logs and errors
-        logs_base_path = (
-            "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/"
-        )
-        
+        logs_base_path = "/mnt/storage_3/home/kkingstoun/pl0095-01/scratch/zelent/"
+
         if log_type == "out":
             search_path = f"{logs_base_path}/logs"
         elif log_type == "err":
             search_path = f"{logs_base_path}/errors"
         else:
             return None
-            
+
         # Search for files containing the slurm_job_id in the filename
         # Pattern: *{slurm_job_id}*.{log_type}
         pattern = f"{search_path}/*{slurm_job_id}*.{log_type}"
-        
+
         try:
             matching_files = glob.glob(pattern)
             if matching_files:
@@ -1457,29 +1519,27 @@ class TaskQueueService:
     def get_task_log(self, slurm_job_id: str, log_type: str = "out") -> Optional[str]:
         """Get log content for a task."""
         log_file_path = self._find_task_log_file(slurm_job_id, log_type)
-        
+
         if not log_file_path:
             cluster_logger.warning(
                 f"Log file not found for task {slurm_job_id} (type: {log_type})"
             )
             return None
-            
+
         try:
-            with open(log_file_path, 'r', encoding='utf-8') as f:
+            with open(log_file_path, "r", encoding="utf-8") as f:
                 content = f.read()
             return content
         except FileNotFoundError:
             cluster_logger.warning(f"Log file not found: {log_file_path}")
             return None
         except PermissionError:
-            cluster_logger.error(
-                f"Permission denied reading log file: {log_file_path}"
-            )
+            cluster_logger.error(f"Permission denied reading log file: {log_file_path}")
             return None
         except UnicodeDecodeError:
             # Try with different encoding if UTF-8 fails
             try:
-                with open(log_file_path, 'r', encoding='latin-1') as f:
+                with open(log_file_path, "r", encoding="latin-1") as f:
                     content = f.read()
                 return content
             except Exception as e:
@@ -1488,9 +1548,7 @@ class TaskQueueService:
                 )
                 return None
         except Exception as e:
-            cluster_logger.error(
-                f"Error reading log file {log_file_path}: {str(e)}"
-            )
+            cluster_logger.error(f"Error reading log file {log_file_path}: {str(e)}")
             return None
 
     def get_task_error(self, slurm_job_id: str) -> Optional[str]:

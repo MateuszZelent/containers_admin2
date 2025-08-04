@@ -23,7 +23,7 @@ router = APIRouter()
 async def login(
     request: Request,
     db: Session = Depends(get_db),
-    form_data: OAuth2PasswordRequestForm = Depends()
+    form_data: OAuth2PasswordRequestForm = Depends(),
 ) -> Any:
     """
     OAuth2 compatible token login, get an access token for future requests.
@@ -63,8 +63,7 @@ async def login(
 
 @router.post("/cli-login", response_model=Token)
 async def login_with_cli_token(
-    request: CLITokenLogin,
-    db: Session = Depends(get_db)
+    request: CLITokenLogin, db: Session = Depends(get_db)
 ) -> Any:
     """
     Login using CLI token and get a JWT access token.
@@ -72,36 +71,33 @@ async def login_with_cli_token(
     """
     cli_token_service = CLITokenService(db)
     cli_token = cli_token_service.verify_token(request.cli_token)
-    
+
     if not cli_token or not cli_token.owner:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid CLI token",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    
+
     if not cli_token.owner.is_active:
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="User account is inactive"
+            status_code=status.HTTP_400_BAD_REQUEST, detail="User account is inactive"
         )
-    
+
     # Update token usage
     client_ip = (
-        "cli" if not hasattr(request, 'client')
-        else getattr(request.client, 'host', 'unknown')
+        "cli"
+        if not hasattr(request, "client")
+        else getattr(request.client, "host", "unknown")
     )
     cli_token_service.update_token_usage(cli_token, client_ip, "mmpp-cli")
-    
+
     # Create JWT token
-    access_token_expires = timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     access_token = create_access_token(
-        data={"sub": cli_token.owner.username},
-        expires_delta=access_token_expires
+        data={"sub": cli_token.owner.username}, expires_delta=access_token_expires
     )
-    
+
     return {"access_token": access_token, "token_type": "bearer"}
 
 

@@ -1,8 +1,6 @@
 from pydantic import BaseModel, Field, validator
-from typing import Optional, Dict, Any, List, Union
+from typing import Optional, Dict, Any, List
 from datetime import datetime
-import uuid
-
 
 class TaskQueueJobBase(BaseModel):
     """Base schema for task queue jobs."""
@@ -16,9 +14,20 @@ class TaskQueueJobBase(BaseModel):
     memory_gb: int = Field(24, description="Memory in GB")
     num_gpus: int = Field(1, description="Number of GPUs")
     time_limit: str = Field("24:00:00", description="Time limit (HH:MM:SS)")
-    priority: int = Field(0, description="Task priority (higher = more important)")
+    priority: int = Field(
+        0, description="Task priority (higher = more important)"
+    )
     parameters: Optional[Dict[str, Any]] = Field(
         None, description="Simulation parameters"
+    )
+    used_original: Optional[bool] = Field(
+        False, description="Was original file used"
+    )
+    original_path: Optional[str] = Field(
+        None, description="Original file path from client"
+    )
+    original_md5: Optional[str] = Field(
+        None, description="MD5 of original file"
     )
 
     @validator("time_limit")
@@ -29,7 +38,10 @@ class TaskQueueJobBase(BaseModel):
             raise ValueError("time_limit must be in format HH:MM:SS")
         try:
             hours, minutes, seconds = map(int, parts)
-            if hours < 0 or minutes < 0 or seconds < 0 or minutes > 59 or seconds > 59:
+            if (
+                hours < 0 or minutes < 0 or seconds < 0 or
+                minutes > 59 or seconds > 59
+            ):
                 raise ValueError("Invalid time values")
         except ValueError:
             raise ValueError("time_limit must contain valid integers")
@@ -149,7 +161,10 @@ class AmumaxTaskCreate(BaseModel):
             raise ValueError("time_limit must be in format HH:MM:SS")
         try:
             hours, minutes, seconds = map(int, parts)
-            if hours < 0 or minutes < 0 or seconds < 0 or minutes > 59 or seconds > 59:
+            if (
+                hours < 0 or minutes < 0 or seconds < 0 or
+                minutes > 59 or seconds > 59
+            ):
                 raise ValueError("Invalid time values")
         except ValueError:
             raise ValueError("time_limit must contain valid integers")
