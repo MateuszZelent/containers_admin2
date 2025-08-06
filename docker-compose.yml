@@ -8,7 +8,8 @@ services:
     ports:
       - "5678:5678"  # Port debuggera
       - "8000:8000"
-      - "8600-8700:8600-8700"
+      - "8600-8700:8600-8700"  # Legacy port range
+      - "9000-9099:9000-9099"  # New tunnel port range
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@postgres:5432/containers_admin
       - SECRET_KEY=zmientomnabardziejzlozonehaslo

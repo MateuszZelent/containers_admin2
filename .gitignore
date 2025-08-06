@@ -13,6 +13,7 @@ downloads/
 eggs/
 .eggs/
 .env
+backend/app/services/old_code
 .env.*
 !.env.example
 backend/.env

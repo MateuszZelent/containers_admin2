@@ -2,6 +2,9 @@ from typing import Any, Dict, List, Union
 from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks, status
 from sqlalchemy.orm import Session
 import os
+import httpx
+import ssl
+import asyncio
 from caddy_api_client import CaddyAPIClient
 from app.core.logging import logger as jobs_logger
 from app.core.auth import (
@@ -19,12 +22,89 @@ from app.schemas.job import (
 )
 from app.schemas.job import Job as JobSchema
 from app.services.job import JobService
-from app.services.ssh_tunnel import SSHTunnelService, TunnelStatus
+from app.services.tunnels.enums import TunnelStatus
 from app.db.models import User, Job, SSHTunnel
 from app.core.config import settings
 
-CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2020")
 router = APIRouter()
+
+# Configuration
+CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2020")
+
+
+async def verify_domain_accessibility(url: str, timeout: int = 10) -> bool:
+    """
+    Verify if a domain is accessible by making an HTTP request.
+    Returns True if domain responds (any HTTP status), False otherwise.
+    """
+    try:
+        async with httpx.AsyncClient(
+            timeout=timeout,
+            verify=False,  # Skip SSL verification for self-signed certs
+            follow_redirects=True
+        ) as client:
+            response = await client.get(url)
+            jobs_logger.info(f"Domain {url} responded with status {response.status_code}")
+            return True  # Any response means domain is accessible
+    except httpx.TimeoutException:
+        jobs_logger.warning(f"Domain {url} timed out after {timeout}s")
+        return False
+    except httpx.ConnectError:
+        jobs_logger.warning(f"Domain {url} connection failed")
+        return False
+    except Exception as e:
+        jobs_logger.warning(f"Domain {url} verification failed: {str(e)}")
+        return False
+
+
+async def check_and_update_domain_status(db: Session, job_id: int) -> bool:
+    """
+    Check if a job's domain is accessible and update status accordingly.
+    Returns True if domain is accessible, False otherwise.
+    """
+    try:
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job or job.status != "RUNNING":
+            return False
+            
+        # Get user info to generate domain
+        user = db.query(User).filter(User.id == job.owner_id).first()
+        if not user:
+            return False
+            
+        # Generate domain name
+        username_prefix = f"container_{user.username}_"
+        if job.job_name.startswith(username_prefix):
+            user_container_name = job.job_name[len(username_prefix) :]
+        else:
+            user_container_name = job.job_name
+
+        safe_container_name = JobService.sanitize_container_name_for_domain(
+            user_container_name
+        )
+        if not safe_container_name:
+            safe_container_name = f"job{job.id}"
+
+        domain = f"{user.username}-{safe_container_name}.orion.zfns.eu.org"
+        url = f"https://{domain}"
+        
+        # Check accessibility
+        is_accessible = await verify_domain_accessibility(url, timeout=5)
+        
+        # Update domain_ready status if needed
+        job_service = JobService(db)
+        if is_accessible and not job.domain_ready:
+            job_service.update_domain_ready_status(job_id, True)
+            jobs_logger.info(f"Domain {domain} now accessible, marked as ready")
+        elif not is_accessible and job.domain_ready:
+            job_service.update_domain_ready_status(job_id, False)
+            jobs_logger.warning(f"Domain {domain} no longer accessible")
+            
+        return is_accessible
+        
+    except Exception as e:
+        jobs_logger.error(f"Error checking domain status for job {job_id}: {e}")
+        return False
 
 
 @router.get("/status")
@@ -596,8 +676,9 @@ def get_job_tunnels(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService()
-    return tunnel_service.get_job_tunnels(db, job_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    return tunnel_service.get_job_tunnels(job_id, db)
 
 
 @router.post("/{job_id}/tunnels", response_model=SSHTunnelInfo)
@@ -614,8 +695,9 @@ async def create_job_tunnel(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService()
-    tunnel = await tunnel_service.create_tunnel(job_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    tunnel = await tunnel_service.get_or_create_tunnel(job_id, db)
     if not tunnel:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -639,8 +721,9 @@ async def close_job_tunnel(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
-    tunnel_service = SSHTunnelService()
-    success = await tunnel_service.close_tunnel(tunnel_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    success = await tunnel_service.close_tunnel(tunnel_id, db)
     if not success:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST, detail="Could not close SSH tunnel"
@@ -718,8 +801,9 @@ async def get_code_server_url(
 
     jobs_logger.info(f"🔀 CODE-SERVER: Starting tunnel creation for job {job_id}")
     # Create or get existing tunnel
-    tunnel_service = SSHTunnelService()
-    tunnel = await tunnel_service.get_or_create_tunnel(job_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    tunnel = await tunnel_service.get_or_create_tunnel(job_id, db)
 
     if not tunnel:
         jobs_logger.error(f"❌ CODE-SERVER: Tunnel creation failed for job {job_id}")
@@ -778,12 +862,24 @@ async def get_code_server_url(
 
         jobs_logger.info(f"✅ CODE-SERVER: Caddy configured successfully for {domain}")
 
-        # Mark domain as ready after successful Caddy configuration
-        job_service = JobService(db)
-        job_service.update_domain_ready_status(job.id, True)
-        jobs_logger.info(
-            f"✅ CODE-SERVER: Domain {domain} marked as ready for job {job.id}"
-        )
+        # Verify domain is actually responding before marking as ready
+        jobs_logger.info(f"🔍 CODE-SERVER: Verifying domain accessibility for {domain}")
+        domain_url = f"https://{domain}"
+        domain_accessible = await verify_domain_accessibility(domain_url)
+        
+        if domain_accessible:
+            # Mark domain as ready after successful verification
+            job_service = JobService(db)
+            job_service.update_domain_ready_status(job.id, True)
+            jobs_logger.info(
+                f"✅ CODE-SERVER: Domain {domain} verified and marked as ready for job {job.id}"
+            )
+        else:
+            jobs_logger.warning(
+                f"⚠️ CODE-SERVER: Domain {domain} configured in Caddy but not yet accessible. "
+                f"Client should poll domain-status endpoint."
+            )
+            # Don't mark as ready yet - let the polling handle it
 
     except Exception as e:
         jobs_logger.error(
@@ -833,7 +929,8 @@ async def check_tunnel_status(
     if job.owner_id != current_user.id:
         raise HTTPException(status_code=403, detail="Not enough permissions")
 
-    tunnel_service = SSHTunnelService()
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
     active_tunnel = (
         db.query(SSHTunnel)
         .filter(SSHTunnel.job_id == job.id, SSHTunnel.status == "ACTIVE")
@@ -978,14 +1075,18 @@ async def check_tunnel_health(
     if job.owner_id != current_user.id and not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    tunnel_service = SSHTunnelService()
-    health_info = await tunnel_service.health_check(tunnel_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    health_info = await tunnel_service.health_check(tunnel_id, db)
+    
+    if not health_info:
+        raise HTTPException(status_code=404, detail="Tunnel not found")
 
     return {
-        "tunnel_id": health_info.tunnel_id,
-        "status": health_info.status.value,
+        "tunnel_id": tunnel_id,
+        "status": health_info.health_status.value,
         "port_connectivity": health_info.port_connectivity,
-        "last_check": health_info.last_check,
+        "last_check": health_info.last_test,
         "ssh_process": {
             "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
             "is_running": health_info.ssh_process.is_running
@@ -1027,15 +1128,17 @@ async def check_all_tunnels_health(
     if not current_user.is_superuser:
         raise HTTPException(status_code=403, detail="Admin access required")
 
-    tunnel_service = SSHTunnelService()
-    health_results = await tunnel_service.health_check_all_active_tunnels()
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    # TODO: Implement health_check_all_active_tunnels method in new service
+    health_results = []  # await tunnel_service.health_check_all_active_tunnels()
 
     return {
         "total_tunnels": len(health_results),
         "results": [
             {
                 "tunnel_id": tunnel_id,
-                "status": health_info.status.value,
+                "status": health_info.health_status.value,
                 "port_connectivity": health_info.port_connectivity,
                 "last_check": health_info.last_check,
                 "ssh_process_running": health_info.ssh_process.is_running
@@ -1076,12 +1179,16 @@ async def check_job_tunnel_health(
     if not tunnel:
         raise HTTPException(status_code=404, detail="Tunnel not found for this job")
 
-    tunnel_service = SSHTunnelService()
-    health_info = await tunnel_service.health_check(tunnel_id)
+    from app.dependencies.tunnel_service import get_tunnel_service
+    tunnel_service = get_tunnel_service()
+    health_info = await tunnel_service.health_check(tunnel_id, db)
+    
+    if not health_info:
+        raise HTTPException(status_code=404, detail="Tunnel health check failed")
 
     return {
         "tunnel_id": health_info.tunnel_id,
-        "status": health_info.status.value,
+        "status": health_info.health_status.value,
         "port_connectivity": health_info.port_connectivity,
         "last_check": health_info.last_check,
         "ssh_process": {
@@ -1277,6 +1384,20 @@ async def get_domain_status(
             # Generate domain using username and clean container name
             domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
             url = f"https://{domain}"
+            
+            # Verify domain is actually accessible
+            domain_accessible = await verify_domain_accessibility(url, timeout=5)
+            if not domain_accessible:
+                # Domain was marked as ready but isn't accessible yet
+                # Keep URL but don't mark as fully ready in response
+                jobs_logger.warning(
+                    f"Domain {domain} marked ready but not accessible "
+                    f"for job {job_id}"
+                )
+                # Reset domain_ready flag until it's actually accessible
+                job_service = JobService(db)
+                job_service.update_domain_ready_status(job_id, False)
+                url = None
 
         return {
             "job_id": job.id,

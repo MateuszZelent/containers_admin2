@@ -20,7 +20,7 @@ from app.core.config import settings
 from app.core.logging import cluster_logger
 from app.db.models import Job, TaskQueueJob, User, SSHTunnel, ClusterStatus
 from app.services.slurm import SlurmSSHService
-from app.services.ssh_tunnel import SSHTunnelService
+# Remove old SSH tunnel service import
 
 
 class MonitorState(str, Enum):
@@ -595,8 +595,9 @@ class UnifiedSlurmMonitor:
     async def _create_tunnel_for_job(self, db: Session, job: Job):
         """Create SSH tunnel for a running job"""
         try:
-            tunnel_service = SSHTunnelService()
-            tunnel = await tunnel_service.create_tunnel(job.id)  # type: ignore
+            from app.dependencies.tunnel_service import get_tunnel_service
+            tunnel_service = get_tunnel_service()
+            tunnel = await tunnel_service.get_or_create_tunnel(job.id, db)  # type: ignore
             
             if tunnel:
                 self._metrics.active_tunnels += 1
@@ -609,8 +610,9 @@ class UnifiedSlurmMonitor:
     async def _close_job_tunnels(self, db: Session, job_id: int):
         """Close SSH tunnels for a job"""
         try:
-            tunnel_service = SSHTunnelService()
-            await tunnel_service.close_job_tunnels(job_id)
+            from app.dependencies.tunnel_service import get_tunnel_service
+            tunnel_service = get_tunnel_service()
+            await tunnel_service.close_job_tunnels(job_id, db)
             self._metrics.active_tunnels = max(0, self._metrics.active_tunnels - 1)
         except Exception as e:
             cluster_logger.error(f"Error closing tunnels for job {job_id}: {e}")

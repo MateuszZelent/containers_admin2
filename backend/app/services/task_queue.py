@@ -1,4 +1,4 @@
-from typing import List, Optional, Dict, Any, Union, Tuple
+from typing import List, Optional, Dict, Any, Union
 from datetime import datetime, timedelta, timezone
 import uuid
 import json
@@ -81,7 +81,7 @@ class TaskQueueService:
         self._executor = ThreadPoolExecutor(max_workers=5)
         self._monitor_lock = None  # Initialize as None, create lazily when needed
         self._is_monitoring = False
-        self._job_monitors = {}  # Track individual job monitors
+        # Note: _job_monitors removed - UnifiedSlurmMonitor handles task monitoring
         self._detail_fetcher = None  # Will be set after initialization
 
     def set_detail_fetcher(self, detail_fetcher):
@@ -642,7 +642,7 @@ class TaskQueueService:
             status_counts=status_counts,
             avg_wait_time=avg_wait_time,
             next_task_id=next_task.task_id if next_task else None,
-            active_worker_count=len(self._job_monitors),
+            active_worker_count=0,  # Not used with UnifiedSlurmMonitor
         )
 
     async def submit_task_to_slurm(self, task: TaskQueueJob) -> bool:
@@ -676,8 +676,9 @@ class TaskQueueService:
                 f"Task {task.task_id} submitted to SLURM with job ID {slurm_job_id}"
             )
 
-            # Start monitoring this specific job
-            self._start_job_monitor(task.id, slurm_job_id)
+            # Note: Job monitoring is handled by UnifiedSlurmMonitor automatically
+            # No need to start individual monitors - UnifiedSlurmMonitor will
+            # pick up this task and sync its status periodically
 
             return True
 
@@ -809,13 +810,14 @@ class TaskQueueService:
     async def _process_queue_once(self):
         """Process the queue once, submitting pending tasks to SLURM."""
         # Get pending tasks ordered by priority and creation time
+        # LIMITED TO 3 CONCURRENT TASKS to prevent SSH connection overload
         pending_tasks = (
             self.db.query(TaskQueueJob)
             .filter(TaskQueueJob.status == TaskStatus.PENDING)
             .order_by(TaskQueueJob.priority.desc(), TaskQueueJob.created_at.asc())
-            .limit(10)
+            .limit(3)  # Process only 3 tasks at a time to prevent overload
             .all()
-        )  # Process 10 tasks at a time
+        )
 
         for task in pending_tasks:
             # Submit to SLURM
@@ -898,239 +900,22 @@ class TaskQueueService:
             )
             cluster_logger.info(retry_msg)
 
-    def _start_job_monitor(self, task_id: int, slurm_job_id: str):
-        """Start monitoring a specific job."""
-        if slurm_job_id in self._job_monitors:
-            return  # Already monitoring
-
-        # Create task for monitoring this job
-        monitor_task = asyncio.create_task(self._monitor_job(task_id, slurm_job_id))
-
-        # Store reference to task
-        self._job_monitors[slurm_job_id] = monitor_task
-
-    async def _monitor_job(self, task_id: int, slurm_job_id: str):
-        """Monitor a specific job until it completes."""
-        try:
-            check_interval = 30  # seconds
-            task = self.get_task(task_id)
-
-            if not task:
-                cluster_logger.error(f"Task {task_id} not found for monitoring")
-                return
-
-            # Keep monitoring until job reaches a terminal state
-            while True:
-                # Use monitoring service instead of direct SLURM calls
-                from app.services.slurm_monitor import monitor_service
-
-                # Get job snapshot from monitoring service (cached data)
-                job_snapshot = await monitor_service.get_job_snapshot(
-                    self.db, slurm_job_id
-                )
-
-                if job_snapshot:
-                    # Job is still active in SLURM (from cache)
-                    if hasattr(job_snapshot, "state"):
-                        slurm_state = job_snapshot.state
-                    else:
-                        slurm_state = job_snapshot.get("state", "UNKNOWN")
-
-                    # Map SLURM state to our task state
-                    new_status = self.SLURM_STATE_MAPPING.get(
-                        slurm_state, TaskStatus.UNKNOWN
-                    )
-
-                    # Calculate progress if possible
-                    progress = self._estimate_progress(
-                        task,
-                        {
-                            "state": job_snapshot.state,
-                            "node": job_snapshot.node,
-                            "time_used": job_snapshot.time_used,
-                            "time_left": job_snapshot.time_left,
-                        },
-                    )
-
-                    # Update node info if available
-                    node = job_snapshot.node
-
-                    # Update task status
-                    if task.status != new_status or (
-                        progress is not None and task.progress != progress
-                    ):
-                        # Prepare update data
-                        update_data = {"status": new_status}
-                        if progress is not None:
-                            update_data["progress"] = progress
-                        if node and node != "(None)":
-                            update_data["node"] = node
-
-                        # Update task
-                        self.update_task(task_id, TaskQueueJobUpdate(**update_data))
-
-                        # Adjust check interval based on status
-                        if new_status == TaskStatus.RUNNING:
-                            check_interval = 60  # Check running jobs less frequently
-                        else:
-                            check_interval = (
-                                30  # Check configuring jobs more frequently
-                            )
-                else:
-                    # Job is no longer in SLURM's active jobs - need to check its final status
-                    # This requires additional SLURM commands (sacct) to get completion info
-                    exit_code, final_state = await self._get_job_final_status(
-                        slurm_job_id
-                    )
-
-                    # Determine our status based on exit code and final state
-                    if exit_code == 0 and final_state in ["COMPLETED", "CD"]:
-                        new_status = TaskStatus.COMPLETED
-                    else:
-                        # Determine if we should retry
-                        if task.retry_count < 3:
-                            # Calculate next retry status
-                            if task.retry_count == 0:
-                                new_status = TaskStatus.ERROR
-                            elif task.retry_count == 1:
-                                new_status = TaskStatus.ERROR_RETRY_1
-                            else:  # retry_count == 2
-                                new_status = TaskStatus.ERROR_RETRY_2
-
-                            # Set the next retry time
-                            delay = self.RETRY_DELAYS[task.retry_count]
-                            next_retry_at = datetime.now(timezone.utc) + delay
-
-                            # Update task with error info and retry timing
-                            self.update_task(
-                                task_id,
-                                TaskQueueJobUpdate(
-                                    status=new_status,
-                                    error_message=f"SLURM job failed with exit code {exit_code}, state {final_state}",
-                                    exit_code=exit_code,
-                                    next_retry_at=next_retry_at,
-                                    progress=100
-                                    if new_status == TaskStatus.COMPLETED
-                                    else task.progress,
-                                ),
-                            )
-                        else:
-                            # No more retries
-                            self.update_task(
-                                task_id,
-                                TaskQueueJobUpdate(
-                                    status=TaskStatus.ERROR_RETRY_3,
-                                    error_message=f"SLURM job failed with exit code {exit_code}, state {final_state} (no more retries)",
-                                    exit_code=exit_code,
-                                    progress=task.progress,
-                                ),
-                            )
-
-                    # Monitoring complete
-                    break
-
-                # Wait before next check
-                await asyncio.sleep(check_interval)
-
-                # Refresh task data
-                task = self.get_task(task_id)
-                if not task:
-                    break
-
-        except Exception as e:
-            cluster_logger.error(
-                f"Error monitoring job {slurm_job_id} for task {task_id}: {str(e)}\n"
-                f"{traceback.format_exc()}"
-            )
-
-            # Try to update task status to ERROR
-            try:
-                self.update_task(
-                    task_id,
-                    TaskQueueJobUpdate(
-                        status=TaskStatus.ERROR,
-                        error_message=f"Monitoring error: {str(e)}",
-                    ),
-                )
-            except Exception:
-                pass
-
-        finally:
-            # Remove from monitoring dict
-            if slurm_job_id in self._job_monitors:
-                del self._job_monitors[slurm_job_id]
-
-    def _estimate_progress(
-        self, task: TaskQueueJob, job_info: Dict[str, Any]
-    ) -> Optional[int]:
-        """Estimate task progress based on job info."""
-        # This is an example - actual implementation will depend on how progress can be tracked
-        # For Mumax3 simulations, we might:
-        # 1. Parse log files for progress indicators
-        # 2. Use time-based estimation (% of time limit used)
-        # 3. Check output file growth
-
-        # Placeholder implementation using time-based estimation
-        if task.status != TaskStatus.RUNNING or not task.started_at:
-            return None
-
-        # Handle both timezone-aware and timezone-naive datetimes
-        started_at = task.started_at
-        if started_at.tzinfo is None:
-            # If timezone-naive, assume UTC
-            started_at = started_at.replace(tzinfo=timezone.utc)
-
-        # Calculate based on elapsed time vs time limit
-        elapsed = (datetime.now(timezone.utc) - started_at).total_seconds()
-
-        # Parse time limit (format: HH:MM:SS)
-        time_parts = task.time_limit.split(":")
-        time_limit_seconds = (
-            int(time_parts[0]) * 3600  # Hours
-            + int(time_parts[1]) * 60  # Minutes
-            + int(time_parts[2])  # Seconds
-        )
-
-        # Calculate percentage (cap at 99% since we can't be sure it's complete)
-        progress = min(int((elapsed / time_limit_seconds) * 100), 99)
-        return progress
-
-    async def _get_job_final_status(
-        self, slurm_job_id: str
-    ) -> Tuple[Optional[int], Optional[str]]:
-        """Get the final status of a completed SLURM job."""
-        try:
-            # Use sacct to get job completion info
-            # This is a simplified example - actual implementation would need to parse sacct output
-            cmd = f"sacct -j {slurm_job_id} -o State,ExitCode -n -P"
-            output = await self.slurm_service._execute_async_command(cmd)
-
-            if not output:
-                return None, None
-
-            # Parse the output (format: "STATE|EXITCODE")
-            lines = output.strip().split("\n")
-            if not lines:
-                return None, None
-
-            # Use the first line (should be the job step we're interested in)
-            parts = lines[0].split("|")
-            if len(parts) < 2:
-                return None, None
-
-            state = parts[0].strip()
-
-            # Parse exit code (format: "0:0" meaning [return code]:[signal])
-            exit_code_parts = parts[1].split(":")
-            exit_code = int(exit_code_parts[0]) if exit_code_parts else None
-
-            return exit_code, state
-
-        except Exception as e:
-            cluster_logger.error(
-                f"Error getting final status for job {slurm_job_id}: {str(e)}"
-            )
-            return None, None
+    # =================================================================
+    # INDIVIDUAL JOB MONITORING REMOVED - HANDLED BY UnifiedSlurmMonitor
+    # =================================================================
+    # 
+    # The following methods have been removed because UnifiedSlurmMonitor
+    # handles all TaskQueueJob status updates automatically:
+    # - _start_job_monitor()
+    # - _monitor_job()
+    # - _get_job_final_status()
+    # - _estimate_progress()
+    #
+    # UnifiedSlurmMonitor syncs SLURM job states with TaskQueueJob table
+    # periodically, eliminating the need for individual SSH connections
+    # per task. This significantly improves performance and reduces
+    # SSH connection overhead.
+    # =================================================================
 
     async def get_task_results(self, task: TaskQueueJob) -> Dict[str, Any]:
         """Get results for a completed task."""

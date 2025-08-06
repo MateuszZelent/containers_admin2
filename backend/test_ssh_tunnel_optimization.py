@@ -17,7 +17,7 @@ backend_dir = Path(__file__).parent
 sys.path.insert(0, str(backend_dir))
 
 from app.db.session import get_db
-from app.services.ssh_tunnel import SSHTunnelService, HealthStatus
+from app.services.tunnels.enums import TunnelStatus, HealthStatus
 from app.db.models import SSHTunnel, Job
 from app.core.logging import cluster_logger
 

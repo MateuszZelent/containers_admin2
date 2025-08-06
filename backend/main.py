@@ -80,7 +80,7 @@ async def startup_event():
         f"  [cyan]Container Output Directory:[/cyan] {settings.CONTAINER_OUTPUT_DIR}"
     )
 
-    # Start the task queue processor
+    # Start the task queue processor (without individual monitors)
     logger.info("Starting task queue processor")
     try:
         background_tasks = BackgroundTasks()
@@ -93,43 +93,22 @@ async def startup_event():
     except Exception as e:
         logger.error(f"Failed to start task queue processor: {str(e)}")
 
-    # Start the SLURM monitoring service
-    logger.info("Starting SLURM monitoring service")
+    # Start the UnifiedSlurmMonitor (replaces old monitoring services)
+    logger.info("Starting UnifiedSlurmMonitor service")
     try:
-        from app.services.slurm_monitor import monitor_service
+        from app.services.unified_slurm_monitor import get_unified_monitor
 
-        # Increase interval to reduce SLURM load - check every 2 minutes
-        await monitor_service.start_monitoring(interval_seconds=120)
-        logger.info("SLURM monitoring service started (120s interval)")
+        monitor = get_unified_monitor()
+        success = await monitor.start()
+        if success:
+            logger.info("UnifiedSlurmMonitor started successfully")
+        else:
+            logger.error("Failed to start UnifiedSlurmMonitor")
     except Exception as e:
-        logger.error(f"Failed to start SLURM monitoring service: {str(e)}")
+        logger.error(f"Failed to start UnifiedSlurmMonitor: {str(e)}")
 
-    # Start the SLURM detail fetcher service
-    logger.info("Starting SLURM detail fetcher service")
-    try:
-        from app.services.slurm import SlurmSSHService
-        from app.services.task_queue import TaskQueueService
-        from app.services.slurm_detail_fetcher import (
-            init_slurm_detail_fetcher,
-            get_slurm_detail_fetcher
-        )
-
-        # Create services
-        slurm_service = SlurmSSHService()
-        db = next(get_db())
-        task_service = TaskQueueService(db)
-        
-        # Initialize and start the detail fetcher
-        init_slurm_detail_fetcher(slurm_service, task_service)
-        detail_fetcher = get_slurm_detail_fetcher()
-        
-        # Set the detail fetcher reference in task service
-        task_service.set_detail_fetcher(detail_fetcher)
-        
-        await detail_fetcher.start()
-        logger.info("SLURM detail fetcher service started")
-    except Exception as e:
-        logger.error(f"Failed to start SLURM detail fetcher: {str(e)}")
+    # Note: Old SLURM monitoring services removed and replaced with UnifiedSlurmMonitor
+    # This eliminates the performance issues caused by multiple SSH connections
 
     # Start cluster monitoring
     await cluster_monitoring_task.start()

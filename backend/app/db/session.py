@@ -10,20 +10,20 @@ from app.core.logging import db_logger
 engine = create_engine(
     # Use DATABASE_URL instead of SQLALCHEMY_DATABASE_URI
     settings.DATABASE_URL,
-    # Increase pool size from default 10
-    pool_size=20,
-    # Increase max overflow from default 20
-    max_overflow=30,
+    # Increase pool size to handle multiple services
+    pool_size=30,
+    # Increase max overflow to handle load spikes
+    max_overflow=50,
     # Set pool recycle to avoid stale connections
     pool_recycle=3600,
-    # Increase timeout slightly
-    pool_timeout=60,
+    # Increase timeout to handle temporary load
+    pool_timeout=120,
     # Enable connection pre-ping to detect stale connections
     pool_pre_ping=True,
     echo=settings.SQLALCHEMY_ECHO if hasattr(settings, "SQLALCHEMY_ECHO") else False,
 )
 
-db_logger.info(f"Database pool configured: size={20}, max_overflow={30}, timeout={60}s")
+db_logger.info(f"Database pool configured: size={30}, max_overflow={50}, timeout={120}s")
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 

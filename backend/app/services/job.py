@@ -14,7 +14,7 @@ from fastapi import HTTPException
 from app.db.models import Job, User
 from app.schemas.job import JobCreate, JobUpdate
 from app.services.slurm import SlurmSSHService
-from app.services.ssh_tunnel import SSHTunnelService
+# SSH tunnel service now uses dependency injection
 from app.services.caddy_api import CaddyAPIClient
 from app.core.logging import (
     slurm_logger,
@@ -28,7 +28,7 @@ from app.core.config import settings
 class JobService:
     def __init__(self, db: Session):
         self.db = db
-        self.ssh_tunnel_service = SSHTunnelService()
+        # Remove SSH tunnel service dependency - use dependency injection instead
 
     @staticmethod
     def sanitize_container_name_for_domain(container_name: str) -> str:
@@ -222,7 +222,10 @@ class JobService:
             tunnel_id = getattr(job, "id", None)
             if tunnel_id is not None:
                 try:
-                    await self.ssh_tunnel_service.close_job_tunnels(int(tunnel_id))
+                    # Use dependency injection for tunnel service
+                    from app.dependencies.tunnel_service import get_tunnel_service
+                    tunnel_service = get_tunnel_service()
+                    await tunnel_service.close_job_tunnels(int(tunnel_id), self.db)
                 except Exception as e:
                     # Handle tunnel closing errors
                     err = str(e).replace("[", "«").replace("]", "»")
@@ -269,7 +272,7 @@ class JobService:
             return
 
         check_interval = initial_check_interval
-        tunnel_service = SSHTunnelService()
+        # SSH tunnel service removed - using dependency injection in routes
         
         # Add counters for retry limits
         connection_attempts = 0
@@ -369,16 +372,16 @@ class JobService:
                                 cluster_logger.info(msg)
                                 setattr(db_job, "node", str(node))
 
-                                # Create SSH tunnel
-                                tunnel = await tunnel_service.create_tunnel(
-                                    db_job.id  # type: ignore
-                                )
-                                if tunnel:
-                                    msg = f"Created tunnel: {job_id}"
-                                    cluster_logger.info(msg)
-                                else:
-                                    msg = f"Failed tunnel: {job_id}"
-                                    cluster_logger.warning(msg)
+                                # TODO: Create SSH tunnel via background task
+                                # tunnel = await tunnel_service.create_tunnel(
+                                #     db_job.id  # type: ignore
+                                # )
+                                # if tunnel:
+                                #     msg = f"Created tunnel: {job_id}"
+                                #     cluster_logger.info(msg)
+                                # else:
+                                #     msg = f"Failed tunnel: {job_id}"
+                                #     cluster_logger.warning(msg)
 
                         # Update status
                         setattr(db_job, "status", mapped_status)
@@ -390,11 +393,12 @@ class JobService:
                                 f"Job {job_id} reached final state: "
                                 f"{mapped_status}, stopping monitoring"
                             )
-                            # Close tunnels and cleanup
+                            # TODO: Close tunnels via background task
                             try:
-                                await tunnel_service.close_job_tunnels(
-                                    db_job.id  # type: ignore
-                                )
+                                # await tunnel_service.close_job_tunnels(
+                                #     db_job.id  # type: ignore
+                                # )
+                                pass
                             except Exception as e:
                                 err = str(e).replace("[", "«").replace("]", "»")
                                 cluster_logger.warning(
@@ -436,11 +440,12 @@ class JobService:
                                     setattr(db_job, "status", "COMPLETED")
                                     db.commit()
                                     
-                                    # Close tunnels and cleanup Caddy
+                                    # TODO: Close tunnels via background task
                                     try:
-                                        await tunnel_service.close_job_tunnels(
-                                            db_job.id  # type: ignore
-                                        )
+                                        # await tunnel_service.close_job_tunnels(
+                                        #     db_job.id  # type: ignore
+                                        # )
+                                        pass
                                     except Exception as e:
                                         err = str(e).replace("[", "«").replace(
                                             "]", "»"
@@ -487,9 +492,11 @@ class JobService:
                         )
                         # Final cleanup
                         try:
-                            await tunnel_service.close_job_tunnels(
-                                final_job.id  # type: ignore
-                            )
+                            # TODO: Close tunnels via background task
+                            # await tunnel_service.close_job_tunnels(
+                            #     final_job.id  # type: ignore
+                            # )
+                            pass
                         except Exception:
                             pass
                         try:
