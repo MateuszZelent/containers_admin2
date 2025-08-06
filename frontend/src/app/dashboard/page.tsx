@@ -45,7 +45,7 @@ import { ResourceUsageChart } from "./components/resource-usage-chart";
 import { OptimizedResourceUsageChart } from "./components/optimized-resource-usage-chart";
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
-import { DomainReadinessModal } from "@/components/domain-readiness-modal";
+import { CodeServerModal } from "@/components/code-server-modal";
 // import { useClusterStatus } from "@/hooks/useClusterStatus"; // REMOVED - using global context
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { ConnectionStatusCard } from "@/components/connection-status-card";
@@ -143,7 +143,6 @@ export default function DashboardPage() {
   const [jobToDelete, setJobToDelete] = useState<Job | null>(null);
   
   // Data states
-  const [jobTunnels, setJobTunnels] = useState<Record<number, TunnelData[]>>({});
   const [autoRefreshEnabled, setAutoRefreshEnabled] = useState(true);
 
   // WebSocket-based cluster status - FROM GLOBAL CONTEXT ONLY
@@ -178,9 +177,9 @@ export default function DashboardPage() {
   const clusterHealth = useClusterHealth();
   
   // Domain readiness modal states
-  const [isDomainModalOpen, setIsDomainModalOpen] = useState(false);
-  const [domainModalJobId, setDomainModalJobId] = useState<number | null>(null);
-  const [domainModalJobName, setDomainModalJobName] = useState<string>("");
+  const [isCodeServerModalOpen, setIsCodeServerModalOpen] = useState(false);
+  const [codeServerModalJobId, setCodeServerModalJobId] = useState<number | null>(null);
+  const [codeServerModalJobName, setCodeServerModalJobName] = useState<string>("");
 
   // Create a map of active jobs for efficient lookup
   const activeJobsMap = useMemo(() => {
@@ -315,48 +314,6 @@ export default function DashboardPage() {
     fetchAdminData(); // Refresh admin data
   };
 
-  // Fetch tunnel information with improved error handling
-  const fetchTunnelInfo = useCallback(async (jobId: number) => {
-    try {
-      const response = await jobsApi.getJobTunnels(jobId);
-      setJobTunnels(prev => ({
-        ...prev,
-        [jobId]: response.data
-      }));
-    } catch (error: unknown) {
-      console.error(`Error fetching tunnel info for job ${jobId}:`, error); // Zachowaj ogólne logowanie
-
-      if (axios.isAxiosError(error)) {
-        if (error.response) {
-          // Serwer odpowiedział błędem
-          if (error.response.status === 500) {
-            toast.error(`Wystąpił wewnętrzny błąd serwera przy pobieraniu tuneli dla zadania ${jobId}. Prosimy spróbować później.`);
-            // Możesz też zapisać gdzieś, że dla tego joba nie udało się pobrać tuneli
-            // np. setJobTunnelsError(jobId, true);
-          } else {
-            // Inne błędy serwera (np. 400, 404)
-            const message = error.response.data?.detail || `Błąd serwera (${error.response.status}) przy pobieraniu tuneli.`;
-            toast.error(message);
-          }
-        } else if (error.request) {
-          toast.error(t('dashboard.clusterStatus.noServerResponse', { jobId }));
-        } else {
-          toast.error(`Błąd konfiguracji żądania tuneli dla zadania ${jobId}.`);
-        }
-      } else {
-        toast.error(`Wystąpił nieoczekiwany błąd przy pobieraniu tuneli dla zadania ${jobId}.`);
-      }
-    }  }, []);
-
-  // Fetch all tunnel information for running jobs
-  const fetchAllTunnels = useCallback(() => {
-    jobs.forEach(job => {
-      if (job.status === "RUNNING" && job.node && job.port) {
-        fetchTunnelInfo(job.id);
-      }
-    });
-  }, [jobs, fetchTunnelInfo]);
-
   // Initial data fetching
   useEffect(() => {
     const initialFetch = async () => {
@@ -373,11 +330,6 @@ export default function DashboardPage() {
     
     initialFetch();
   }, [fetchJobs, fetchActiveJobs, fetchCurrentUser]);
-
-  // Fetch tunnels when jobs change
-  useEffect(() => {
-    fetchAllTunnels();
-  }, [fetchAllTunnels]);
 
   // Fetch admin data when user changes and is admin
   useEffect(() => {
@@ -472,10 +424,10 @@ export default function DashboardPage() {
   // Open Code Server with loading state
   const openCodeServer = useCallback(async (job: Job) => {
     try {
-      // Open domain readiness modal instead of direct API call
-      setDomainModalJobId(job.id);
-      setDomainModalJobName(job.job_name);
-      setIsDomainModalOpen(true);
+      // Open code server modal instead of direct API call
+      setCodeServerModalJobId(job.id);
+      setCodeServerModalJobName(job.job_name);
+      setIsCodeServerModalOpen(true);
       // Set processing state for this job
       setProcessingJobs(prev => ({ ...prev, [job.id]: true }));
     } catch (error: unknown) {
@@ -496,23 +448,16 @@ export default function DashboardPage() {
     router.push(`/dashboard/jobs/${jobId}`);
   }, [router]);
 
-  // Handle domain modal close
-  const handleDomainModalClose = useCallback(() => {
-    setIsDomainModalOpen(false);
-    setDomainModalJobId(null);
-    setDomainModalJobName("");
+  // Handle code server modal close
+  const handleCodeServerModalClose = useCallback(() => {
+    setIsCodeServerModalOpen(false);
+    setCodeServerModalJobId(null);
+    setCodeServerModalJobName("");
     // Clear processing state when modal closes
-    if (domainModalJobId) {
-      setProcessingJobs(prev => ({ ...prev, [domainModalJobId]: false }));
+    if (codeServerModalJobId) {
+      setProcessingJobs(prev => ({ ...prev, [codeServerModalJobId]: false }));
     }
-  }, [domainModalJobId]);
-
-  // Handle URL ready from domain modal
-  const handleUrlReady = useCallback((url: string) => {
-    // This callback is no longer used - opening is handled in the modal itself
-    // Modal stays open for user to manually close
-    console.log('Domain ready:', url);
-  }, []);
+  }, [codeServerModalJobId]);
 
   // Memoize filtered job lists for better performance and animation stability
   const activeJobsList = useMemo(() => {
@@ -852,8 +797,8 @@ const handleDownloadResults = useCallback(async (taskId: number) => {
                   <JobCard 
                     key={job.id}
                     job={job}
+                    tunnels={[]}
                     activeJobData={activeJobsMap.get(job.job_id)}
-                    tunnels={jobTunnels[job.id] || []}
                     isProcessing={processingJobs[job.id] || false}
                     onDelete={() => handleDelete(job)}
                     onOpenCodeServer={() => openCodeServer(job)}
@@ -891,8 +836,8 @@ const handleDownloadResults = useCallback(async (taskId: number) => {
                       <JobCard 
                         key={job.id}
                         job={job}
+                        tunnels={[]}
                         activeJobData={activeJobsMap.get(job.job_id)}
-                        tunnels={jobTunnels[job.id] || []}
                         isProcessing={processingJobs[job.id] || false}
                         onDelete={() => handleDelete(job)}
                         onOpenCodeServer={() => openCodeServer(job)}
@@ -935,8 +880,8 @@ const handleDownloadResults = useCallback(async (taskId: number) => {
                       <div key={job.id} className="relative">
                         <JobCard 
                           job={job}
+                          tunnels={[]}
                           activeJobData={activeJobsMap.get(job.job_id)}
-                          tunnels={jobTunnels[job.id] || []}
                           isProcessing={processingJobs[job.id] || false}
                           onDelete={() => handleDelete(job)}
                           onOpenCodeServer={() => openCodeServer(job)}
@@ -1182,14 +1127,13 @@ const handleDownloadResults = useCallback(async (taskId: number) => {
         isLoading={jobToDelete ? (processingJobs[jobToDelete.id] || false) : false}
       />
 
-      {/* Domain Readiness Modal */}
-      {domainModalJobId && (
-        <DomainReadinessModal
-          jobId={domainModalJobId}
-          jobName={domainModalJobName}
-          isOpen={isDomainModalOpen}
-          onClose={handleDomainModalClose}
-          onUrlReady={handleUrlReady}
+      {/* Code Server Modal */}
+      {codeServerModalJobId && (
+        <CodeServerModal
+          jobId={codeServerModalJobId}
+          jobName={codeServerModalJobName}
+          isOpen={isCodeServerModalOpen}
+          onClose={handleCodeServerModalClose}
         />
       )}
       

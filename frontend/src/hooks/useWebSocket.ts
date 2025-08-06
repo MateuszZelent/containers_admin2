@@ -80,8 +80,9 @@ export const useWebSocket = ({
       host = `${currentHost}:8000`;
     }
     
-    // Get auth token from localStorage
-    const token = typeof window !== "undefined" ? localStorage.getItem("auth_token") : null;
+    // Get auth token from localStorage - try multiple possible keys for compatibility
+    const token = typeof window !== "undefined" ? 
+      (localStorage.getItem("access_token") || localStorage.getItem("auth_token")) : null;
     
     // Build URL with token as query parameter
     const baseUrl = `${protocol}//${host}${url || ''}`;

@@ -6,7 +6,7 @@ This is the main service class that coordinates between ProcessManager and datab
 """
 
 import asyncio
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Dict, List, Optional, Set
 from sqlalchemy.orm import Session
 from fastapi import Depends
@@ -44,99 +44,114 @@ class SSHTunnelService:
         self._port_allocation_lock = asyncio.Semaphore(1)
         self._allocated_ports: Set[int] = set()
         
-        # Background task control
-        self._background_tasks_started = False
-        
-    async def get_or_create_tunnel(
-        self, 
-        job_id: int,
-        db: Session = Depends(get_db)
-    ) -> Optional[SSHTunnelInfo]:
-        """
-        Get existing tunnel or create new one for job.
-        
-        Uses database session dependency injection.
-        
-        Args:
-            job_id: ID of job requiring tunnel
-            db: Database session (injected)
-            
-        Returns:
-            SSHTunnelInfo or None if creation fails
-        """
-        cluster_logger.info(f"Getting or creating tunnel for job {job_id}")
-        
-        # Ensure background tasks are running
-        await self._ensure_background_tasks()
-        
-        async with self._port_allocation_lock:
-            try:
-                # Check for existing active tunnels
-                existing_tunnel = db.query(SSHTunnel).filter(
-                    SSHTunnel.job_id == job_id,
-                    SSHTunnel.status == TunnelStatus.ACTIVE.value
-                ).first()
-                
-                if existing_tunnel:
-                    # Verify tunnel is actually healthy
-                    health_info = await self.process_manager.get_comprehensive_health(
-                        tunnel_id=existing_tunnel.id,
-                        ssh_pid=existing_tunnel.ssh_pid,
-                        socat_pid=existing_tunnel.socat_pid,
-                        external_port=existing_tunnel.external_port,
-                        node=existing_tunnel.node
-                    )
-                    
-                    if health_info.is_healthy:
-                        cluster_logger.info(
-                            f"Found healthy existing tunnel {existing_tunnel.id} "
-                            f"for job {job_id}"
-                        )
-                        
-                        # Update health status in database
-                        existing_tunnel.health_status = health_info.health_status.value
-                        existing_tunnel.last_health_check = datetime.utcnow()
-                        db.commit()
-                        
-                        return self._tunnel_to_info(existing_tunnel)
-                    else:
-                        cluster_logger.warning(
-                            f"Existing tunnel {existing_tunnel.id} is unhealthy, "
-                            f"cleaning up"
-                        )
-                        await self._cleanup_tunnel(existing_tunnel, db)
-                
-                # Create new tunnel
-                return await self._create_new_tunnel(job_id, db)
-                
-            except Exception as e:
-                cluster_logger.error(
-                    f"Error in get_or_create_tunnel for job {job_id}: {e}",
-                    exc_info=True
-                )
-                db.rollback()
-                return None
+        # REMOVED: _background_tasks_started (not needed for synchronous tunnel creation)
     
-    async def _create_new_tunnel(
-        self, 
-        job_id: int, 
+    async def _send_websocket_event(
+        self, job_id: int, event_type: str, data: Dict
+    ):
+        """Send WebSocket event to tunnel setup channel."""
+        try:
+            from app.websocket.manager import websocket_manager
+            
+            # Add common event metadata
+            event_data = {
+                "type": event_type,
+                "job_id": job_id,
+                "timestamp": datetime.utcnow().isoformat(),
+                **data
+            }
+            
+            # Send to job-specific tunnel setup channel
+            channel = f"tunnel_setup_{job_id}"
+            await websocket_manager.broadcast_to_channel(channel, event_data)
+            
+        except Exception as e:
+            cluster_logger.warning(
+                f"Failed to send WebSocket event for job {job_id}: {e}"
+            )
+        
+    async def get_or_create_tunnel_sync(
+        self,
+        job_id: int,
         db: Session
     ) -> Optional[SSHTunnelInfo]:
-        """Create a new tunnel for the given job."""
-        # Get job information
-        job = db.query(Job).filter(Job.id == job_id).first()
-        if not job or not job.port or not job.node:
-            cluster_logger.error(f"Job {job_id} not found or incomplete")
-            return None
+        """
+        Create or get existing tunnel for a job, wait for full establishment.
+        Synchronous version that waits for tunnel to be ACTIVE before returning.
+        """
+        try:
+            # Check if active tunnel already exists
+            existing_tunnel = (
+                db.query(SSHTunnel)
+                .filter(
+                    SSHTunnel.job_id == job_id,
+                    SSHTunnel.status.in_([TunnelStatus.ACTIVE.value, TunnelStatus.CONNECTING.value])
+                )
+                .first()
+            )
             
-        # Allocate ports
+            if existing_tunnel:
+                if existing_tunnel.status == TunnelStatus.ACTIVE.value:
+                    cluster_logger.info(f"Found existing active tunnel {existing_tunnel.id} for job {job_id}")
+                    return self._tunnel_to_info(existing_tunnel)
+                else:
+                    # Wait for connecting tunnel to become active
+                    cluster_logger.info(f"Found connecting tunnel {existing_tunnel.id}, waiting for completion...")
+                    return await self._wait_for_tunnel_active(existing_tunnel.id, db)
+            
+            # No existing tunnel, create new one synchronously
+            return await self._create_tunnel_sync(job_id, db)
+            
+        except Exception as e:
+            cluster_logger.error(f"Error in get_or_create_tunnel_sync for job {job_id}: {e}")
+            return None
+
+    async def _create_tunnel_sync(
+        self,
+        job_id: int,
+        db: Session
+    ) -> Optional[SSHTunnelInfo]:
+        """Create tunnel synchronously and wait for it to be established."""
+        
+        # Get job
+        job = db.query(Job).filter(Job.id == job_id).first()
+        if not job:
+            cluster_logger.error(f"Job {job_id} not found")
+            return None
+        
+        await self._send_websocket_event(job_id, "setup_progress", {
+            "message": "🔄 Allocating ports...",
+            "step": "port_allocation"
+        })
+        
         port_allocation = await self._allocate_ports(job_id)
         if not port_allocation:
+            await self._send_websocket_event(job_id, "setup_error", {
+                "message": "❌ No available ports",
+                "step": "port_allocation",
+                "error": "Failed to allocate ports"
+            })
             cluster_logger.error(f"Failed to allocate ports for job {job_id}")
             return None
+        
+        msg = (f"✅ Ports allocated: {port_allocation.internal_port} "
+               f"-> {port_allocation.external_port}")
+        await self._send_websocket_event(job_id, "setup_progress", {
+            "message": msg,
+            "step": "port_allocation",
+            "details": {
+                "internal_port": port_allocation.internal_port,
+                "external_port": port_allocation.external_port
+            }
+        })
             
         try:
             # Create tunnel record
+            await self._send_websocket_event(job_id, "setup_progress", {
+                "message": "💾 Creating tunnel record...",
+                "step": "database"
+            })
+            
             tunnel = SSHTunnel(
                 job_id=job_id,
                 internal_port=port_allocation.internal_port,
@@ -144,7 +159,7 @@ class SSHTunnelService:
                 remote_port=job.port,
                 remote_host=job.node,
                 node=job.node,
-                status=TunnelStatus.PENDING.value,
+                status=TunnelStatus.CONNECTING.value,
                 health_status=HealthStatus.PENDING.value,
                 created_at=datetime.utcnow(),
                 last_health_check=datetime.utcnow()
@@ -159,89 +174,95 @@ class SSHTunnelService:
                 f"{port_allocation.internal_port} -> {port_allocation.external_port}"
             )
             
-            # Start async tunnel creation
-            asyncio.create_task(
-                self._establish_tunnel_async(tunnel_id, job_id, port_allocation, db)
-            )
+            await self._send_websocket_event(job_id, "setup_progress", {
+                "message": f"✅ Tunnel record created (ID: {tunnel_id})",
+                "step": "database",
+                "details": {
+                    "tunnel_id": tunnel_id
+                }
+            })
             
-            db.commit()
-            return self._tunnel_to_info(tunnel)
+            # Establish tunnel synchronously
+            success = await self._establish_tunnel_sync_internal(tunnel_id, job_id, port_allocation, job, db)
             
+            if success:
+                db.commit()
+                # Refresh tunnel from DB
+                tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
+                return self._tunnel_to_info(tunnel)
+            else:
+                db.rollback()
+                await self._release_ports(port_allocation)
+                return None
+                
         except Exception as e:
+            await self._send_websocket_event(job_id, "setup_error", {
+                "message": f"❌ Database error: {str(e)}",
+                "step": "database",
+                "error": str(e)
+            })
             cluster_logger.error(f"Failed to create tunnel for job {job_id}: {e}")
             db.rollback()
             await self._release_ports(port_allocation)
             return None
-    
-    async def _establish_tunnel_async(
+
+    async def _establish_tunnel_sync_internal(
         self,
         tunnel_id: int,
-        job_id: int, 
+        job_id: int,
         port_allocation: PortAllocation,
-        original_db: Session
-    ):
-        """
-        Establish tunnel processes asynchronously.
-        
-        This runs in background and updates tunnel status as it progresses.
-        """
-        # Create new DB session for background task
-        from app.db.session import SessionLocal
-        db = SessionLocal()
+        job: Job,
+        db: Session
+    ) -> bool:
+        """Establish tunnel synchronously (internal method)."""
         
         try:
-            # Update status to CONNECTING
             tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
             if not tunnel:
                 cluster_logger.error(f"Tunnel {tunnel_id} not found for establishment")
-                return
-                
-            tunnel.status = TunnelStatus.CONNECTING.value
-            tunnel.updated_at = datetime.utcnow()
-            db.commit()
+                return False
             
-            # Get job info
-            job = db.query(Job).filter(Job.id == job_id).first()
-            if not job:
-                cluster_logger.error(f"Job {job_id} not found for tunnel establishment")
-                tunnel.status = TunnelStatus.FAILED.value
-                db.commit()
-                return
-                
-            # Pre-flight SSH checks
-            cluster_logger.info(f"Starting SSH pre-flight checks for tunnel {tunnel_id}")
+            # SSH pre-flight checks
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": "🔍 Performing SSH pre-flight checks...",
+                "step": "ssh_preflight"
+            })
+            
             if settings.SLURM_KEY_FILE:
                 try:
                     import os
                     key_path = os.path.expanduser(settings.SLURM_KEY_FILE)
-                    key_exists = os.path.exists(key_path)
-                    cluster_logger.info(f"SSH key path: {key_path}")
-                    cluster_logger.info(f"SSH key exists: {key_exists}")
-                    
-                    if key_exists:
-                        # Check permissions
-                        stat_info = os.stat(key_path)
-                        cluster_logger.info(f"SSH key permissions: {oct(stat_info.st_mode)}")
-                        cluster_logger.info(f"SSH key owner: {stat_info.st_uid}:{stat_info.st_gid}")
-                    else:
-                        cluster_logger.error(f"SSH key not found at {key_path}")
-                        tunnel.status = TunnelStatus.FAILED.value
-                        db.commit()
-                        return
+                    if not os.path.exists(key_path):
+                        await self._send_websocket_event(job_id, "tunnel_error", {
+                            "message": f"❌ SSH key not found: {key_path}",
+                            "step": "ssh_preflight",
+                            "error": f"SSH key not found at {key_path}"
+                        })
+                        return False
                 except Exception as e:
-                    cluster_logger.error(f"Error checking SSH key: {e}")
-                    tunnel.status = TunnelStatus.FAILED.value
-                    db.commit()
-                    return
-            else:
-                cluster_logger.warning("No SSH key configured (SLURM_KEY_FILE not set)")
+                    await self._send_websocket_event(job_id, "tunnel_error", {
+                        "message": f"❌ SSH key check failed: {str(e)}",
+                        "step": "ssh_preflight",
+                        "error": str(e)
+                    })
+                    return False
             
-            cluster_logger.info(f"SSH pre-flight checks passed for tunnel {tunnel_id}")
-            
-            cluster_logger.info(f"Establishing SSH tunnel for tunnel {tunnel_id}")
-            cluster_logger.info(f"SSH tunnel parameters: node={job.node}, remote_port={job.port}, local_port={port_allocation.internal_port}, remote_host={settings.SLURM_HOST}")
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": "✅ SSH pre-flight checks passed",
+                "step": "ssh_preflight"
+            })
             
             # Create SSH tunnel
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": f"🔗 Establishing SSH tunnel: {job.node}:{job.port}",
+                "step": "ssh_tunnel",
+                "details": {
+                    "node": job.node,
+                    "remote_port": job.port,
+                    "local_port": port_allocation.internal_port
+                }
+            })
+            
             ssh_success, ssh_pid = await self.process_manager.create_ssh_tunnel(
                 local_port=port_allocation.internal_port,
                 remote_port=job.port,
@@ -250,45 +271,64 @@ class SSHTunnelService:
             )
             
             if not ssh_success:
-                cluster_logger.error(f"SSH tunnel creation failed for tunnel {tunnel_id}")
-                tunnel.status = TunnelStatus.FAILED.value
-                tunnel.health_status = HealthStatus.UNHEALTHY.value
-                db.commit()
-                await self._release_ports(port_allocation)
-                return
+                await self._send_websocket_event(job_id, "tunnel_error", {
+                    "message": "❌ SSH tunnel creation failed",
+                    "step": "ssh_tunnel",
+                    "error": "SSH process creation failed"
+                })
+                return False
                 
-            # Update SSH PID
             tunnel.ssh_pid = ssh_pid
-            db.commit()
-            cluster_logger.info(f"SSH tunnel established for tunnel {tunnel_id}, PID={ssh_pid}")
+            db.flush()
             
-            cluster_logger.info(f"Creating socat forwarder for tunnel {tunnel_id}")
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": f"✅ SSH tunnel established (PID: {ssh_pid})",
+                "step": "ssh_tunnel",
+                "details": {"ssh_pid": ssh_pid}
+            })
             
             # Create socat forwarder
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": f"🔄 Creating port forwarder: {port_allocation.external_port} -> {port_allocation.internal_port}",
+                "step": "socat_forwarder",
+                "details": {
+                    "external_port": port_allocation.external_port,
+                    "internal_port": port_allocation.internal_port
+                }
+            })
+            
             socat_success, socat_pid = await self.process_manager.create_socat_forwarder(
                 external_port=port_allocation.external_port,
                 internal_port=port_allocation.internal_port
             )
             
             if not socat_success:
-                cluster_logger.error(f"Socat creation failed for tunnel {tunnel_id}")
-                # Clean up SSH process
+                await self._send_websocket_event(job_id, "tunnel_error", {
+                    "message": "❌ Port forwarder creation failed",
+                    "step": "socat_forwarder",
+                    "error": "Socat process creation failed"
+                })
+                # Clean up SSH
                 if ssh_pid:
-                    cluster_logger.info(f"Cleaning up SSH process {ssh_pid}")
                     await self.process_manager.terminate_process(ssh_pid)
-                tunnel.status = TunnelStatus.FAILED.value
-                tunnel.health_status = HealthStatus.UNHEALTHY.value
-                db.commit()
-                await self._release_ports(port_allocation)
-                return
+                return False
             
-            # Update socat PID
             tunnel.socat_pid = socat_pid
-            db.commit()
-            cluster_logger.info(f"Socat forwarder established for tunnel {tunnel_id}, PID={socat_pid}")
+            db.flush()
+            
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": f"✅ Port forwarder established (PID: {socat_pid})",
+                "step": "socat_forwarder",
+                "details": {"socat_pid": socat_pid}
+            })
             
             # Final connectivity test
-            cluster_logger.info(f"Testing connectivity for tunnel {tunnel_id}")
+            await self._send_websocket_event(job_id, "tunnel_progress", {
+                "message": f"🧪 Testing port connectivity: {port_allocation.external_port}",
+                "step": "connectivity_test",
+                "details": {"testing_port": port_allocation.external_port}
+            })
+            
             connectivity_ok = await self.process_manager.test_port_connectivity(
                 port_allocation.external_port
             )
@@ -298,29 +338,80 @@ class SSHTunnelService:
                 tunnel.health_status = HealthStatus.HEALTHY.value
                 tunnel.last_health_check = datetime.utcnow()
                 tunnel.updated_at = datetime.utcnow()
-                cluster_logger.info(f"Tunnel {tunnel_id} successfully established and active")
+                
+                await self._send_websocket_event(job_id, "tunnel_established", {
+                    "message": f"🎉 Tunnel successfully established!",
+                    "step": "complete",
+                    "tunnel_id": tunnel_id,
+                    "details": {
+                        "status": "ACTIVE",
+                        "health_status": "HEALTHY",
+                        "external_port": port_allocation.external_port,
+                        "ssh_pid": ssh_pid,
+                        "socat_pid": socat_pid
+                    }
+                })
+                return True
             else:
-                cluster_logger.warning(f"Connectivity test failed for tunnel {tunnel_id}, but tunnel processes are running")
-                tunnel.status = TunnelStatus.ACTIVE.value  # Keep as active since processes work
+                tunnel.status = TunnelStatus.ACTIVE.value  
                 tunnel.health_status = HealthStatus.DEGRADED.value
                 tunnel.last_health_check = datetime.utcnow()
                 tunnel.updated_at = datetime.utcnow()
-                cluster_logger.info(f"Tunnel {tunnel_id} established with degraded connectivity")
-            
-            db.commit()
-            
+                
+                await self._send_websocket_event(job_id, "tunnel_warning", {
+                    "message": "⚠️ Tunnel established but connectivity test failed",
+                    "step": "connectivity_test",
+                    "details": {"status": "DEGRADED"}
+                })
+                return True
+                
         except Exception as e:
-            cluster_logger.error(
-                f"Error establishing tunnel {tunnel_id}: {e}", 
-                exc_info=True
-            )
-            if 'tunnel' in locals():
-                tunnel.status = TunnelStatus.FAILED.value
-                tunnel.health_status = HealthStatus.UNHEALTHY.value
-                db.commit()
-            await self._release_ports(port_allocation)
-        finally:
-            db.close()
+            await self._send_websocket_event(job_id, "tunnel_error", {
+                "message": f"❌ Tunnel establishment failed: {str(e)}",
+                "step": "ssh_tunnel",
+                "error": str(e)
+            })
+            cluster_logger.error(f"Failed to establish tunnel {tunnel_id}: {e}")
+            return False
+
+    async def _wait_for_tunnel_active(self, tunnel_id: int, db: Session, timeout: int = 120) -> Optional[SSHTunnelInfo]:
+        """Wait for existing connecting tunnel to become active."""
+        import asyncio
+        
+        start_time = asyncio.get_event_loop().time()
+        
+        while True:
+            tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
+            if not tunnel:
+                return None
+                
+            if tunnel.status == TunnelStatus.ACTIVE.value:
+                return self._tunnel_to_info(tunnel)
+            elif tunnel.status == TunnelStatus.FAILED.value:
+                return None
+                
+            if asyncio.get_event_loop().time() - start_time > timeout:
+                cluster_logger.error(f"Timeout waiting for tunnel {tunnel_id} to become active")
+                return None
+                
+            await asyncio.sleep(1)
+
+    async def get_or_create_tunnel(
+        self,
+        job_id: int,
+        db: Session = Depends(get_db)
+    ) -> Optional[SSHTunnelInfo]:
+        """
+        DEPRECATED: Use get_or_create_tunnel_sync() instead.
+        This method exists only for backwards compatibility.
+        """
+        cluster_logger.warning(f"DEPRECATED: get_or_create_tunnel() called for job {job_id}. Use get_or_create_tunnel_sync() instead.")
+        # Forward to synchronous version for consistency
+        return await self.get_or_create_tunnel_sync(job_id, db)
+    
+    # REMOVED: _create_new_tunnel() - replaced by _create_tunnel_sync()
+    
+    # REMOVED: _establish_tunnel_async() - replaced by synchronous version
     
     async def _allocate_ports(self, job_id: int) -> Optional[PortAllocation]:
         """Allocate internal and external ports for a tunnel."""
@@ -447,59 +538,8 @@ class SSHTunnelService:
             updated_at=tunnel.updated_at
         )
     
-    async def _ensure_background_tasks(self):
-        """Ensure background maintenance tasks are running."""
-        if not self._background_tasks_started:
-            asyncio.create_task(self._periodic_cleanup_task())
-            self._background_tasks_started = True
-            cluster_logger.info("Background tasks started")
-    
-    async def _periodic_cleanup_task(self):
-        """Periodic cleanup of inactive tunnels."""
-        while True:
-            try:
-                await asyncio.sleep(300)  # 5 minutes
-                await self._cleanup_inactive_tunnels()
-            except asyncio.CancelledError:
-                cluster_logger.info("Cleanup task cancelled")
-                break
-            except Exception as e:
-                cluster_logger.error(f"Error in cleanup task: {e}")
-                await asyncio.sleep(60)  # Wait before retry
-    
-    async def _cleanup_inactive_tunnels(self):
-        """Clean up inactive tunnels."""
-        from app.db.session import SessionLocal
-        db = SessionLocal()
-        
-        try:
-            # Find old or unhealthy tunnels
-            old_time = datetime.utcnow() - timedelta(hours=2)
-            old_tunnels = db.query(SSHTunnel).filter(
-                SSHTunnel.created_at < old_time
-            ).all()
-            
-            cleanup_count = 0
-            for tunnel in old_tunnels:
-                health_info = await self.process_manager.get_comprehensive_health(
-                    tunnel_id=tunnel.id,
-                    ssh_pid=tunnel.ssh_pid,
-                    socat_pid=tunnel.socat_pid,
-                    external_port=tunnel.external_port,
-                    node=tunnel.node
-                )
-                
-                if not health_info.is_healthy:
-                    await self._cleanup_tunnel(tunnel, db)
-                    cleanup_count += 1
-                    
-            if cleanup_count > 0:
-                cluster_logger.info(f"Cleaned up {cleanup_count} inactive tunnels")
-                
-        except Exception as e:
-            cluster_logger.error(f"Error in cleanup: {e}")
-        finally:
-            db.close()
+    # REMOVED: Background task functions (_ensure_background_tasks, _periodic_cleanup_task, _cleanup_inactive_tunnels)
+    # These were used only by the old asynchronous tunnel creation
     
     async def close_tunnel(self, tunnel_id: int, db: Session = Depends(get_db)) -> bool:
         """Close a specific tunnel."""

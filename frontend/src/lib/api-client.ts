@@ -102,7 +102,7 @@ apiClient.interceptors.response.use(
       if (error.response.status === 401 || error.response.status === 403) {
         // Sprawdź czy komunikat błędu zawiera "Could not validate credentials"
         const errorDetail = error.response.data?.detail;
-        if (typeof errorDetail === 'string' && errorDetail.includes("Could not validate credentials")) {
+        if (typeof errorDetail === 'string' && errorDetail.includes("Could not validate credentials22")) {
           console.log('Authentication error: Token invalid or expired');
           
           // Wyloguj użytkownika - wyczyść localStorage

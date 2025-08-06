@@ -8,6 +8,7 @@ from pydantic import ValidationError
 
 from app.core.config import settings
 from app.core.security import verify_password
+from app.core.logging import logger
 from app.db.session import get_db
 from app.schemas.token import TokenPayload
 from app.services.user import UserService
@@ -96,10 +97,13 @@ def get_current_user_with_cli_support(
 def get_current_user(
     db: Session = Depends(get_db), token: str = Depends(oauth2_scheme)
 ) -> User:
+    print(f"DEBUG AUTH: get_current_user called with token: {token[:20] if token else 'None'}...")
+    
     # Jeśli autoryzacja jest wyłączona, zwracamy domyślnego użytkownika (admin)
     if settings.DISABLE_AUTH:
         admin_user = UserService.get_by_username(db, username="admin")
         if admin_user:
+            print(f"DEBUG AUTH: Auth disabled, returning admin user: {admin_user.username} (id={admin_user.id})")
             return admin_user
         # Jeśli nie ma admina, warto zgłosić błąd, bo to powinien być domyślny użytkownik
         raise HTTPException(status_code=404, detail="Default admin user not found")
@@ -110,22 +114,31 @@ def get_current_user(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
         token_data = TokenPayload(**payload)
-    except (JWTError, ValidationError):
+        print(f"DEBUG AUTH: Token decoded successfully, username: {token_data.sub}")
+    except (JWTError, ValidationError) as e:
+        print(f"DEBUG AUTH: Token validation failed: {e}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Could not validate credentials",
         )
+        
     user = UserService.get_by_username(db, username=token_data.sub)
     if not user:
+        print(f"DEBUG AUTH: User not found for username: {token_data.sub}")
         raise HTTPException(status_code=404, detail="User not found")
+    print(f"DEBUG AUTH: User found: {user.username} (id={user.id}, is_active={user.is_active})")
     return user
 
 
 def get_current_active_user(
     current_user: User = Depends(get_current_user),
 ) -> User:
-    if not settings.DISABLE_AUTH and not current_user.is_active:
+    logger.debug(f"DEBUG AUTH: get_current_active_user called with user: {current_user.username} (id={current_user.id})")
+    logger.info(f"🔐 AUTH FLOW: get_current_active_user called for endpoint - user: {current_user.username}")
+    if not current_user.is_active:
+        logger.error(f"DEBUG AUTH: User {current_user.username} is not active!")
         raise HTTPException(status_code=400, detail="Inactive user")
+    logger.debug(f"DEBUG AUTH: User {current_user.username} is active, returning")
     return current_user
 
 
@@ -166,34 +179,44 @@ def get_current_superuser_with_cli_support(
 
 async def get_current_user_websocket(token: Optional[str], db: Session) -> User:
     """Authenticate websocket connections using JWT or CLI tokens."""
+    print(f"DEBUG WS AUTH: get_current_user_websocket called with token: {token[:20] if token else 'None'}...")
 
     # Allow anonymous access if auth disabled
     if settings.DISABLE_AUTH:
         admin_user = UserService.get_by_username(db, username="admin")
         if admin_user:
+            print(f"DEBUG WS AUTH: Auth disabled, returning admin user: {admin_user.username}")
             return admin_user
         raise HTTPException(status_code=404, detail="Default admin user not found")
 
     if not token:
+        print("DEBUG WS AUTH: No token provided!")
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
 
+    print(f"DEBUG WS AUTH: Trying JWT decode with token: {token[:20]}...")
     # Try JWT authentication first
     try:
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         token_data = TokenPayload(**payload)
+        print(f"DEBUG WS AUTH: JWT decoded successfully, username: {token_data.sub}")
         if token_data.sub:
             user = UserService.get_by_username(db, username=token_data.sub)
             if user:
+                print(f"DEBUG WS AUTH: User found: {user.username} (id={user.id})")
                 return user
-    except (JWTError, ValidationError):
+    except (JWTError, ValidationError) as e:
+        print(f"DEBUG WS AUTH: JWT validation failed: {e}")
         pass
 
+    print("DEBUG WS AUTH: Trying CLI token...")
     # Fall back to CLI token authentication
     cli_token_service = CLITokenService(db)
     cli_token = cli_token_service.verify_token(token)
     if cli_token and cli_token.owner:
+        print(f"DEBUG WS AUTH: CLI token valid for user: {cli_token.owner.username}")
         return cli_token.owner
 
+    print("DEBUG WS AUTH: All authentication methods failed!")
     raise HTTPException(
         status_code=status.HTTP_403_FORBIDDEN,
         detail="Could not validate credentials",

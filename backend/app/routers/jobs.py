@@ -5,11 +5,11 @@ import os
 import httpx
 import ssl
 import asyncio
+from datetime import datetime
 from caddy_api_client import CaddyAPIClient
 from app.core.logging import logger as jobs_logger
 from app.core.auth import (
     get_current_active_user,
-    get_current_user,
     get_current_superuser,
 )
 from app.db.session import get_db
@@ -32,10 +32,36 @@ router = APIRouter()
 CADDY_API_URL: str = os.getenv("CADDY_API_URL", "http://host.docker.internal:2020")
 
 
-async def verify_domain_accessibility(url: str, timeout: int = 10) -> bool:
+async def generate_job_domain(job: Job, user: User) -> tuple[str, str]:
     """
-    Verify if a domain is accessible by making an HTTP request.
-    Returns True if domain responds (any HTTP status), False otherwise.
+    Generate domain name for a job based on user and job name.
+    Returns tuple of (domain, url).
+    """
+    # Extract user-provided container name from job_name
+    username_prefix = f"container_{user.username}_"
+    if job.job_name.startswith(username_prefix):
+        user_container_name = job.job_name[len(username_prefix):]
+    else:
+        user_container_name = job.job_name
+
+    # Sanitize container name using centralized method
+    safe_container_name = JobService.sanitize_container_name_for_domain(
+        user_container_name
+    )
+    if not safe_container_name:
+        safe_container_name = f"job{job.id}"
+
+    # Generate domain using username and clean container name
+    domain = f"{user.username}-{safe_container_name}.orion.zfns.eu.org"
+    url = f"https://{domain}"
+    
+    return domain, url
+
+
+async def verify_domain_accessibility(url: str, timeout: int = 10) -> tuple[bool, str]:
+    """
+    Verify if a domain is accessible and working properly.
+    Returns tuple of (is_accessible, status_info).
     """
     try:
         async with httpx.AsyncClient(
@@ -44,17 +70,28 @@ async def verify_domain_accessibility(url: str, timeout: int = 10) -> bool:
             follow_redirects=True
         ) as client:
             response = await client.get(url)
-            jobs_logger.info(f"Domain {url} responded with status {response.status_code}")
-            return True  # Any response means domain is accessible
+            status_code = response.status_code
+            jobs_logger.info(f"Domain {url} responded with status {status_code}")
+            
+            # Only 2xx and 3xx status codes indicate success
+            # 4xx and 5xx are errors
+            if 200 <= status_code < 400:
+                return True, f"HTTP {status_code} - OK"
+            else:
+                return False, f"HTTP {status_code} - {response.reason_phrase or 'Error'}"
+                
     except httpx.TimeoutException:
+        error_msg = f"Timeout after {timeout}s"
         jobs_logger.warning(f"Domain {url} timed out after {timeout}s")
-        return False
+        return False, error_msg
     except httpx.ConnectError:
+        error_msg = "Connection failed"
         jobs_logger.warning(f"Domain {url} connection failed")
-        return False
+        return False, error_msg
     except Exception as e:
+        error_msg = f"Request failed: {str(e)}"
         jobs_logger.warning(f"Domain {url} verification failed: {str(e)}")
-        return False
+        return False, error_msg
 
 
 async def check_and_update_domain_status(db: Session, job_id: int) -> bool:
@@ -72,33 +109,20 @@ async def check_and_update_domain_status(db: Session, job_id: int) -> bool:
         if not user:
             return False
             
-        # Generate domain name
-        username_prefix = f"container_{user.username}_"
-        if job.job_name.startswith(username_prefix):
-            user_container_name = job.job_name[len(username_prefix) :]
-        else:
-            user_container_name = job.job_name
-
-        safe_container_name = JobService.sanitize_container_name_for_domain(
-            user_container_name
-        )
-        if not safe_container_name:
-            safe_container_name = f"job{job.id}"
-
-        domain = f"{user.username}-{safe_container_name}.orion.zfns.eu.org"
-        url = f"https://{domain}"
+        # Generate domain name using centralized function
+        domain, url = await generate_job_domain(job, user)
         
         # Check accessibility
-        is_accessible = await verify_domain_accessibility(url, timeout=5)
+        is_accessible, status_info = await verify_domain_accessibility(url, timeout=5)
         
         # Update domain_ready status if needed
         job_service = JobService(db)
         if is_accessible and not job.domain_ready:
             job_service.update_domain_ready_status(job_id, True)
-            jobs_logger.info(f"Domain {domain} now accessible, marked as ready")
+            jobs_logger.info(f"Domain {domain} now accessible ({status_info}), marked as ready")
         elif not is_accessible and job.domain_ready:
             job_service.update_domain_ready_status(job_id, False)
-            jobs_logger.warning(f"Domain {domain} no longer accessible")
+            jobs_logger.warning(f"Domain {domain} no longer accessible ({status_info})")
             
         return is_accessible
         
@@ -142,12 +166,22 @@ async def get_jobs(
     Retrieve jobs for current user with current SLURM status from monitoring service.
     Also handles cases where SLURM has active jobs that don't exist in database.
     """
+    jobs_logger.info(
+        f"🔍 GET JOBS: Fetching jobs for user={current_user.username} "
+        f"(id={current_user.id})"
+    )
+    
     from app.services.slurm_monitor import monitor_service
 
     # Get jobs from database - monitoring service already keeps them up to date
     job_service = JobService(db)
     db_jobs = job_service.get_jobs(current_user)
     db_jobs_map = {job.job_id: job for job in db_jobs}
+    
+    jobs_logger.info(
+        f"✅ GET JOBS: Found {len(db_jobs)} jobs for user {current_user.username}: "
+        f"[{', '.join([f'id={job.id}(owner={job.owner_id})' for job in db_jobs[:5]])}...]"
+    )
 
     # Get active jobs directly from database instead of snapshots
     active_jobs = await monitor_service.get_user_active_jobs(db, current_user.username)
@@ -666,7 +700,7 @@ async def get_job_error(
 def get_job_tunnels(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Get all SSH tunnels for a specific job"""
     job_service = JobService(db)
@@ -685,19 +719,38 @@ def get_job_tunnels(
 async def create_job_tunnel(
     job_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Create a new SSH tunnel for a job"""
+    jobs_logger.info(
+        f"🚀 TUNNEL CREATE: Starting tunnel creation for job_id={job_id}, "
+        f"user={current_user.username} (id={current_user.id})"
+    )
+    
     job_service = JobService(db)
     job = job_service.get_job(job_id)
+    
     if not job:
+        jobs_logger.error(f"❌ TUNNEL CREATE: Job {job_id} not found in database")
         raise HTTPException(status_code=404, detail="Job not found")
+    
+    jobs_logger.info(
+        f"✅ TUNNEL CREATE: Job {job_id} found - owner_id={job.owner_id}, "
+        f"current_user.id={current_user.id}, job_name='{job.job_name}'"
+    )
+    
     if job.owner_id != current_user.id:
+        jobs_logger.error(
+            f"❌ TUNNEL CREATE: Access denied for job {job_id}! "
+            f"Job owner_id={job.owner_id} != current_user.id={current_user.id} "
+            f"(user: {current_user.username})"
+        )
         raise HTTPException(status_code=403, detail="Not authorized to access this job")
 
     from app.dependencies.tunnel_service import get_tunnel_service
     tunnel_service = get_tunnel_service()
-    tunnel = await tunnel_service.get_or_create_tunnel(job_id, db)
+    # Use synchronous tunnel creation to ensure tunnel is ready
+    tunnel = await tunnel_service.get_or_create_tunnel_sync(job_id, db)
     if not tunnel:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -711,7 +764,7 @@ async def close_job_tunnel(
     job_id: int,
     tunnel_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Close an SSH tunnel for a job"""
     job_service = JobService(db)
@@ -768,6 +821,7 @@ async def get_code_server_url(
 ) -> Dict[str, Any]:
     """
     Get code-server URL for a job, creating SSH tunnel if needed and configuring Caddy.
+    Sends real-time progress updates via WebSocket.
     """
     jobs_logger.info(
         f"🚀 CODE-SERVER REQUEST: Starting for job_id={job_id}, "
@@ -799,57 +853,85 @@ async def get_code_server_url(
             status_code=400, detail="Job is not running or missing port/node info"
         )
 
-    jobs_logger.info(f"🔀 CODE-SERVER: Starting tunnel creation for job {job_id}")
-    # Create or get existing tunnel
-    from app.dependencies.tunnel_service import get_tunnel_service
-    tunnel_service = get_tunnel_service()
-    tunnel = await tunnel_service.get_or_create_tunnel(job_id, db)
-
-    if not tunnel:
-        jobs_logger.error(f"❌ CODE-SERVER: Tunnel creation failed for job {job_id}")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Could not establish SSH tunnel. Please try again later.",
-        )
-
-    jobs_logger.info(
-        f"✅ CODE-SERVER: Tunnel created/found for job {job_id} - "
-        f"tunnel_id={tunnel.id}, local_port={tunnel.local_port}, "
-        f"status={tunnel.status}"
-    )
-
-    # Generate domain name using username and container name
-    # Extract the user-provided container name from job_name
-    # job_name format is: "container_{username}_{user_provided_name}"
-
-    # Extract only the user-provided container name part
-    username_prefix = f"container_{current_user.username}_"
-    if job.job_name.startswith(username_prefix):
-        # Remove the "container_{username}_" prefix to get user-provided name
-        user_container_name = job.job_name[len(username_prefix) :]
-    else:
-        # Fallback: use the whole job_name if it doesn't match expected format
-        user_container_name = job.job_name
-
-    # Sanitize container name using centralized method
-    safe_container_name = JobService.sanitize_container_name_for_domain(
-        user_container_name
-    )
-    if not safe_container_name:
-        safe_container_name = f"job{job.id}"
-
-    # Generate domain using username and clean container name
-    domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
-
-    jobs_logger.info(
-        f"🌐 CODE-SERVER: Configuring Caddy for domain={domain}, "
-        f"target_port={tunnel.local_port}"
-    )
-
-    # Configure Caddy to route the domain to the local tunnel port
-    caddy_client = CaddyAPIClient(CADDY_API_URL)
+    # Import WebSocket manager for real-time updates
+    from app.websocket.manager import websocket_manager
+    
+    # WebSocket channel for this job
+    ws_channel = f"tunnel_setup_{job_id}"
+    
+    async def send_ws_update(message: str, step: str, status: str = "info"):
+        """Helper to send WebSocket updates"""
+        try:
+            # Map status to proper event type
+            if status == "established":
+                event_type = "tunnel_established"
+            elif status == "error":
+                event_type = "tunnel_error" 
+            elif status == "warning":
+                event_type = "tunnel_warning"
+            else:  # info, progress
+                event_type = "tunnel_progress"
+                
+            await websocket_manager.broadcast_to_channel(ws_channel, {
+                "type": event_type,
+                "message": message,
+                "step": step,
+                "job_id": job_id,
+                "timestamp": datetime.now().isoformat()
+            })
+        except Exception as e:
+            jobs_logger.warning(f"Failed to send WebSocket update: {e}")
 
     try:
+        # Step 1: Create SSH tunnel and wait for it to be fully established
+        await send_ws_update("🔀 Tworzenie tunelu SSH...", "ssh_tunnel", "progress")
+        jobs_logger.info(f"🔀 CODE-SERVER: Starting tunnel creation for job {job_id}")
+        
+        from app.dependencies.tunnel_service import get_tunnel_service
+        tunnel_service = get_tunnel_service()
+        
+        # SIMPLIFIED: Use single tunnel creation path
+        tunnel = await tunnel_service.get_or_create_tunnel_sync(job_id, db)
+
+        if not tunnel:
+            await send_ws_update("❌ Nie udało się utworzyć tunelu SSH", "ssh_tunnel", "error")
+            jobs_logger.error(f"❌ CODE-SERVER: Tunnel creation failed for job {job_id}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="Could not establish SSH tunnel. Please try again later.",
+            )
+
+        await send_ws_update("✅ Tunel SSH w pełni gotowy", "ssh_tunnel", "success")
+        
+        # Send detailed tunnel information to frontend console
+        await send_ws_update(f"🔗 Tunel SSH ID: {tunnel.id}", "ssh_tunnel", "info")
+        await send_ws_update(f"🌐 Port lokalny: {tunnel.local_port}", "ssh_tunnel", "info")
+        await send_ws_update(f"🖥️ Docelowy węzeł: {job.node}:{job.port}", "ssh_tunnel", "info")
+        await send_ws_update(f"📡 Status tunelu: {tunnel.status}", "ssh_tunnel", "info")
+        
+        jobs_logger.info(
+            f"✅ CODE-SERVER: Tunnel fully established for job {job_id} - "
+            f"tunnel_id={tunnel.id}, local_port={tunnel.local_port}, "
+            f"status={tunnel.status}"
+        )
+
+        # Step 2: Generate domain name
+        await send_ws_update("🌐 Generowanie nazwy domeny...", "domain_setup", "progress")
+        
+        # Generate domain using centralized function
+        domain, domain_url = await generate_job_domain(job, current_user)
+        await send_ws_update(f"✅ Domena: {domain}", "domain_setup", "progress")
+
+        # Step 3: Configure Caddy
+        await send_ws_update("🔧 Konfiguracja Caddy proxy...", "caddy_setup", "progress")
+        jobs_logger.info(
+            f"🌐 CODE-SERVER: Configuring Caddy for domain={domain}, "
+            f"target_port={tunnel.local_port}"
+        )
+
+        # Configure Caddy to route the domain to the local tunnel port
+        caddy_client = CaddyAPIClient(CADDY_API_URL)
+
         jobs_logger.info(f"🔧 CODE-SERVER: Calling Caddy API for domain {domain}")
         success = caddy_client.add_domain_with_auto_tls(
             domain=domain, target="localhost", target_port=tunnel.local_port
@@ -857,40 +939,88 @@ async def get_code_server_url(
         jobs_logger.info(f"📋 CODE-SERVER: Caddy API response: {success}")
 
         if not success:
+            await send_ws_update("❌ Konfiguracja Caddy nieudana", "caddy_setup", "error")
             jobs_logger.error(f"❌ CODE-SERVER: Caddy returned false for {domain}")
             raise Exception("Caddy configuration returned false")
 
+        await send_ws_update("✅ Caddy skonfigurowane pomyślnie", "caddy_setup", "progress")
         jobs_logger.info(f"✅ CODE-SERVER: Caddy configured successfully for {domain}")
 
-        # Verify domain is actually responding before marking as ready
+        # Step 4: Verify domain accessibility with multiple attempts
+        await send_ws_update("🔍 Sprawdzanie dostępności domeny...", "domain_check", "progress")
         jobs_logger.info(f"🔍 CODE-SERVER: Verifying domain accessibility for {domain}")
-        domain_url = f"https://{domain}"
-        domain_accessible = await verify_domain_accessibility(domain_url)
+        
+        # Try multiple times with increasing delay
+        max_attempts = 3
+        domain_accessible = False
+        final_status_info = ""
+        
+        for attempt in range(1, max_attempts + 1):
+            await send_ws_update(f"🔍 Próba {attempt}/{max_attempts} weryfikacji domeny...", "domain_check", "progress")
+            domain_accessible, status_info = await verify_domain_accessibility(domain_url, timeout=15)
+            final_status_info = status_info
+            
+            # Send detailed status to frontend
+            await send_ws_update(f"📋 Odpowiedź domeny: {status_info}", "domain_check", "info")
+            
+            if domain_accessible:
+                jobs_logger.info(f"✅ CODE-SERVER: Domain {domain} accessible on attempt {attempt} ({status_info})")
+                await send_ws_update(f"✅ Domena potwierdzona: {status_info}", "domain_check", "success")
+                break
+            else:
+                jobs_logger.warning(f"⚠️ CODE-SERVER: Domain {domain} not accessible on attempt {attempt} ({status_info})")
+                await send_ws_update(f"❌ Próba {attempt} nieudana: {status_info}", "domain_check", "warning")
+                if attempt < max_attempts:
+                    await send_ws_update(f"⏳ Oczekiwanie 5s przed kolejną próbą...", "domain_check", "progress")
+                    await asyncio.sleep(5)
         
         if domain_accessible:
             # Mark domain as ready after successful verification
             job_service = JobService(db)
             job_service.update_domain_ready_status(job.id, True)
+            await send_ws_update("🎉 IDE jest w pełni skonfigurowane i gotowe!", "complete", "success")
             jobs_logger.info(
                 f"✅ CODE-SERVER: Domain {domain} verified and marked as ready for job {job.id}"
             )
+            # Return the full URL to the frontend
+            return {
+                "url": f"https://{domain}",
+                "port": job.port,
+                "node": job.node,
+                "tunnel_port": tunnel.local_port,
+                "tunnel_id": tunnel.id,
+                "domain": domain,
+            }
         else:
-            jobs_logger.warning(
-                f"⚠️ CODE-SERVER: Domain {domain} configured in Caddy but not yet accessible. "
-                f"Client should poll domain-status endpoint."
+            # Send final error status
+            await send_ws_update(f"❌ Domena nie działa: {final_status_info}", "domain_check", "error")
+            await send_ws_update("❌ IDE nie jest dostępne - sprawdź konfigurację", "complete", "error")
+            jobs_logger.error(
+                f"❌ CODE-SERVER: Domain {domain} configured in Caddy but not accessible after {max_attempts} attempts. Final status: {final_status_info}"
             )
-            # Don't mark as ready yet - let the polling handle it
+            # Return error instead of URL when domain is not accessible
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=f"Domain is not accessible: {final_status_info}"
+            )
 
     except Exception as e:
+        await send_ws_update(f"❌ Błąd: {str(e)}", "error", "error")
         jobs_logger.error(
-            f"❌ CODE-SERVER: Caddy configuration failed for {domain}: {e}"
+            f"❌ CODE-SERVER: Failed for job {job_id}: {e}"
         )
 
-        # If Caddy configuration fails, clean up the tunnel
-        jobs_logger.info(f"🧹 CODE-SERVER: Cleaning up tunnel {tunnel.id}")
-        await tunnel_service.close_tunnel(tunnel.id)
+        # If configuration fails, clean up the tunnel
+        try:
+            from app.dependencies.tunnel_service import get_tunnel_service
+            tunnel_service = get_tunnel_service()
+            if 'tunnel' in locals() and tunnel:
+                jobs_logger.info(f"🧹 CODE-SERVER: Cleaning up tunnel {tunnel.id}")
+                await tunnel_service.close_tunnel(tunnel.id, db)
+        except:
+            pass  # Best effort cleanup
 
-        # Return more specific error message about Caddy unavailability
+        # Return more specific error message about service unavailability
         if "Connection refused" in str(e) or "HTTPConnectionPool" in str(e):
             raise HTTPException(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -901,15 +1031,6 @@ async def get_code_server_url(
                 status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to configure domain routing: {str(e)}",
             )
-
-    # Return the full URL to the frontend
-    return {
-        "url": f"https://{domain}",
-        "port": job.port,
-        "node": job.node,
-        "tunnel_port": tunnel.local_port,
-        "domain": domain,
-    }
 
 
 @router.get("/{job_id}/tunnel-status")
@@ -1059,7 +1180,7 @@ def delete_user_admin(
 async def check_tunnel_health(
     tunnel_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Perform health check on a specific SSH tunnel"""
     # Check if tunnel exists and user has access
@@ -1122,7 +1243,7 @@ async def check_tunnel_health(
 @router.get("/tunnels/health-check-all")
 async def check_all_tunnels_health(
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Perform health check on all active tunnels (admin only)"""
     if not current_user.is_superuser:
@@ -1159,7 +1280,7 @@ async def check_job_tunnel_health(
     job_id: int,
     tunnel_id: int,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_active_user),
 ):
     """Perform health check on a specific SSH tunnel for a job"""
     # Check job access
@@ -1190,7 +1311,7 @@ async def check_job_tunnel_health(
         "tunnel_id": health_info.tunnel_id,
         "status": health_info.health_status.value,
         "port_connectivity": health_info.port_connectivity,
-        "last_check": health_info.last_check,
+        "last_check": health_info.last_test,
         "ssh_process": {
             "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
             "is_running": health_info.ssh_process.is_running
@@ -1368,31 +1489,17 @@ async def get_domain_status(
         url = None
         if job.domain_ready and job.status == "RUNNING":
             # Generate domain name using same logic as code-server endpoint
-            username_prefix = f"container_{current_user.username}_"
-            if job.job_name.startswith(username_prefix):
-                user_container_name = job.job_name[len(username_prefix) :]
-            else:
-                user_container_name = job.job_name
-
-            # Sanitize container name using centralized method
-            safe_container_name = JobService.sanitize_container_name_for_domain(
-                user_container_name
-            )
-            if not safe_container_name:
-                safe_container_name = f"job{job.id}"
-
-            # Generate domain using username and clean container name
-            domain = f"{current_user.username}-{safe_container_name}.orion.zfns.eu.org"
-            url = f"https://{domain}"
+            # Generate domain using centralized function
+            domain, url = await generate_job_domain(job, current_user)
             
             # Verify domain is actually accessible
-            domain_accessible = await verify_domain_accessibility(url, timeout=5)
+            domain_accessible, status_info = await verify_domain_accessibility(url, timeout=5)
             if not domain_accessible:
                 # Domain was marked as ready but isn't accessible yet
                 # Keep URL but don't mark as fully ready in response
                 jobs_logger.warning(
                     f"Domain {domain} marked ready but not accessible "
-                    f"for job {job_id}"
+                    f"for job {job_id}: {status_info}"
                 )
                 # Reset domain_ready flag until it's actually accessible
                 job_service = JobService(db)

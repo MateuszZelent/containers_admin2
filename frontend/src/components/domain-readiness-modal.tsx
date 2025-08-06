@@ -21,10 +21,13 @@ import {
   Globe,
   Zap,
   Server,
-  Sparkles
+  Sparkles,
+  Terminal,
+  Wifi,
+  Link
 } from 'lucide-react';
 import { useDomainStatus } from '@/hooks/useDomainStatus';
-// import { toast } from 'sonner';
+import { useTunnelSetupWebSocket, TunnelSetupEvent } from '@/hooks/useTunnelSetupWebSocket';
 
 interface DomainReadinessModalProps {
   jobId: number;
@@ -34,7 +37,16 @@ interface DomainReadinessModalProps {
   onUrlReady?: (url: string) => void;
 }
 
-type ProcessStage = 'preparing' | 'created' | 'ready' | 'error';
+type ProcessStage = 'preparing' | 'connecting' | 'ssh_preflight' | 'ssh_tunnel' | 'socat_forwarder' | 'connectivity_test' | 'domain_setup' | 'domain_check' | 'ready' | 'error';
+
+interface ConsoleMessage {
+  id: string;
+  message: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  timestamp: Date;
+  step?: string;
+  details?: any;
+}
 
 export function DomainReadinessModal({
   jobId,
@@ -48,49 +60,109 @@ export function DomainReadinessModal({
   const [autoStarted, setAutoStarted] = useState(false);
   const [showDebugInfo, setShowDebugInfo] = useState(false);
   const [willOpenTab, setWillOpenTab] = useState(false);
-  const tabOpenedRef = useRef(false); // Use ref instead of state to avoid closure issues
-  const [debugInfo, setDebugInfo] = useState<{
-    lastAttemptedUrl?: string;
-    lastErrorDetails?: any;
-    requestTime?: Date;
-    responseStatus?: number;
-    responseHeaders?: any;
-  }>({});
+  const [consoleMessages, setConsoleMessages] = useState<ConsoleMessage[]>([]);
+  const [tunnelEstablished, setTunnelEstablished] = useState(false);
+  const tabOpenedRef = useRef(false);
+  const consoleRef = useRef<HTMLDivElement>(null);
 
-  // Stable onReady callback to prevent hook re-creation
-  const handleReady = useCallback((status: any) => {
-    console.log('🚀 MODAL onReady called, tabOpened:', tabOpenedRef.current, 'url:', status.url);
-    console.log('🚀 MODAL onReady stack trace:', new Error().stack);
-    if (!tabOpenedRef.current && status.url) { // Only if tab hasn't been opened yet
-      setCurrentStage('ready');
-      setProgress(100);
-      setWillOpenTab(true);
-      tabOpenedRef.current = true; // Mark as opened to prevent duplicates
-      // Opóźniamy otwarcie nowej karty, żeby pozwolić animacji się dokończyć
-      setTimeout(() => {
-        console.log('🔥 MODAL Opening new tab for:', status.url);
-        window.open(status.url, '_blank');
-        setWillOpenTab(false);
-        // Auto-close modal after successful tab opening
-        setTimeout(() => {
-          console.log('🔒 MODAL Auto-closing after successful tab opening');
-          onClose();
-        }, 1000); // Close after 1 second
-      }, 2000); // 2 sekundy opóźnienia
-    } else {
-      console.log('🚫 MODAL Tab opening skipped - already opened or no URL');
+  // Auto-scroll console to bottom
+  useEffect(() => {
+    if (consoleRef.current) {
+      consoleRef.current.scrollTop = consoleRef.current.scrollHeight;
     }
-  }, [onClose]); // Include onClose in dependencies
+  }, [consoleMessages]);
 
+  const addConsoleMessage = useCallback((message: string, type: 'info' | 'success' | 'warning' | 'error', step?: string, details?: any) => {
+    const newMessage: ConsoleMessage = {
+      id: Date.now().toString() + Math.random().toString(36).substr(2, 9),
+      message,
+      type,
+      timestamp: new Date(),
+      step,
+      details
+    };
+    
+    setConsoleMessages(prev => [...prev, newMessage]);
+  }, []);
+
+  // Handle tunnel setup WebSocket events
+  const handleTunnelEvent = useCallback((event: TunnelSetupEvent) => {
+    console.log('Received tunnel event:', event);
+    
+    const messageType = event.type === 'tunnel_error' ? 'error' : 
+                       event.type === 'tunnel_warning' ? 'warning' :
+                       event.type === 'tunnel_established' ? 'success' : 'info';
+    
+    addConsoleMessage(event.message, messageType, event.step, event.details);
+    
+    // Update progress and stage based on event
+    switch (event.step) {
+      case 'connecting':
+        setCurrentStage('connecting');
+        setProgress(10);
+        break;
+      case 'ssh_preflight':
+        setCurrentStage('ssh_preflight');
+        setProgress(20);
+        break;
+      case 'ssh_tunnel':
+        setCurrentStage('ssh_tunnel');
+        setProgress(40);
+        break;
+      case 'socat_forwarder':
+        setCurrentStage('socat_forwarder');
+        setProgress(60);
+        break;
+      case 'connectivity_test':
+        setCurrentStage('connectivity_test');
+        setProgress(75);
+        break;
+      case 'complete':
+        if (event.type === 'tunnel_established') {
+          setTunnelEstablished(true);
+          setCurrentStage('domain_setup');
+          setProgress(80);
+          // Now start domain setup
+          setTimeout(() => {
+            startDomainSetup();
+          }, 1000);
+        }
+        break;
+      case 'error':
+        setCurrentStage('error');
+        setProgress(0);
+        break;
+    }
+  }, [addConsoleMessage]);
+
+  // WebSocket connection for tunnel setup
+  const { isConnected: wsConnected } = useTunnelSetupWebSocket({
+    jobId,
+    enabled: isOpen && !tunnelEstablished,
+    onEvent: handleTunnelEvent,
+    onConnect: () => {
+      console.log('Tunnel setup WebSocket connected');
+      addConsoleMessage('🔗 Connected to tunnel setup stream', 'info');
+    },
+    onDisconnect: () => {
+      console.log('Tunnel setup WebSocket disconnected');
+      if (isOpen) {
+        addConsoleMessage('📡 Connection lost, retrying...', 'warning');
+      }
+    },
+    onError: (error) => {
+      console.error('Tunnel setup WebSocket error:', error);
+      addConsoleMessage(`❌ WebSocket error: ${error}`, 'error');
+    }
+  });
+
+  // Domain status hook (used after tunnel is established)
   const {
     status,
     isLoading,
     error,
     isPolling,
-    isSettingUp, // NEW: Add setup state
-    pollingStartTime,
-    startPolling,
-    stopPolling,
+    isSettingUp,
     setupDomain,
     isDomainReady,
     domainUrl,
@@ -98,140 +170,198 @@ export function DomainReadinessModal({
     lastAttemptedUrl,
     lastErrorDetails
   } = useDomainStatus(jobId, {
-    enabled: isOpen,
-    pollingInterval: 2000, // 2 seconds for faster feedback
-    maxPollingTime: 300000, // 5 minutes
-    onReady: handleReady, // Use stable callback
+    enabled: tunnelEstablished && isOpen,
+    pollingInterval: 2000,
+    maxPollingTime: 300000,
+    onReady: (status: any) => {
+      if (!tabOpenedRef.current && status.url) {
+        setCurrentStage('ready');
+        setProgress(100);
+        setWillOpenTab(true);
+        tabOpenedRef.current = true;
+        addConsoleMessage('🎉 Domain is ready! Opening in new tab...', 'success');
+        
+        setTimeout(() => {
+          window.open(status.url, '_blank');
+          setWillOpenTab(false);
+          setTimeout(() => {
+            onClose();
+          }, 1000);
+        }, 2000);
+      }
+    },
     onError: (error: string) => {
       setCurrentStage('error');
       setProgress(0);
-      // Update debug info when error occurs
-      setDebugInfo({
-        lastAttemptedUrl: lastAttemptedUrl || undefined,
-        lastErrorDetails,
-        requestTime: new Date()
-      });
+      addConsoleMessage(`❌ Domain setup failed: ${error}`, 'error');
     }
   });
 
-    // Auto-start the process when modal opens
+  const startTunnelSetup = useCallback(async () => {
+    try {
+      addConsoleMessage('🔧 Initiating tunnel setup...', 'info', 'preparing');
+      
+      // Call the backend endpoint to create/start tunnel
+      const token = localStorage.getItem('access_token') || localStorage.getItem('auth_token');
+      const response = await fetch(`/api/v1/jobs/${jobId}/tunnels`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || `HTTP ${response.status}`);
+      }
+      
+      const tunnelData = await response.json();
+      addConsoleMessage('✅ Tunnel setup request sent successfully!', 'success', 'preparing');
+      console.log('Tunnel setup initiated:', tunnelData);
+      
+      // The WebSocket events will now start coming in from the backend
+      
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error);
+      addConsoleMessage(`❌ Failed to start tunnel setup: ${errorMessage}`, 'error');
+      setCurrentStage('error');
+      setProgress(0);
+    }
+  }, [jobId, addConsoleMessage]);
+
+  const startDomainSetup = useCallback(async () => {
+    try {
+      addConsoleMessage('🌐 Setting up domain registration...', 'info', 'domain_setup');
+      setCurrentStage('domain_setup');
+      setProgress(85);
+      
+      await setupDomain();
+      
+      addConsoleMessage('✅ Domain setup initiated, checking availability...', 'success', 'domain_check');
+      setCurrentStage('domain_check');
+      setProgress(90);
+      
+    } catch (error) {
+      addConsoleMessage(`❌ Domain setup failed: ${error}`, 'error');
+      setCurrentStage('error');
+      setProgress(0);
+    }
+  }, [setupDomain, addConsoleMessage]);
+
+  // Auto-start the process when modal opens
   useEffect(() => {
-    console.log('Modal effect triggered:', { isOpen, autoStarted, jobId, tabOpened: tabOpenedRef.current });
     if (isOpen && !autoStarted) {
-      console.log('Starting modal auto-start for job:', jobId);
       setAutoStarted(true);
       setCurrentStage('preparing');
-      setProgress(10);
-      handleAutoStart();
+      setProgress(5);
+      setConsoleMessages([]);
+      setTunnelEstablished(false);
+      addConsoleMessage('🚀 Starting tunnel setup process...', 'info', 'preparing');
+      
+      // Start the tunnel setup process
+      setTimeout(() => {
+        startTunnelSetup();
+      }, 1000); // Small delay to let WebSocket connect
+      
     } else if (!isOpen) {
-      console.log('Modal closed, resetting for job:', jobId);
       // Reset when modal closes
       setAutoStarted(false);
       setCurrentStage('preparing');
       setProgress(0);
       setWillOpenTab(false);
-      tabOpenedRef.current = false; // Reset tab opened state
-      // Clear sessionStorage when modal closes to allow future runs
+      setConsoleMessages([]);
+      setTunnelEstablished(false);
+      tabOpenedRef.current = false;
       if (jobId) {
         sessionStorage.removeItem(`onReadyCalled_${jobId}`);
-        console.log('🧹 Cleared sessionStorage for job:', jobId);
       }
     }
-  }, [isOpen, autoStarted]); // Remove jobId from dependencies to prevent re-runs
+  }, [isOpen, autoStarted, addConsoleMessage, jobId, startTunnelSetup]);
 
-  // Watch for status changes to update progress
+  // Watch for domain status changes
   useEffect(() => {
-    console.log('Status effect triggered:', { status, isDomainReady, currentStage, tabOpened: tabOpenedRef.current });
-    if (status) {
+    if (tunnelEstablished && status) {
       if (status.domain_ready && status.url) {
-        console.log('Domain ready detected in status effect, tab opened:', tabOpenedRef.current);
-        // Only update UI state, don't open tabs here - let onReady handle that
-        setCurrentStage('ready');
-        setProgress(100);
-      } else if (isDomainReady) {
         setCurrentStage('ready');
         setProgress(100);
       }
     }
-  }, [status, isDomainReady]);
-
-  // Watch for errors from the hook
-  useEffect(() => {
-    if (error) {
-      setCurrentStage('error');
-      setProgress(0);
-      // Update debug info when error occurs
-      setDebugInfo({
-        lastAttemptedUrl: lastAttemptedUrl || undefined,
-        lastErrorDetails,
-        requestTime: new Date()
-      });
-    }
-  }, [error]); // Only depend on error, not on other states
-
-  const handleAutoStart = async () => {
-    try {
-      console.log('handleAutoStart called with status:', status);
-      
-      // First check if domain is already ready
-      if (status && status.domain_ready && status.url) {
-        console.log('Domain already ready, tabOpened:', tabOpenedRef.current, 'url:', status.url);
-        // Only update UI state, don't open tabs here - let onReady handle that
-        setCurrentStage('ready');
-        setProgress(100);
-        return; // WAŻNE: Wyjdź tutaj, nie rób setup ani polling!
-      }
-      
-      // Only setup domain if it's not ready yet
-      console.log('Domain not ready, starting setup process');
-      
-      // Stage 1: Setup domain
-      setCurrentStage('preparing');
-      setProgress(20);
-      
-      await setupDomain();
-      
-      // Stage 2: Domain created, start monitoring
-      setCurrentStage('created');
-      setProgress(40);
-      
-      setTimeout(async () => {
-        await startPolling();
-        setProgress(60);
-      }, 1500);
-      
-    } catch (error) {
-      console.error('Failed to setup domain:', error);
-      setCurrentStage('error');
-      setProgress(0);
-    }
-  };
+  }, [status, tunnelEstablished]);
 
   const getStageInfo = () => {
     switch (currentStage) {
       case 'preparing':
         return {
           icon: Server,
-          title: 'Preparing your domain...',
-          description: 'Setting up secure web access for your workspace',
+          title: 'Initializing setup...',
+          description: 'Preparing tunnel and domain configuration',
           color: 'text-blue-600 dark:text-blue-400',
           bgColor: 'from-blue-50/80 to-indigo-50/80 dark:from-blue-950/40 dark:to-indigo-950/40'
         };
-      case 'created':
+      case 'connecting':
         return {
-          icon: Globe,
-          title: 'Domain created successfully',
-          description: 'Waiting for SSL certificate and final setup',
+          icon: Wifi,
+          title: 'Starting tunnel connection...',
+          description: 'Establishing secure connection to compute node',
+          color: 'text-cyan-600 dark:text-cyan-400',
+          bgColor: 'from-cyan-50/80 to-blue-50/80 dark:from-cyan-950/40 dark:to-blue-950/40'
+        };
+      case 'ssh_preflight':
+        return {
+          icon: Terminal,
+          title: 'SSH Pre-flight checks...',
+          description: 'Verifying SSH configuration and keys',
+          color: 'text-orange-600 dark:text-orange-400',
+          bgColor: 'from-orange-50/80 to-red-50/80 dark:from-orange-950/40 dark:to-red-950/40'
+        };
+      case 'ssh_tunnel':
+        return {
+          icon: Link,
+          title: 'Creating SSH tunnel...',
+          description: 'Establishing secure SSH connection',
           color: 'text-purple-600 dark:text-purple-400',
           bgColor: 'from-purple-50/80 to-pink-50/80 dark:from-purple-950/40 dark:to-pink-950/40'
+        };
+      case 'socat_forwarder':
+        return {
+          icon: Zap,
+          title: 'Setting up port forwarder...',
+          description: 'Creating network bridge for web access',
+          color: 'text-yellow-600 dark:text-yellow-400',
+          bgColor: 'from-yellow-50/80 to-orange-50/80 dark:from-yellow-950/40 dark:to-orange-950/40'
+        };
+      case 'connectivity_test':
+        return {
+          icon: Wifi,
+          title: 'Testing connectivity...',
+          description: 'Verifying tunnel functionality',
+          color: 'text-indigo-600 dark:text-indigo-400',
+          bgColor: 'from-indigo-50/80 to-purple-50/80 dark:from-indigo-950/40 dark:to-purple-950/40'
+        };
+      case 'domain_setup':
+        return {
+          icon: Globe,
+          title: 'Setting up domain...',
+          description: 'Registering secure web domain',
+          color: 'text-teal-600 dark:text-teal-400',
+          bgColor: 'from-teal-50/80 to-cyan-50/80 dark:from-teal-950/40 dark:to-cyan-950/40'
+        };
+      case 'domain_check':
+        return {
+          icon: Clock,
+          title: 'Verifying domain...',
+          description: 'Checking SSL certificate and accessibility',
+          color: 'text-emerald-600 dark:text-emerald-400',
+          bgColor: 'from-emerald-50/80 to-green-50/80 dark:from-emerald-950/40 dark:to-green-950/40'
         };
       case 'ready':
         return {
           icon: CheckCircle2,
-          title: 'Domain is ready!',
+          title: 'Setup complete!',
           description: willOpenTab ? 
-            'Opening in new tab in 2 seconds...' : 
-            'Your workspace is accessible. You can open it again anytime.',
+            'Opening workspace in new tab in 2 seconds...' : 
+            'Your workspace is ready and accessible',
           color: 'text-green-600 dark:text-green-400',
           bgColor: 'from-green-50/80 to-emerald-50/80 dark:from-green-950/40 dark:to-emerald-950/40'
         };
@@ -239,11 +369,37 @@ export function DomainReadinessModal({
         return {
           icon: AlertCircle,
           title: 'Setup failed',
-          description: 'Unable to prepare your domain. Please try again.',
+          description: 'Unable to complete setup. Check console for details.',
           color: 'text-red-600 dark:text-red-400',
           bgColor: 'from-red-50/80 to-pink-50/80 dark:from-red-950/40 dark:to-pink-950/40'
         };
     }
+  };
+
+  const getConsoleMessageIcon = (type: string) => {
+    switch (type) {
+      case 'success': return '✅';
+      case 'error': return '❌';
+      case 'warning': return '⚠️';
+      default: return '📟';
+    }
+  };
+
+  const handleRetry = () => {
+    setAutoStarted(false);
+    setTunnelEstablished(false);
+    setConsoleMessages([]);
+    setCurrentStage('preparing');
+    setProgress(0);
+    tabOpenedRef.current = false;
+    
+    // Clear console and start fresh
+    addConsoleMessage('🔄 Retrying tunnel setup...', 'info', 'preparing');
+    
+    // Restart the process
+    setTimeout(() => {
+      startTunnelSetup();
+    }, 500);
   };
 
   const stageInfo = getStageInfo();
@@ -251,14 +407,14 @@ export function DomainReadinessModal({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-              <DialogContent className="sm:max-w-md">
-          <DialogDescription className="sr-only">
-            Modal showing domain setup progress for container IDE access
-          </DialogDescription>
+      <DialogContent className="sm:max-w-2xl">
+        <DialogDescription className="sr-only">
+          Modal showing real-time tunnel and domain setup progress for container IDE access
+        </DialogDescription>
         <DialogHeader className="relative">
           <DialogTitle className="flex items-center gap-2 text-xl text-slate-800 dark:text-slate-100">
             <Globe className="h-6 w-6 text-blue-600 dark:text-blue-400" />
-            Domain Setup
+            Tunnel & Domain Setup
           </DialogTitle>
           <p className="text-sm text-slate-600 dark:text-slate-400">{jobName}</p>
         </DialogHeader>
@@ -277,7 +433,7 @@ export function DomainReadinessModal({
                   className="text-center space-y-4"
                 >
                   <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full bg-slate-100/90 dark:bg-slate-800/90 ${stageInfo.color} shadow-lg dark:shadow-xl border border-slate-200/50 dark:border-slate-600/50 ${willOpenTab && currentStage === 'ready' ? 'animate-pulse' : ''}`}>
-                    {(currentStage === 'preparing' || currentStage === 'created') ? (
+                    {(currentStage !== 'ready' && currentStage !== 'error') ? (
                       <Loader2 className="w-8 h-8 animate-spin" />
                     ) : (
                       <IconComponent className={`w-8 h-8 ${willOpenTab && currentStage === 'ready' ? 'animate-bounce' : ''}`} />
@@ -315,10 +471,45 @@ export function DomainReadinessModal({
                 className="h-3 bg-slate-100 dark:bg-slate-800 border dark:border-slate-700"
               />
               <p className="text-xs text-center text-slate-500 dark:text-slate-400">
-                This usually takes 30-60 seconds
+                This process includes tunnel setup and domain registration
               </p>
             </div>
           )}
+
+          {/* Real-time Console */}
+          <div className="bg-slate-900 dark:bg-slate-950 rounded-lg border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-slate-800 border-b border-slate-200 dark:border-slate-700">
+              <Terminal className="h-4 w-4 text-slate-600 dark:text-slate-400" />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">Setup Console</span>
+              <div className={`ml-auto h-2 w-2 rounded-full ${wsConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+            </div>
+            <div 
+              ref={consoleRef}
+              className="h-48 overflow-y-auto p-3 text-sm font-mono text-green-400 dark:text-green-300 bg-slate-900 dark:bg-slate-950 space-y-1"
+            >
+              {consoleMessages.map((msg) => (
+                <div key={msg.id} className="flex items-start gap-2">
+                  <span className="text-slate-500 dark:text-slate-400 text-xs">
+                    {msg.timestamp.toLocaleTimeString()}
+                  </span>
+                  <span className="text-xs">{getConsoleMessageIcon(msg.type)}</span>
+                  <span className={`flex-1 ${
+                    msg.type === 'error' ? 'text-red-400' :
+                    msg.type === 'warning' ? 'text-yellow-400' :
+                    msg.type === 'success' ? 'text-green-400' :
+                    'text-slate-300 dark:text-slate-200'
+                  }`}>
+                    {msg.message}
+                  </span>
+                </div>
+              ))}
+              {consoleMessages.length === 0 && (
+                <div className="text-slate-500 dark:text-slate-400 text-center py-8">
+                  Waiting for setup to begin...
+                </div>
+              )}
+            </div>
+          </div>
 
           {/* Domain Info */}
           {domain && (
@@ -337,7 +528,7 @@ export function DomainReadinessModal({
                 {domainUrl && (
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-slate-700 dark:text-slate-300">URL:</span>
-                    <span className="text-sm text-blue-600 dark:text-blue-400 truncate max-w-[200px]">
+                    <span className="text-sm text-blue-600 dark:text-blue-400 truncate max-w-[300px]">
                       {domainUrl}
                     </span>
                   </div>
@@ -346,30 +537,9 @@ export function DomainReadinessModal({
             </motion.div>
           )}
 
-          {/* Error Display */}
-          {error && currentStage === 'error' && (
+          {/* Debug Info Toggle */}
+          {(currentStage === 'error' || showDebugInfo) && (
             <div className="space-y-3">
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertDescription>
-                  <div className="space-y-2">
-                    <div className="font-medium">Setup failed</div>
-                    <div className="text-sm">
-                      Unable to prepare your domain. Please try again.
-                    </div>
-                    {lastAttemptedUrl && (
-                      <div className="text-xs text-slate-600 dark:text-slate-300 font-mono bg-slate-100 dark:bg-slate-800 p-2 rounded">
-                        URL: {lastAttemptedUrl}
-                      </div>
-                    )}
-                    <div className="text-xs text-red-600 dark:text-red-400">
-                      {error}
-                    </div>
-                  </div>
-                </AlertDescription>
-              </Alert>
-              
-              {/* Debug Button and Info */}
               <div className="flex justify-center">
                 <Button
                   variant="outline"
@@ -381,40 +551,23 @@ export function DomainReadinessModal({
                 </Button>
               </div>
               
-              {showDebugInfo && (lastErrorDetails || lastAttemptedUrl || true) && (
+              {showDebugInfo && (
                 <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-lg text-xs font-mono space-y-2 max-h-60 overflow-y-auto">
                   <div className="font-semibold text-slate-700 dark:text-slate-300">Debug Information:</div>
                   
-                  {/* NEW: Tab opening state */}
                   <div>
-                    <span className="text-orange-600 dark:text-orange-400">Tab State:</span>
+                    <span className="text-blue-600 dark:text-blue-400">WebSocket:</span>
                     <div className="text-slate-600 dark:text-slate-300">
-                      Opened: {tabOpenedRef.current ? 'YES' : 'NO'}, Will Open: {willOpenTab ? 'YES' : 'NO'}, Stage: {currentStage}
+                      Connected: {wsConnected ? 'YES' : 'NO'}, Tunnel Established: {tunnelEstablished ? 'YES' : 'NO'}
                     </div>
                   </div>
                   
                   <div>
-                    <span className="text-cyan-600 dark:text-cyan-400">Hook State:</span>
+                    <span className="text-purple-600 dark:text-purple-400">Stage:</span>
                     <div className="text-slate-600 dark:text-slate-300">
-                      Loading: {isLoading ? 'YES' : 'NO'}, Setting Up: {isSettingUp ? 'YES' : 'NO'}, Polling: {isPolling ? 'YES' : 'NO'}
+                      Current: {currentStage}, Progress: {progress}%
                     </div>
                   </div>
-                  
-                  {lastAttemptedUrl && (
-                    <div>
-                      <span className="text-blue-600 dark:text-blue-400">Last URL:</span>
-                      <div className="text-slate-600 dark:text-slate-300 break-all">{lastAttemptedUrl}</div>
-                    </div>
-                  )}
-                  
-                  {lastErrorDetails && (
-                    <div>
-                      <span className="text-red-600 dark:text-red-400">Error Details:</span>
-                      <pre className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-all">
-                        {JSON.stringify(lastErrorDetails, null, 2)}
-                      </pre>
-                    </div>
-                  )}
                   
                   <div>
                     <span className="text-green-600 dark:text-green-400">Job Info:</span>
@@ -423,11 +576,18 @@ export function DomainReadinessModal({
                     </div>
                   </div>
                   
-                  {status && (
+                  {lastAttemptedUrl && (
                     <div>
-                      <span className="text-purple-600 dark:text-purple-400">Status:</span>
-                      <pre className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
-                        {JSON.stringify(status, null, 2)}
+                      <span className="text-cyan-600 dark:text-cyan-400">Last URL:</span>
+                      <div className="text-slate-600 dark:text-slate-300 break-all">{lastAttemptedUrl}</div>
+                    </div>
+                  )}
+                  
+                  {(error || lastErrorDetails) && (
+                    <div>
+                      <span className="text-red-600 dark:text-red-400">Error Details:</span>
+                      <pre className="text-slate-600 dark:text-slate-300 whitespace-pre-wrap break-all">
+                        {error || JSON.stringify(lastErrorDetails, null, 2)}
                       </pre>
                     </div>
                   )}
@@ -436,14 +596,14 @@ export function DomainReadinessModal({
             </div>
           )}
 
-          {/* Action Button */}
+          {/* Action Buttons */}
           <div className="flex justify-end">
             {currentStage === 'error' ? (
               <div className="flex gap-2">
                 <Button variant="outline" onClick={onClose} className="border-slate-300 dark:border-slate-600 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800">
                   Close
                 </Button>
-                <Button onClick={handleAutoStart} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white shadow-lg">
+                <Button onClick={handleRetry} className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500 dark:hover:bg-blue-600 text-white shadow-lg">
                   Try Again
                 </Button>
               </div>
@@ -457,7 +617,7 @@ export function DomainReadinessModal({
                   className="bg-green-600 hover:bg-green-700 dark:bg-green-500 dark:hover:bg-green-600 text-white shadow-lg"
                 >
                   <ExternalLink className="mr-2 h-4 w-4" />
-                  Open in New Tab
+                  Open Workspace
                 </Button>
               </div>
             ) : (

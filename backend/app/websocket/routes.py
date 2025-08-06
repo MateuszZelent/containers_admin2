@@ -573,3 +573,114 @@ async def cluster_status_websocket(
             periodic_task.cancel()
         websocket_manager.disconnect(websocket)
         db.close()  # Close database session
+
+
+@router.websocket("/tunnels/setup")
+async def tunnel_setup_websocket(
+    websocket: WebSocket,
+    job_id: int = Query(..., description="Job ID to monitor tunnel setup for"),
+    token: Optional[str] = Query(
+        None, description="JWT or CLI token for authentication"
+    )
+):
+    """
+    WebSocket endpoint for real-time tunnel setup monitoring.
+    
+    Authentication: Same as other endpoints
+    
+    Clients will receive:
+    - Step-by-step tunnel creation progress
+    - SSH connection status
+    - Port allocation updates
+    - Socat forwarding status
+    - Domain configuration progress
+    - Final accessibility verification
+    """
+    print(f"DEBUG: WebSocket tunnel setup connection for job_id={job_id} "
+          f"with token: {token[:20] if token else 'None'}...")
+    
+    # Get database session
+    db = next(get_db())
+    
+    try:
+        # Authenticate user
+        user = await get_current_user_websocket(token, db)
+        user_id = str(user.id) if user else None
+        
+        print(f"DEBUG: Tunnel setup authentication successful for user: "
+              f"{user.username if user else 'anonymous'} (id: {user_id})")
+        cluster_logger.info(
+            f"WebSocket tunnel_setup connection by user: "
+            f"{user.username if user else 'anonymous'} for job {job_id}"
+        )
+        
+    except Exception as e:
+        print(f"DEBUG: WebSocket tunnel setup authentication failed: {e}")
+        cluster_logger.warning(f"WebSocket tunnel setup auth failed: {e}")
+        await websocket.close(code=1008, reason="Authentication failed")
+        return
+    finally:
+        db.close()
+    
+    # Connect to job-specific tunnel setup channel
+    channel = f"tunnel_setup_{job_id}"
+    connected = await websocket_manager.connect(
+        websocket,
+        channel,
+        user_id
+    )
+    
+    if not connected:
+        await websocket.close(code=1011, reason="Connection failed")
+        return
+    
+    try:
+        # Send initial connection confirmation
+        await websocket.send_text(json.dumps({
+            "type": "connection_established",
+            "channel": "tunnel_setup",
+            "job_id": job_id,
+            "message": f"Connected to tunnel setup monitoring for job {job_id}"
+        }))
+        
+        # Keep connection alive
+        while True:
+            try:
+                message = await websocket.receive_text()
+                data = json.loads(message)
+                
+                print(f"DEBUG: Tunnel setup WebSocket received: {data}")
+                
+                # Handle ping/pong
+                if data.get("type") == "ping":
+                    await websocket.send_text(json.dumps({
+                        "type": "pong",
+                        "timestamp": data.get("timestamp")
+                    }))
+                    print(f"DEBUG: Sent pong response")
+                
+            except json.JSONDecodeError:
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": "Invalid JSON message"
+                }))
+            except Exception as e:
+                cluster_logger.error(
+                    f"Error handling tunnel setup WebSocket message: {e}"
+                )
+                # Don't break - continue processing other messages
+                await websocket.send_text(json.dumps({
+                    "type": "error",
+                    "message": f"Error processing message: {str(e)}"
+                }))
+                
+    except WebSocketDisconnect:
+        cluster_logger.info(
+            f"Tunnel setup WebSocket disconnected for job {job_id}"
+        )
+    except Exception as e:
+        cluster_logger.error(
+            f"Tunnel setup WebSocket error for job {job_id}: {e}"
+        )
+    finally:
+        websocket_manager.disconnect(websocket)
