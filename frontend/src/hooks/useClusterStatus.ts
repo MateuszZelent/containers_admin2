@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useWebSocket } from './useWebSocket';
 import { showToast } from '@/lib/toast-helpers';
 import { debugLog } from '@/lib/debug';
+import { wsManager } from '@/lib/websocket-manager';
 // import { clusterApi } from '@/lib/api-client'; // DISABLED - WebSocket only
 
 export interface ClusterNode {
@@ -179,10 +180,11 @@ export function useClusterStatus(): UseClusterStatusReturn {
 
   // Monitor WebSocket connection status
   useEffect(() => {
-    console.log('[useClusterStatus] Connection status changed - WEBSOCKET ONLY:', { 
+    console.log('[useClusterStatus] Connection status changed - WEBSOCKET ONLY:', {
       isConnected,
       isWebSocketActive: isConnected
     });
+    console.log('[useClusterStatus] WebSocket stats:', wsManager.getStats());
     
     // Set isWebSocketActive based on actual WebSocket connection ONLY
     setIsWebSocketActive(isConnected);
@@ -219,8 +221,9 @@ export function useClusterStatus(): UseClusterStatusReturn {
     if (typeof window === 'undefined') {
       return;
     }
-    
+
     console.log('[useClusterStatus] Initializing WebSocket connection - WEBSOCKET ONLY MODE');
+    console.log('[useClusterStatus] WebSocket stats on mount:', wsManager.getStats());
     initialConnectionAttempted.current = true;
     // Connection is established automatically by useWebSocket
     
@@ -236,6 +239,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
     }, 15000); // 15 seconds for initial connection (increased from 10)
     
     return () => {
+      console.log('[useClusterStatus] Cleanup - WebSocket stats before disconnect:', wsManager.getStats());
       disconnectWebSocket();
       if (initialTimeoutRef.current) {
         clearTimeout(initialTimeoutRef.current);
@@ -244,6 +248,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
+      console.log('[useClusterStatus] Cleanup - WebSocket stats after disconnect:', wsManager.getStats());
     };
   }, []); // Empty dependency array - runs only once
 
