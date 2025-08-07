@@ -24,14 +24,12 @@ interface PCSSDebugPopupProps {
 }
 
 export const PCSSDebugPopup = memo<PCSSDebugPopupProps>(({ isOpen, onClose }) => {
-  const { connectionStatus } = useConnectionStatusContext();
-  
-  // Use global cluster status from context - NO duplicate hooks
-  const { 
-    clusterStatus, 
-    clusterLoading: loading, 
-    clusterError: error, 
-    clusterLastUpdate: lastUpdate, 
+  const {
+    connectionStatus,
+    clusterStatus,
+    clusterLoading: loading,
+    clusterError: error,
+    clusterLastUpdate: lastUpdate,
     isClusterWebSocketActive: isWebSocketActive,
     requestClusterStatusUpdate: requestStatusUpdate
   } = useConnectionStatusContext();
