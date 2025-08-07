@@ -2,7 +2,6 @@
 
 import React, { createContext, useContext, ReactNode } from 'react';
 import { useConnectionStatus, ConnectionStatus } from '@/hooks/useConnectionStatus';
-import { useClusterStatus, ClusterStatus } from '@/hooks/useClusterStatus';
 
 interface ConnectionStatusContextType {
   connectionStatus: ConnectionStatus;
@@ -15,7 +14,7 @@ interface ConnectionStatusContextType {
   refreshPCSSStatus: () => Promise<void>;
   clearCache: () => void;
   // Cluster status data - global state
-  clusterStatus: ClusterStatus | null;
+  clusterStatus: ReturnType<typeof useConnectionStatus>['clusterStatus'];
   clusterLoading: boolean;
   clusterError: string | null;
   clusterLastUpdate: Date | null;
@@ -40,8 +39,23 @@ export function ConnectionStatusProvider({
   refreshInterval = 30000, // 30 seconds
   enableAutoRefresh = true,
 }: ConnectionStatusProviderProps) {
-  // Connection status zarządza już cluster status wewnętrznie
-  const connectionStatusData = useConnectionStatus({
+  const {
+    connectionStatus,
+    isLoading,
+    error,
+    lastUpdate,
+    refreshStatus,
+    refreshSSHStatus,
+    refreshWebSocketStatus,
+    refreshPCSSStatus,
+    clearCache,
+    clusterStatus,
+    clusterLoading,
+    clusterError,
+    clusterLastUpdate,
+    isClusterWebSocketActive,
+    requestClusterStatusUpdate,
+  } = useConnectionStatus({
     cacheEnabled,
     cacheTTL,
     refreshInterval,
@@ -49,14 +63,21 @@ export function ConnectionStatusProvider({
   });
 
   const contextValue: ConnectionStatusContextType = {
-    ...connectionStatusData,
-    // Cluster status jest już w connectionStatusData - będziemy musiał dodać do interfejsu
-    clusterStatus: null, // TODO: Dodać do useConnectionStatus return
-    clusterLoading: false,
-    clusterError: null,
-    clusterLastUpdate: null,
-    isClusterWebSocketActive: false,
-    requestClusterStatusUpdate: () => {}
+    connectionStatus,
+    isLoading,
+    error,
+    lastUpdate,
+    refreshStatus,
+    refreshSSHStatus,
+    refreshWebSocketStatus,
+    refreshPCSSStatus,
+    clearCache,
+    clusterStatus,
+    clusterLoading,
+    clusterError,
+    clusterLastUpdate,
+    isClusterWebSocketActive,
+    requestClusterStatusUpdate,
   };
 
   return (
