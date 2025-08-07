@@ -75,13 +75,13 @@ export const useWebSocket = ({
   }, [url]);
 
   const connect = useCallback(() => {
-    // Connection is managed automatically by wsManager
     console.log(`[useWebSocket] Manual connect requested for: ${url}`);
+    wsManager.forceReconnect(url);
   }, [url]);
 
   const disconnect = useCallback(() => {
-    // Individual disconnect would require unsubscribing
     console.log(`[useWebSocket] Manual disconnect requested for: ${url}`);
+    wsManager.disconnect(url);
   }, [url]);
 
   return {

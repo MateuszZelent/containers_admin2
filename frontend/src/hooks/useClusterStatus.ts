@@ -229,7 +229,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
     
     console.log('[useClusterStatus] Initializing WebSocket connection - WEBSOCKET ONLY MODE');
     initialConnectionAttempted.current = true;
-    connectWebSocket();
+    // Connection is established automatically by useWebSocket
     
     // Set a timeout to show connection error only if initial connection fails after 15 seconds
     // This gives more time for the connection to establish
