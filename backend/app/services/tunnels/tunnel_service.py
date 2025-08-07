@@ -69,6 +69,21 @@ class SSHTunnelService:
             cluster_logger.warning(
                 f"Failed to send WebSocket event for job {job_id}: {e}"
             )
+    
+    def get_active_tunnel_for_job(self, job_id: int, db: Session) -> Optional[SSHTunnelInfo]:
+        """Get existing active tunnel for a job if it exists."""
+        existing_tunnel = (
+            db.query(SSHTunnel)
+            .filter(
+                SSHTunnel.job_id == job_id,
+                SSHTunnel.status == TunnelStatus.ACTIVE.value
+            )
+            .first()
+        )
+        
+        if existing_tunnel:
+            return self._tunnel_to_info(existing_tunnel)
+        return None
         
     async def get_or_create_tunnel_sync(
         self,
@@ -80,13 +95,15 @@ class SSHTunnelService:
         Synchronous version that waits for tunnel to be ACTIVE before returning.
         """
         try:
-            # Check if active tunnel already exists
+            # CRITICAL FIX: Use SELECT FOR UPDATE to prevent race conditions
+            # This ensures only one request can create tunnel for a job at time
             existing_tunnel = (
                 db.query(SSHTunnel)
                 .filter(
                     SSHTunnel.job_id == job_id,
                     SSHTunnel.status.in_([TunnelStatus.ACTIVE.value, TunnelStatus.CONNECTING.value])
                 )
+                .with_for_update()  # Lock row to prevent race conditions
                 .first()
             )
             
@@ -99,7 +116,7 @@ class SSHTunnelService:
                     cluster_logger.info(f"Found connecting tunnel {existing_tunnel.id}, waiting for completion...")
                     return await self._wait_for_tunnel_active(existing_tunnel.id, db)
             
-            # No existing tunnel, create new one synchronously
+            # No existing tunnel, create new one synchronously WITH TRANSACTION
             return await self._create_tunnel_sync(job_id, db)
             
         except Exception as e:
@@ -111,7 +128,11 @@ class SSHTunnelService:
         job_id: int,
         db: Session
     ) -> Optional[SSHTunnelInfo]:
-        """Create tunnel synchronously and wait for it to be established."""
+        """Create tunnel synchronously and wait for it to be established.
+        
+        CRITICAL: This method uses database transactions and proper cleanup
+        to prevent resource leaks and inconsistent state.
+        """
         
         # Get job
         job = db.query(Job).filter(Job.id == job_id).first()
@@ -124,28 +145,63 @@ class SSHTunnelService:
             "step": "port_allocation"
         })
         
-        port_allocation = await self._allocate_ports(job_id)
-        if not port_allocation:
-            await self._send_websocket_event(job_id, "setup_error", {
-                "message": "❌ No available ports",
-                "step": "port_allocation",
-                "error": "Failed to allocate ports"
-            })
-            cluster_logger.error(f"Failed to allocate ports for job {job_id}")
-            return None
+        port_allocation = None
+        tunnel_id = None
         
-        msg = (f"✅ Ports allocated: {port_allocation.internal_port} "
-               f"-> {port_allocation.external_port}")
-        await self._send_websocket_event(job_id, "setup_progress", {
-            "message": msg,
-            "step": "port_allocation",
-            "details": {
-                "internal_port": port_allocation.internal_port,
-                "external_port": port_allocation.external_port
-            }
-        })
-            
         try:
+            # Step 1: Allocate ports
+            port_allocation = await self._allocate_ports(job_id)
+            if not port_allocation:
+                await self._send_websocket_event(job_id, "setup_error", {
+                    "message": "❌ No available ports",
+                    "step": "port_allocation",
+                    "error": "Failed to allocate ports"
+                })
+                cluster_logger.error(f"Failed to allocate ports for job {job_id}")
+                return None
+
+            msg = (f"✅ Ports allocated: {port_allocation.internal_port} "
+                   f"-> {port_allocation.external_port}")
+            await self._send_websocket_event(job_id, "setup_progress", {
+                "message": msg,
+                "step": "port_allocation",
+                "details": {
+                    "internal_port": port_allocation.internal_port,
+                    "external_port": port_allocation.external_port
+                }
+            })
+            
+            # Step 2: Create tunnel record in database FIRST 
+            # (before starting processes to prevent orphaned processes)
+            tunnel_id = await self._create_tunnel_record_atomic(
+                job_id, port_allocation, db
+            )
+            if not tunnel_id:
+                raise Exception("Failed to create tunnel database record")
+                
+            # Step 3: Establish tunnel processes
+            success = await self._establish_tunnel_sync_internal(
+                tunnel_id, job_id, port_allocation, job, db
+            )
+            
+            if success:
+                return await self._get_tunnel_info(tunnel_id, db)
+            else:
+                # If tunnel setup failed, cleanup will happen in except block
+                raise Exception("Tunnel establishment failed")
+                
+        except Exception as e:
+            cluster_logger.error(f"Error creating tunnel for job {job_id}: {e}")
+            
+            # CRITICAL: Cleanup resources on failure
+            await self._cleanup_failed_tunnel(tunnel_id, port_allocation, job_id)
+            
+            await self._send_websocket_event(job_id, "setup_error", {
+                "message": f"❌ Tunnel creation failed: {str(e)}",
+                "step": "tunnel_creation",
+                "error": str(e)
+            })
+            return None
             # Create tunnel record
             await self._send_websocket_event(job_id, "setup_progress", {
                 "message": "💾 Creating tunnel record...",
@@ -538,8 +594,93 @@ class SSHTunnelService:
             updated_at=tunnel.updated_at
         )
     
+    async def _get_tunnel_info(self, tunnel_id: int, db: Session) -> Optional[SSHTunnelInfo]:
+        """Get tunnel info by ID."""
+        tunnel = db.query(SSHTunnel).filter(SSHTunnel.id == tunnel_id).first()
+        if not tunnel:
+            cluster_logger.error(f"Tunnel {tunnel_id} not found in database")
+            return None
+        
+        return self._tunnel_to_info(tunnel)
+    
     # REMOVED: Background task functions (_ensure_background_tasks, _periodic_cleanup_task, _cleanup_inactive_tunnels)
     # These were used only by the old asynchronous tunnel creation
+    
+    async def _create_tunnel_record_atomic(
+        self,
+        job_id: int,
+        port_allocation: 'PortAllocation',
+        db: Session
+    ) -> Optional[int]:
+        """Create tunnel record atomically in database."""
+        try:
+            # Use explicit transaction
+            from app.db.models import SSHTunnel, Job
+            from .enums import TunnelStatus
+            
+            # Get job info for tunnel fields
+            job = db.query(Job).filter(Job.id == job_id).first()
+            if not job:
+                cluster_logger.error(f"Job {job_id} not found for tunnel creation")
+                return None
+            
+            new_tunnel = SSHTunnel(
+                job_id=job_id,
+                local_port=port_allocation.internal_port,
+                external_port=port_allocation.external_port,
+                internal_port=port_allocation.internal_port,
+                remote_port=job.port,  # Port from job
+                remote_host=settings.SLURM_HOST,  # SSH host
+                node=job.node,  # Node from job
+                status=TunnelStatus.CONNECTING.value,
+                ssh_pid=None,  # Will be updated when process starts
+                socat_pid=None,
+                created_at=datetime.utcnow()
+            )
+            
+            db.add(new_tunnel)
+            db.flush()  # Get ID without committing
+            tunnel_id = new_tunnel.id
+            db.commit()
+            
+            cluster_logger.info(f"Created tunnel record {tunnel_id} for job {job_id}")
+            return tunnel_id
+            
+        except Exception as e:
+            db.rollback()
+            cluster_logger.error(f"Failed to create tunnel record: {e}")
+            return None
+    
+    async def _cleanup_failed_tunnel(
+        self,
+        tunnel_id: Optional[int],
+        port_allocation: Optional['PortAllocation'],
+        job_id: int
+    ) -> None:
+        """Cleanup resources after failed tunnel creation."""
+        cluster_logger.info(f"Cleaning up failed tunnel creation for job {job_id}")
+        
+        # Cleanup database record
+        if tunnel_id:
+            try:
+                from app.db.session import SessionLocal
+                with SessionLocal() as cleanup_db:
+                    tunnel = cleanup_db.query(SSHTunnel).filter(
+                        SSHTunnel.id == tunnel_id
+                    ).first()
+                    if tunnel:
+                        await self._cleanup_tunnel(tunnel, cleanup_db)
+                        cluster_logger.info(f"Cleaned up tunnel record {tunnel_id}")
+            except Exception as e:
+                cluster_logger.error(f"Failed to cleanup tunnel record: {e}")
+        
+        # Cleanup port allocation
+        if port_allocation:
+            try:
+                await self._release_ports(port_allocation)
+                cluster_logger.info(f"Deallocated port {port_allocation.internal_port}")
+            except Exception as e:
+                cluster_logger.error(f"Failed to deallocate port: {e}")
     
     async def close_tunnel(self, tunnel_id: int, db: Session = Depends(get_db)) -> bool:
         """Close a specific tunnel."""
@@ -561,14 +702,83 @@ class SSHTunnelService:
             
         return cleanup_count
     
-    def get_job_tunnels(self, job_id: int, db: Session = Depends(get_db)) -> List[SSHTunnelInfo]:
+    async def startup_cleanup_all_tunnels(self, db: Session) -> int:
+        """
+        Clean up all tunnels at startup.
+
+        After backend restart, all SSH processes are dead, so we mark all
+        tunnels as FAILED and clean up their resources.
+        """
+        cluster_logger.info(
+            "🧹 STARTUP: Cleaning up all tunnels after backend restart"
+        )
+
+        try:
+            # Get all tunnels that are not already FAILED or DEAD
+            active_tunnels = db.query(SSHTunnel).filter(
+                SSHTunnel.status.in_([
+                    TunnelStatus.ACTIVE.value,
+                    TunnelStatus.CONNECTING.value
+                ])
+            ).all()
+
+            cleanup_count = 0
+            for tunnel in active_tunnels:
+                cluster_logger.info(
+                    f"🧹 STARTUP: Cleaning up tunnel {tunnel.id} "
+                    f"(job {tunnel.job_id}, status {tunnel.status})"
+                )
+
+                # Mark as FAILED since processes are dead
+                db.query(SSHTunnel).filter(SSHTunnel.id == tunnel.id).update({
+                    "status": TunnelStatus.FAILED.value,
+                    "updated_at": datetime.utcnow()
+                })
+
+                # Clean up processes (best effort, they should be dead anyway)
+                try:
+                    ssh_pid = getattr(tunnel, 'ssh_pid', None)
+                    socat_pid = getattr(tunnel, 'socat_pid', None)
+
+                    if ssh_pid:
+                        await self.process_manager.terminate_process(ssh_pid)
+                    if socat_pid:
+                        await self.process_manager.terminate_process(socat_pid)
+
+                    # Note: ProcessManager doesn't have free_port method
+                    # Ports will be reallocated dynamically when needed
+                except Exception as e:
+                    cluster_logger.debug(
+                        f"Process cleanup error for tunnel {tunnel.id}: {e}"
+                    )
+
+                cleanup_count += 1
+
+            # Commit all changes
+            db.commit()
+
+            cluster_logger.info(
+                f"✅ STARTUP: Cleaned up {cleanup_count} tunnels"
+            )
+            return cleanup_count
+
+        except Exception as e:
+            cluster_logger.error(
+                f"❌ STARTUP: Error during tunnel cleanup: {e}"
+            )
+            db.rollback()
+            return 0
+    
+    def get_job_tunnels(
+        self, job_id: int, db: Session = Depends(get_db)
+    ) -> List[SSHTunnelInfo]:
         """Get all tunnels for a job."""
         tunnels = db.query(SSHTunnel).filter(SSHTunnel.job_id == job_id).all()
         return [self._tunnel_to_info(tunnel) for tunnel in tunnels]
-    
+
     async def health_check(
-        self, 
-        tunnel_id: int, 
+        self,
+        tunnel_id: int,
         db: Session = Depends(get_db)
     ):
         """Get comprehensive health information for a tunnel."""

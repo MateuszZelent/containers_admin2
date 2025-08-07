@@ -70,7 +70,10 @@ class ConnectionManager:
             return False
     
     def disconnect(self, websocket: WebSocket):
-        """Disconnect a WebSocket from all channels."""
+        """Disconnect a WebSocket from all channels.
+        
+        CRITICAL: Properly cleanup ALL references to prevent memory leaks.
+        """
         try:
             print(f"DEBUG: Starting disconnect for WebSocket {id(websocket)}")
             metadata = self.connection_metadata.get(websocket)
@@ -87,6 +90,47 @@ class ConnectionManager:
                 if websocket in self.active_connections[channel]:
                     self.active_connections[channel].remove(websocket)
                     print(f"DEBUG: Removed from channel '{channel}', remaining: {len(self.active_connections[channel])}")
+                    
+                    # CRITICAL: Remove empty channel lists to prevent memory leaks
+                    if len(self.active_connections[channel]) == 0:
+                        del self.active_connections[channel]
+                        print(f"DEBUG: Removed empty channel '{channel}'")
+            
+            # Remove from user connections
+            if user_id and user_id in self.user_connections:
+                if channel in self.user_connections[user_id]:
+                    if websocket in self.user_connections[user_id][channel]:
+                        self.user_connections[user_id][channel].remove(websocket)
+                        print(f"DEBUG: Removed from user '{user_id}' channel '{channel}'")
+                        
+                        # CRITICAL: Remove empty user channel lists
+                        if len(self.user_connections[user_id][channel]) == 0:
+                            del self.user_connections[user_id][channel]
+                            print(f"DEBUG: Removed empty user channel '{user_id}':'{channel}'")
+                        
+                        # CRITICAL: Remove empty user entries
+                        if len(self.user_connections[user_id]) == 0:
+                            del self.user_connections[user_id]
+                            print(f"DEBUG: Removed empty user '{user_id}'")
+            
+            # CRITICAL: Remove metadata to prevent memory leaks
+            if websocket in self.connection_metadata:
+                del self.connection_metadata[websocket]
+                print(f"DEBUG: Cleaned up metadata for WebSocket {id(websocket)}")
+            
+            print(f"DEBUG: Connection cleanup complete for WebSocket {id(websocket)}")
+            print(f"DEBUG: Total connections: {sum(len(conns) for conns in self.active_connections.values())}")
+            print(f"DEBUG: Total users: {len(self.user_connections)}")
+            print(f"DEBUG: All channels: {list(self.active_connections.keys())}")
+            
+        except Exception as e:
+            cluster_logger.error(f"Error disconnecting WebSocket: {e}")
+            # FALLBACK: Force cleanup if there's an error
+            try:
+                if websocket in self.connection_metadata:
+                    del self.connection_metadata[websocket]
+            except:
+                pass
                     
                 # Clean up empty channels
                 if not self.active_connections[channel]:

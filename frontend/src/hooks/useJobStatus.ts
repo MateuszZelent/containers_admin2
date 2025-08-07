@@ -25,6 +25,10 @@ interface UseJobStatusProps {
   onTunnelUpdate?: (update: TunnelStatusUpdate) => void;
   onNotification?: (notification: any) => void;
   enabled?: boolean;
+  // Selective channel enabling - NOWA FUNKCJONALNOŚĆ
+  enableJobStatus?: boolean;
+  enableTunnelHealth?: boolean;
+  enableNotifications?: boolean;
 }
 
 interface UseJobStatusReturn {
@@ -45,7 +49,11 @@ export const useJobStatus = ({
   onJobUpdate,
   onTunnelUpdate,
   onNotification,
-  enabled = true
+  enabled = true,
+  // Selective enabling - domyślnie włączone dla kompatybilności wstecznej
+  enableJobStatus = true,
+  enableTunnelHealth = true,
+  enableNotifications = true
 }: UseJobStatusProps): UseJobStatusReturn => {
 
   // Check if user is authenticated
@@ -89,7 +97,7 @@ export const useJobStatus = ({
   } = useWebSocket({
     url: '/ws/jobs/status',
     onMessage: handleJobMessage,
-    enabled: enabled && (isAuthenticated || process.env.NODE_ENV === 'development')
+    enabled: enabled && enableJobStatus && (isAuthenticated || process.env.NODE_ENV === 'development')
   });
 
   // Tunnel Health WebSocket
@@ -134,7 +142,7 @@ export const useJobStatus = ({
   } = useWebSocket({
     url: '/ws/tunnels/health',
     onMessage: handleTunnelMessage,
-    enabled: enabled && (isAuthenticated || process.env.NODE_ENV === 'development')
+    enabled: enabled && enableTunnelHealth && (isAuthenticated || process.env.NODE_ENV === 'development')
   });
 
   // Notifications WebSocket
@@ -176,7 +184,7 @@ export const useJobStatus = ({
   } = useWebSocket({
     url: '/ws/notifications',
     onMessage: handleNotificationMessage,
-    enabled: enabled && (isAuthenticated || process.env.NODE_ENV === 'development')
+    enabled: enabled && enableNotifications && (isAuthenticated || process.env.NODE_ENV === 'development')
   });
 
   // Helper functions

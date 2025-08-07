@@ -36,7 +36,18 @@ async def generate_job_domain(job: Job, user: User) -> tuple[str, str]:
     """
     Generate domain name for a job based on user and job name.
     Returns tuple of (domain, url).
+    
+    SECURITY: Validates and sanitizes all inputs to prevent injection attacks.
     """
+    # SECURITY: Validate inputs
+    if not user.username or not job.job_name:
+        raise ValueError("Username and job name cannot be empty")
+    
+    # SECURITY: Sanitize username (alphanumeric + underscore only)
+    import re
+    if not re.match(r'^[a-zA-Z0-9_]+$', user.username):
+        raise ValueError("Username contains invalid characters")
+    
     # Extract user-provided container name from job_name
     username_prefix = f"container_{user.username}_"
     if job.job_name.startswith(username_prefix):
@@ -883,14 +894,19 @@ async def get_code_server_url(
             jobs_logger.warning(f"Failed to send WebSocket update: {e}")
 
     try:
-        # Step 1: Create SSH tunnel and wait for it to be fully established
-        await send_ws_update("🔀 Tworzenie tunelu SSH...", "ssh_tunnel", "progress")
+        # STEP 1/6: Initialize tunnel setup
+        await send_ws_update("🚀 Etap 1/6: Inicjalizacja konfiguracji...", "initialize", "progress")
+        jobs_logger.info(f"🚀 CODE-SERVER: Starting IDE setup for job {job_id}")
+        
+        # STEP 2/6: Create SSH tunnel and wait for it to be fully established
+        await send_ws_update("🔀 Etap 2/6: Tworzenie tunelu SSH...", "ssh_tunnel", "progress")
         jobs_logger.info(f"🔀 CODE-SERVER: Starting tunnel creation for job {job_id}")
         
         from app.dependencies.tunnel_service import get_tunnel_service
         tunnel_service = get_tunnel_service()
         
-        # SIMPLIFIED: Use single tunnel creation path
+        # FIXED: Use only get_or_create_tunnel_sync to prevent race conditions
+        # This method handles both existing and new tunnels properly with locking
         tunnel = await tunnel_service.get_or_create_tunnel_sync(job_id, db)
 
         if not tunnel:
@@ -901,6 +917,7 @@ async def get_code_server_url(
                 detail="Could not establish SSH tunnel. Please try again later.",
             )
 
+        # Always show tunnel details
         await send_ws_update("✅ Tunel SSH w pełni gotowy", "ssh_tunnel", "success")
         
         # Send detailed tunnel information to frontend console
@@ -915,15 +932,15 @@ async def get_code_server_url(
             f"status={tunnel.status}"
         )
 
-        # Step 2: Generate domain name
-        await send_ws_update("🌐 Generowanie nazwy domeny...", "domain_setup", "progress")
+        # STEP 3/6: Generate domain name
+        await send_ws_update("🌐 Etap 3/6: Generowanie nazwy domeny...", "domain_setup", "progress")
         
         # Generate domain using centralized function
         domain, domain_url = await generate_job_domain(job, current_user)
         await send_ws_update(f"✅ Domena: {domain}", "domain_setup", "progress")
 
-        # Step 3: Configure Caddy
-        await send_ws_update("🔧 Konfiguracja Caddy proxy...", "caddy_setup", "progress")
+        # STEP 4/6: Configure Caddy
+        await send_ws_update("🔧 Etap 4/6: Konfiguracja Caddy proxy...", "caddy_setup", "progress")
         jobs_logger.info(
             f"🌐 CODE-SERVER: Configuring Caddy for domain={domain}, "
             f"target_port={tunnel.local_port}"
@@ -946,18 +963,22 @@ async def get_code_server_url(
         await send_ws_update("✅ Caddy skonfigurowane pomyślnie", "caddy_setup", "progress")
         jobs_logger.info(f"✅ CODE-SERVER: Caddy configured successfully for {domain}")
 
-        # Step 4: Verify domain accessibility with multiple attempts
-        await send_ws_update("🔍 Sprawdzanie dostępności domeny...", "domain_check", "progress")
+        # STEP 5/6: Wait for tunnel to fully establish before domain verification
+        await send_ws_update("⏳ Etap 5/6: Oczekiwanie na pełne uruchomienie tunelu...", "domain_check", "progress")
+        await asyncio.sleep(8)  # Give tunnel time to fully establish
+        
+        # STEP 6/6: Verify domain accessibility with multiple attempts
+        await send_ws_update("🔍 Etap 6/6: Sprawdzanie dostępności domeny...", "domain_check", "progress")
         jobs_logger.info(f"🔍 CODE-SERVER: Verifying domain accessibility for {domain}")
         
         # Try multiple times with increasing delay
-        max_attempts = 3
+        max_attempts = 5  # Increased from 3 to 5
         domain_accessible = False
         final_status_info = ""
         
         for attempt in range(1, max_attempts + 1):
             await send_ws_update(f"🔍 Próba {attempt}/{max_attempts} weryfikacji domeny...", "domain_check", "progress")
-            domain_accessible, status_info = await verify_domain_accessibility(domain_url, timeout=15)
+            domain_accessible, status_info = await verify_domain_accessibility(domain_url, timeout=20)  # Increased timeout from 15 to 20
             final_status_info = status_info
             
             # Send detailed status to frontend
@@ -971,8 +992,8 @@ async def get_code_server_url(
                 jobs_logger.warning(f"⚠️ CODE-SERVER: Domain {domain} not accessible on attempt {attempt} ({status_info})")
                 await send_ws_update(f"❌ Próba {attempt} nieudana: {status_info}", "domain_check", "warning")
                 if attempt < max_attempts:
-                    await send_ws_update(f"⏳ Oczekiwanie 5s przed kolejną próbą...", "domain_check", "progress")
-                    await asyncio.sleep(5)
+                    await send_ws_update(f"⏳ Oczekiwanie 10s przed kolejną próbą...", "domain_check", "progress")  # Increased from 5s to 10s
+                    await asyncio.sleep(10)  # Increased from 5 to 10 seconds
         
         if domain_accessible:
             # Mark domain as ready after successful verification
@@ -1313,33 +1334,17 @@ async def check_job_tunnel_health(
         "port_connectivity": health_info.port_connectivity,
         "last_check": health_info.last_test,
         "ssh_process": {
-            "pid": health_info.ssh_process.pid if health_info.ssh_process else None,
-            "is_running": health_info.ssh_process.is_running
-            if health_info.ssh_process
-            else False,
-            "memory_usage_mb": health_info.ssh_process.memory_usage
-            if health_info.ssh_process
-            else None,
-            "cpu_usage": health_info.ssh_process.cpu_usage
-            if health_info.ssh_process
-            else None,
-        }
-        if health_info.ssh_process
-        else None,
+            "pid": health_info.ssh_process.pid,
+            "is_running": health_info.ssh_process.is_alive,
+            "port": health_info.ssh_process.port,
+            "process_type": health_info.ssh_process.process_type.value,
+        } if health_info.ssh_process else None,
         "socat_process": {
-            "pid": health_info.socat_process.pid if health_info.socat_process else None,
-            "is_running": health_info.socat_process.is_running
-            if health_info.socat_process
-            else False,
-            "memory_usage_mb": health_info.socat_process.memory_usage
-            if health_info.socat_process
-            else None,
-            "cpu_usage": health_info.socat_process.cpu_usage
-            if health_info.socat_process
-            else None,
-        }
-        if health_info.socat_process
-        else None,
+            "pid": health_info.socat_process.pid,
+            "is_running": health_info.socat_process.is_alive,
+            "port": health_info.socat_process.port,
+            "process_type": health_info.socat_process.process_type.value,
+        } if health_info.socat_process else None,
         "error_message": health_info.error_message,
     }
 

@@ -189,7 +189,7 @@ export function CodeServerModal({
         setCurrentStage('complete');
         setProgress(100);
         setWillOpenTab(true);
-        addConsoleMessage('🎉 IDE jest w pełni skonfigurowane i gotowe!', 'success', 'complete');
+        // Note: Success message is already sent by backend via WebSocket
         
         // Open in new tab after a short delay
         setTimeout(() => {
@@ -235,7 +235,7 @@ export function CodeServerModal({
       setFinalUrl('');
       tabOpenedRef.current = false;
     }
-  }, [isOpen, autoStarted, startCodeServerSetup]);
+  }, [isOpen, autoStarted]); // Removed startCodeServerSetup from dependencies to prevent infinite loop
 
   const getStageInfo = () => {
     switch (currentStage) {

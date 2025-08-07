@@ -40,6 +40,7 @@ export function ConnectionStatusProvider({
   refreshInterval = 30000, // 30 seconds
   enableAutoRefresh = true,
 }: ConnectionStatusProviderProps) {
+  // Connection status zarządza już cluster status wewnętrznie
   const connectionStatusData = useConnectionStatus({
     cacheEnabled,
     cacheTTL,
@@ -47,25 +48,15 @@ export function ConnectionStatusProvider({
     enableAutoRefresh,
   });
 
-  // Global cluster status - ONE instance for entire app
-  const {
-    clusterStatus,
-    loading: clusterLoading,
-    error: clusterError,
-    lastUpdate: clusterLastUpdate,
-    isWebSocketActive: isClusterWebSocketActive,
-    requestStatusUpdate: requestClusterStatusUpdate
-  } = useClusterStatus();
-
   const contextValue: ConnectionStatusContextType = {
     ...connectionStatusData,
-    // Add cluster status to global context
-    clusterStatus,
-    clusterLoading,
-    clusterError,
-    clusterLastUpdate,
-    isClusterWebSocketActive,
-    requestClusterStatusUpdate
+    // Cluster status jest już w connectionStatusData - będziemy musiał dodać do interfejsu
+    clusterStatus: null, // TODO: Dodać do useConnectionStatus return
+    clusterLoading: false,
+    clusterError: null,
+    clusterLastUpdate: null,
+    isClusterWebSocketActive: false,
+    requestClusterStatusUpdate: () => {}
   };
 
   return (

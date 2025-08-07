@@ -31,6 +31,7 @@ interface UseConnectionStatusOptions {
   cacheTTL?: number;
   refreshInterval?: number;
   enableAutoRefresh?: boolean;
+  // USUNIĘTE: isClusterWebSocketActive i clusterStatus - będą zarządzane wewnętrznie
 }
 
 interface UseConnectionStatusReturn {
@@ -43,6 +44,13 @@ interface UseConnectionStatusReturn {
   refreshWebSocketStatus: () => void;
   refreshPCSSStatus: () => Promise<void>;
   clearCache: () => void;
+  // Cluster status data - zarządzane wewnętrznie
+  clusterStatus: any | null;
+  clusterLoading: boolean;
+  clusterError: string | null;
+  clusterLastUpdate: Date | null;
+  isClusterWebSocketActive: boolean;
+  requestClusterStatusUpdate: () => void;
 }
 
 const STORAGE_KEY = 'dashboard_connection_status';
@@ -95,14 +103,28 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     isTunnelHealthConnected, 
     isNotificationsConnected, 
     verificationCode 
-  } = useJobStatus({ enabled: true });
+  } = useJobStatus({ 
+    enabled: true,
+    // Tylko job status i notifications dla connection monitoring
+    enableJobStatus: true,
+    enableTunnelHealth: false, // Nie potrzebne dla statusu połączenia
+    enableNotifications: true
+  });
   
-  const { isWebSocketActive: isPCSSWebSocketActive, clusterStatus } = useClusterStatus();
+  // Cluster status - zarządzany lokalnie w useConnectionStatus
+  const {
+    clusterStatus,
+    loading: clusterLoading,
+    error: clusterError,
+    lastUpdate: clusterLastUpdate,
+    isWebSocketActive: isClusterWebSocketActive,
+    requestStatusUpdate: requestClusterStatusUpdate,
+  } = useClusterStatus();
 
-  // Debug: Monitor changes to isPCSSWebSocketActive
+  // Debug: Monitor changes to isClusterWebSocketActive
   useEffect(() => {
-    debugLog.ws('[useConnectionStatus] isPCSSWebSocketActive changed:', isPCSSWebSocketActive);
-  }, [isPCSSWebSocketActive]);
+    debugLog.ws('[useConnectionStatus] isClusterWebSocketActive changed:', isClusterWebSocketActive);
+  }, [isClusterWebSocketActive]);
 
   // Debug: Monitor changes to clusterStatus
   useEffect(() => {
@@ -324,11 +346,11 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
   // Refresh PCSS status - WebSocket only
   const refreshPCSSStatus = useCallback(async () => {
     try {
-      const hasWebSocketConnection = isPCSSWebSocketActive; // Only WebSocket
+      const hasWebSocketConnection = isClusterWebSocketActive; // Only WebSocket
       const pcssStatus = hasWebSocketConnection ? 'active' : 'inactive';
       
       debugLog.ws('[useConnectionStatus] PCSS status update (WebSocket ONLY mode):', {
-        isPCSSWebSocketActive,
+        isClusterWebSocketActive,
         hasClusterStatus: !!clusterStatus,
         clusterStatusSample: clusterStatus ? {
           total_cpus: clusterStatus.total_cpus,
@@ -369,7 +391,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
       }
       throw error;
     }
-  }, [isPCSSWebSocketActive, clusterStatus]);
+  }, [isClusterWebSocketActive, clusterStatus]);
 
   // Refresh all statuses
   const refreshStatus = useCallback(async () => {
@@ -408,11 +430,11 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
   // Monitor changes in cluster WebSocket status and update PCSS immediately
   useEffect(() => {
     debugLog.ws('[useConnectionStatus] Cluster WebSocket status changed, updating PCSS...', {
-      isPCSSWebSocketActive,
+      isClusterWebSocketActive,
       hasClusterStatus: !!clusterStatus
     });
     refreshPCSSStatus();
-  }, [isPCSSWebSocketActive, clusterStatus, refreshPCSSStatus]);
+  }, [isClusterWebSocketActive, clusterStatus, refreshPCSSStatus]);
 
   // Auto-refresh
   const scheduleNextRefresh = useCallback(() => {
@@ -494,5 +516,11 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     refreshWebSocketStatus,
     refreshPCSSStatus,
     clearCache,
+    clusterStatus,
+    clusterLoading,
+    clusterError,
+    clusterLastUpdate,
+    isClusterWebSocketActive,
+    requestClusterStatusUpdate,
   };
 }

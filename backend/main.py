@@ -122,6 +122,26 @@ async def startup_event():
     await domain_monitor.start()
     logger.info("Background domain monitoring started")
 
+    # Clean up all tunnels from previous session
+    logger.info("Cleaning up stale tunnels from previous session")
+    try:
+        from app.dependencies.tunnel_service import get_tunnel_service
+        from app.db.session import SessionLocal
+        
+        tunnel_service = get_tunnel_service()
+        db = SessionLocal()
+        try:
+            cleanup_count = await tunnel_service.startup_cleanup_all_tunnels(
+                db
+            )
+            logger.info(f"✅ Cleaned up {cleanup_count} stale tunnels")
+        finally:
+            db.close()
+    except Exception as e:
+        logger.error(f"❌ Failed to clean up stale tunnels: {e}")
+
+    logger.info("🚀 Application startup completed")
+
 
 @app.get("/")
 def read_root():

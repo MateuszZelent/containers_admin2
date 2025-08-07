@@ -72,7 +72,7 @@ class SSHTunnelInfo(BaseModel):
     internal_port: Optional[int] = None
     remote_port: int
     remote_host: Optional[str] = None
-    node: str
+    node: Optional[str] = None  # FIXED: Changed from str to Optional[str] for old tunnels
     status: str
     ssh_pid: Optional[int] = None
     socat_pid: Optional[int] = None
