@@ -74,32 +74,7 @@ apiClient.interceptors.request.use(
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    console.log('--- Axios Error Interceptor Start ---');
-    console.log('Error Message:', error.message);
-    console.log('Error Name:', error.name);
-    console.log('Error Code:', error.code);
-
-    if (error.config) {
-      console.log('Axios Request Config:', {
-        url: error.config.url,
-        method: error.config.method,
-        headers: error.config.headers,
-        data: error.config.data,
-        timeout: error.config.timeout,
-        baseURL: error.config.baseURL,
-      });
-    } else {
-      console.log('Axios Request Config: IS UNDEFINED OR NULL');
-    }
-
     if (error.response) {
-      console.log('Axios Response:', {
-        status: error.response.status,
-        statusText: error.response.statusText,
-        headers: error.response.headers,
-        data: error.response.data,
-      });
-
       // Use the new auth error handler
       if (handleApiError(error)) {
         // Error was handled by auth utils, no need to continue
@@ -108,7 +83,7 @@ apiClient.interceptors.response.use(
 
       if (error.response.status === 500) {
         // Specjalna obsługa dla błędu 500
-        console.log('INTERNAL SERVER ERROR (500). Response data:', error.response.data);
+        console.error('Internal server error (500):', error.response.data);
         // Tutaj możesz wyświetlić użytkownikowi generyczny komunikat
         if (typeof window !== "undefined") {
           toast.error("Wystąpił wewnętrzny błąd serwera. Spróbuj ponownie później.", {
@@ -116,16 +91,12 @@ apiClient.interceptors.response.use(
             closeButton: true
           });
         }
-      } else {
-        console.log('Other API error response. Status:', error.response.status, 'Data:', error.response.data);
       }
     } else if (error.request) {
-      console.log('No response received. Request object:', error.request);
+      console.error('Network error - no response received:', error.message);
     } else {
-      console.log('Request setup error (no response, no request).');
+      console.error('Request setup error:', error.message);
     }
-    console.log('Error Stack:', error.stack);
-    console.log('--- Axios Error Interceptor End ---');
 
     return Promise.reject(error);
   }
@@ -190,16 +161,11 @@ export const authApi = {
   },
   
   isAuthenticated() {
-    // Logujemy wszystkie klucze w localStorage do celów debugowania
-    console.log('All localStorage keys:', Object.keys(localStorage));
-    
     // Sprawdzamy różne możliwe nazwy tokenów
     const auth_token = localStorage.getItem('auth_token');
     const token = localStorage.getItem('token');
     const jwt = localStorage.getItem('jwt');
     const accessToken = localStorage.getItem('accessToken');
-    
-    console.log('Potential tokens found:', { auth_token, token, jwt, accessToken });
     
     // Zwracamy true, jeśli którykolwiek token istnieje
     return !!(auth_token || token || jwt || accessToken);

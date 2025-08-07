@@ -36,7 +36,6 @@ class WebSocketManager {
 
   private constructor() {
     // Private constructor enforces singleton
-    console.log('[WSManager] Creating new WebSocketManager instance');
   }
 
   public static getInstance(): WebSocketManager {
@@ -44,7 +43,6 @@ class WebSocketManager {
     if (typeof window !== 'undefined') {
       if (!(window as any).__wsManager) {
         (window as any).__wsManager = new WebSocketManager();
-        console.log('[WSManager] Created global singleton instance');
       }
       return (window as any).__wsManager;
     }
@@ -92,7 +90,6 @@ class WebSocketManager {
       return null;
     }
 
-    console.log(`[WSManager] Creating connection to: ${url}`);
     const ws = new WebSocket(wsUrl);
     
     return ws;
@@ -216,7 +213,6 @@ class WebSocketManager {
     const connectionInfo = this.connections.get(url);
     if (!connectionInfo || connectionInfo.isConnecting) return;
 
-    console.log(`[WSManager] Reconnecting to: ${url}`);
     connectionInfo.isConnecting = true;
     
     const newWs = this.createConnection(url);
@@ -230,8 +226,6 @@ class WebSocketManager {
    * Subscribe to WebSocket channel
    */
   subscribe(url: string, subscriber: WebSocketSubscriber): () => void {
-    console.log(`[WSManager] Subscribing to: ${url}`);
-    
     let connectionInfo = this.connections.get(url);
     
     if (!connectionInfo) {
@@ -255,7 +249,6 @@ class WebSocketManager {
 
     // Add subscriber
     connectionInfo.subscribers.add(subscriber);
-    console.log(`[WSManager] Subscribers for ${url}: ${connectionInfo.subscribers.size}`);
 
     // If connection is already open, notify immediately
     if (connectionInfo.ws.readyState === WebSocket.OPEN) {
@@ -264,15 +257,12 @@ class WebSocketManager {
 
     // Return unsubscribe function
     return () => {
-      console.log(`[WSManager] Unsubscribing from: ${url}`);
       const info = this.connections.get(url);
       if (info) {
         info.subscribers.delete(subscriber);
-        console.log(`[WSManager] Subscribers for ${url}: ${info.subscribers.size}`);
         
         // If no more subscribers, close connection
         if (info.subscribers.size === 0) {
-          console.log(`[WSManager] No more subscribers, closing connection to: ${url}`);
           if (info.reconnectTimeout) {
             clearTimeout(info.reconnectTimeout);
           }
@@ -358,6 +348,3 @@ class WebSocketManager {
 
 // Global singleton instance
 export const wsManager = WebSocketManager.getInstance();
-
-// Debug helper - the instance is already available on window via getInstance()
-console.log('[WSManager] Singleton instance ready');

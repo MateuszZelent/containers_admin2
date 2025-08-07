@@ -59,10 +59,11 @@ class DomainMonitor:
         cluster_logger.info("Domain monitoring service stopped")
     
     async def _check_pending_domains(self):
-        """Check domains for jobs that are not marked as ready yet."""
+        """Check domains for jobs that have active SSH tunnels."""
         db = self.session_factory()
         try:
             # Find jobs that are running but domain not ready yet
+            # AND have at least one active SSH tunnel
             pending_jobs = db.query(Job).filter(
                 and_(
                     Job.status == "RUNNING",
@@ -76,12 +77,31 @@ class DomainMonitor:
                 # Clean up attempts tracking for completed jobs
                 self.job_attempts.clear()
                 return
+            
+            # Filter jobs to only those with active SSH tunnels
+            jobs_with_active_tunnels = []
+            for job in pending_jobs:
+                if self._has_active_tunnel(job):
+                    jobs_with_active_tunnels.append(job)
+                else:
+                    # Log why we're skipping this job
+                    cluster_logger.debug(
+                        f"Skipping domain check for job {job.id} - "
+                        "no active SSH tunnels"
+                    )
+                    
+            if not jobs_with_active_tunnels:
+                cluster_logger.debug(
+                    "No jobs with active tunnels found for domain monitoring"
+                )
+                return
                 
             cluster_logger.info(
-                f"Checking {len(pending_jobs)} pending domains"
+                f"Checking {len(jobs_with_active_tunnels)} pending domains "
+                f"(filtered from {len(pending_jobs)} total running jobs)"
             )
             
-            for job in pending_jobs:
+            for job in jobs_with_active_tunnels:
                 # Check if we've exceeded max attempts for this job
                 attempts = self.job_attempts.get(job.id, 0)
                 if attempts >= self.max_attempts:
@@ -100,6 +120,59 @@ class DomainMonitor:
                     
         finally:
             db.close()
+    
+    def _has_active_tunnel(self, job: Job) -> bool:
+        """Check if the job has at least one active SSH tunnel."""
+        if not job.tunnels:
+            return False
+            
+        # Check if any tunnel is in ACTIVE status and has valid PID
+        for tunnel in job.tunnels:
+            if tunnel.status == "ACTIVE":
+                # Additional check: verify tunnel process is actually running
+                if tunnel.ssh_pid and self._is_process_running(tunnel.ssh_pid):
+                    cluster_logger.debug(
+                        f"Job {job.id} has active tunnel {tunnel.id} "
+                        f"with SSH PID {tunnel.ssh_pid}"
+                    )
+                    return True
+                else:
+                    cluster_logger.debug(
+                        f"Job {job.id} tunnel {tunnel.id} marked as ACTIVE "
+                        f"but SSH PID {tunnel.ssh_pid} not running"
+                    )
+        
+        return False
+    
+    def _is_process_running(self, pid: int) -> bool:
+        """Check if a process with given PID is running."""
+        try:
+            import os
+            import errno
+            
+            if pid <= 0:
+                return False
+                
+            # Send signal 0 to check if process exists
+            os.kill(pid, 0)
+            return True
+        except OSError as e:
+            if e.errno == errno.ESRCH:
+                # Process does not exist
+                return False
+            elif e.errno == errno.EPERM:
+                # Process exists but we don't have permission
+                # (still means it's running)
+                return True
+            else:
+                # Other error
+                cluster_logger.error(
+                    f"Error checking if PID {pid} is running: {e}"
+                )
+                return False
+        except Exception as e:
+            cluster_logger.error(f"Unexpected error checking PID {pid}: {e}")
+            return False
     
     async def _check_job_domain(self, job: Job, db: Session):
         """Check if a specific job's domain is accessible."""

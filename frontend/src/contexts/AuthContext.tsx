@@ -36,7 +36,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // Listen for forced logout events
     const handleLogoutEvent = () => {
-      console.log('[AuthProvider] Received logout event');
       logout();
     };
 
@@ -50,16 +49,11 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }, []);
 
   const checkAuth = () => {
-    console.log('[AuthProvider] Checking authentication...');
     try {
       const storedToken = localStorage.getItem("auth_token");
       const storedUser = localStorage.getItem("user_data");
       
-      console.log('[AuthProvider] Stored token:', !!storedToken);
-      console.log('[AuthProvider] Stored user:', !!storedUser);
-      
       if (storedToken) {
-        console.log('[AuthProvider] Setting authenticated state...');
         setToken(storedToken);
         setIsAuthenticated(true);
         
@@ -71,7 +65,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
           }
         }
       } else {
-        console.log('[AuthProvider] No token found, setting unauthenticated state...');
         setIsAuthenticated(false);
         setToken(null);
         setUser(null);
@@ -87,8 +80,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const logout = () => {
-    console.log('[AuthProvider] Logging out...');
-    
     // Clear localStorage
     localStorage.removeItem('auth_token');
     localStorage.removeItem('access_token');
@@ -111,8 +102,6 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.warn('Could not clear API client headers:', error);
     }
-    
-    console.log('[AuthProvider] Logout completed');
   };
 
   const contextValue: AuthContextType = {

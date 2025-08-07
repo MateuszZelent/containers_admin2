@@ -524,9 +524,7 @@ async def cluster_status_websocket(
         while True:
             try:
                 message = await websocket.receive_text()
-                cluster_logger.debug(f"Received WebSocket message: {repr(message)}")
                 data = json.loads(message)
-                cluster_logger.debug(f"Parsed message data: {data}, type: {type(data)}")
                 
                 if data.get("type") == "ping":
                     # Respond to ping with pong
