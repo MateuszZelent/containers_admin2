@@ -553,6 +553,9 @@ async def cluster_status_websocket(
                     "type": "error",
                     "message": "Invalid JSON message"
                 }))
+            except WebSocketDisconnect:
+                cluster_logger.info("Cluster status WebSocket disconnected")
+                break
             except Exception as e:
                 cluster_logger.error(f"Error handling cluster status WebSocket message: {e}")
                 cluster_logger.error(f"Message was: {repr(message) if 'message' in locals() else 'no message'}")
