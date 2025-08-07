@@ -161,18 +161,16 @@ export function useClusterStatus(): UseClusterStatusReturn {
     } else if (message.type === 'connection_established') {
       console.log('[useClusterStatus] Connected to cluster status WebSocket - WEBSOCKET ONLY MODE');
       setError(null);
-      
+
       // Clear initial connection timeout since we connected
       if (initialTimeoutRef.current) {
         console.log('[useClusterStatus] Clearing initial timeout - connection established');
         clearTimeout(initialTimeoutRef.current);
         initialTimeoutRef.current = null;
       }
-      
+
       // Request immediate status update when connection is established
-      setTimeout(() => {
-        sendMessage({ type: 'request_status' });
-      }, 100);
+      sendMessage({ type: 'request_status' });
     } else if (message.type === 'pong') {
       // Heartbeat response - connection is alive
       lastWebSocketDataTime.current = new Date();
@@ -191,21 +189,16 @@ export function useClusterStatus(): UseClusterStatusReturn {
     
     if (isConnected) {
       lastWebSocketDataTime.current = new Date();
-      console.log('[useClusterStatus] WebSocket connected - requesting status');
+      console.log('[useClusterStatus] WebSocket connected');
       setError(null); // Clear any connection errors
       setLoading(false); // Connected, no longer loading
-      
+
       // Clear initial connection timeout since we connected successfully
       if (initialTimeoutRef.current) {
         console.log('[useClusterStatus] Clearing initial timeout - WebSocket connected');
         clearTimeout(initialTimeoutRef.current);
         initialTimeoutRef.current = null;
       }
-      
-      // Request status when WebSocket connects
-      setTimeout(() => {
-        sendMessage({ type: 'request_status' });
-      }, 500);
     } else {
       // Only show error if we had a previous connection or after initial attempts
       const hasHadConnection = lastWebSocketDataTime.current !== null;
@@ -218,7 +211,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
         // Don't set error during initial connection attempts
       }
     }
-  }, [isConnected, sendMessage]);
+  }, [isConnected]);
 
   // Initial connection and setup - runs only once
   useEffect(() => {
