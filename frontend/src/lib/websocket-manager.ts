@@ -30,6 +30,29 @@ class WebSocketManager {
   private connections = new Map<string, ConnectionInfo>();
   private maxReconnectAttempts = 5;
   private reconnectInterval = 3000;
+  private static _instance: WebSocketManager | null = null;
+
+  private constructor() {
+    // Private constructor enforces singleton
+    console.log('[WSManager] Creating new WebSocketManager instance');
+  }
+
+  public static getInstance(): WebSocketManager {
+    // Check if we have a global instance on window first (for browser environment)
+    if (typeof window !== 'undefined') {
+      if (!(window as any).__wsManager) {
+        (window as any).__wsManager = new WebSocketManager();
+        console.log('[WSManager] Created global singleton instance');
+      }
+      return (window as any).__wsManager;
+    }
+    
+    // Fallback for server-side rendering
+    if (!WebSocketManager._instance) {
+      WebSocketManager._instance = new WebSocketManager();
+    }
+    return WebSocketManager._instance;
+  }
 
   private getWebSocketUrl(url: string): string | null {
     if (typeof window === 'undefined') return null;
@@ -308,9 +331,7 @@ class WebSocketManager {
 }
 
 // Global singleton instance
-export const wsManager = new WebSocketManager();
+export const wsManager = WebSocketManager.getInstance();
 
-// Debug helper
-if (typeof window !== 'undefined') {
-  (window as any).__wsManager = wsManager;
-}
+// Debug helper - the instance is already available on window via getInstance()
+console.log('[WSManager] Singleton instance ready');

@@ -31,8 +31,19 @@ export const useWebSocket = ({
   onError,
   enabled = true
 }: UseWebSocketProps): UseWebSocketReturn => {
+  const { wsManager } = require('@/lib/websocket-manager');
+  
+  // Debug: Log hook usage
+  console.log(`[useWebSocket] Hook called for URL: ${url}, enabled: ${enabled}`);
+
   const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
+  const [lastMessage, setLastMessage] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
+  
+  // Debug: Log state changes
+  useEffect(() => {
+    console.log(`[useWebSocket] ${url} - State: connected=${isConnected}, error=${error}`);
+  }, [isConnected, error, url]);
   const [reconnectCount, setReconnectCount] = useState(0);
 
   // Subscribe to WebSocket using global manager
@@ -42,7 +53,7 @@ export const useWebSocket = ({
     console.log(`[useWebSocket] Subscribing to: ${url}`);
     
     const unsubscribe = wsManager.subscribe(url, {
-      onMessage: (data) => {
+      onMessage: (data: any) => {
         setLastMessage(data);
         onMessage?.(data);
       },
@@ -55,7 +66,7 @@ export const useWebSocket = ({
         setIsConnected(false);
         onDisconnect?.();
       },
-      onError: (error) => {
+      onError: (error: any) => {
         setIsConnected(false);
         setReconnectCount(prev => prev + 1);
         onError?.(error);
