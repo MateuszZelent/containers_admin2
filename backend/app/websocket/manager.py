@@ -14,7 +14,10 @@ class ConnectionManager:
     WebSocket Connection Manager for real-time communication.
     
     Manages WebSocket connections organized by channels for different
-    types of real-time updates (jobs, tunnels, notifications, etc.)
+    types of real-time updates (jobs, tunnels, notifications, etc.).
+    
+    Important: This manager enforces one connection per user per channel policy
+    to prevent connection build-up.
     """
     
     def __init__(self):
@@ -28,6 +31,37 @@ class ConnectionManager:
     async def connect(self, websocket: WebSocket, channel: str, user_id: Optional[str] = None):
         """Connect a WebSocket to a specific channel."""
         try:
+            # Jeśli użytkownik już ma połączenie w tym kanale, zamknijmy stare połączenia
+            # To jest kluczowa zmiana, która zapobiegnie akumulacji wielu połączeń
+            if user_id and user_id in self.user_connections and channel in self.user_connections[user_id]:
+                old_connections = self.user_connections[user_id][channel].copy()
+                if old_connections:
+                    cluster_logger.info(f"Closing {len(old_connections)} previous connection(s) for user {user_id} in channel {channel}")
+                    # Zamykamy stare połączenia
+                    for old_conn in old_connections:
+                        try:
+                            # Usuń z listy, ale nie zamykaj jeszcze
+                            if old_conn in self.user_connections[user_id][channel]:
+                                self.user_connections[user_id][channel].remove(old_conn)
+                            # Usuń również z active_connections
+                            if channel in self.active_connections and old_conn in self.active_connections[channel]:
+                                self.active_connections[channel].remove(old_conn)
+                            # Usuń metadane
+                            if old_conn in self.connection_metadata:
+                                del self.connection_metadata[old_conn]
+                                
+                            # Teraz wyślij wiadomość o zamknięciu i zamknij połączenie
+                            try:
+                                await old_conn.send_text(json.dumps({
+                                    "type": "connection_replaced",
+                                    "message": "Your connection has been replaced by a newer one"
+                                }))
+                                await old_conn.close(code=1000, reason="Replaced by newer connection")
+                            except Exception as close_err:
+                                cluster_logger.debug(f"Could not gracefully close old connection: {close_err}")
+                        except Exception as old_err:
+                            cluster_logger.error(f"Error closing old connection: {old_err}")
+            
             print(f"DEBUG: Attempting to connect WebSocket to channel '{channel}' for user '{user_id}'")
             await websocket.accept()
             print(f"DEBUG: WebSocket accepted successfully")

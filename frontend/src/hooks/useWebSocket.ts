@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { wsManager } from '@/lib/websocket-manager';
 import type { WebSocketMessage } from '@/lib/websocket-manager';
 
@@ -31,45 +31,68 @@ export const useWebSocket = ({
   onError,
   enabled = true
 }: UseWebSocketProps): UseWebSocketReturn => {
-  const { wsManager } = require('@/lib/websocket-manager');
-  
+  // Use wsManager directly, don't require it inside the component
   const [isConnected, setIsConnected] = useState(false);
-  const [lastMessage, setLastMessage] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [lastMessage, setLastMessage] = useState<WebSocketMessage | null>(null);
   const [reconnectCount, setReconnectCount] = useState(0);
+  
+  // Use refs for callback handlers to avoid unnecessary effect triggers
+  const onMessageRef = useRef(onMessage);
+  const onConnectRef = useRef(onConnect);
+  const onDisconnectRef = useRef(onDisconnect);
+  const onErrorRef = useRef(onError);
+  
+  // Update refs when callbacks change
+  useEffect(() => {
+    onMessageRef.current = onMessage;
+    onConnectRef.current = onConnect;
+    onDisconnectRef.current = onDisconnect;
+    onErrorRef.current = onError;
+  }, [onMessage, onConnect, onDisconnect, onError]);
+
+  // Generate a stable ID for this hook instance that persists across renders
+  const hookIdRef = useRef<string>("");
+  if (!hookIdRef.current) {
+    hookIdRef.current = `hook_${Math.random().toString(36).substring(2, 9)}_${Date.now()}`;
+  }
 
   // Subscribe to WebSocket using global manager
   useEffect(() => {
     if (!enabled || !url) return;
 
-    console.log(`[useWebSocket] Subscribing to: ${url}`);
+    const hookId = hookIdRef.current;
     
+    // Create WebSocket connection with stable callbacks
     const unsubscribe = wsManager.subscribe(url, {
-      onMessage: (data: any) => {
+      id: hookId,
+      onMessage: (data: WebSocketMessage) => {
         setLastMessage(data);
-        onMessage?.(data);
+        onMessageRef.current?.(data);
       },
       onConnect: () => {
         setIsConnected(true);
         setReconnectCount(0);
-        onConnect?.();
+        onConnectRef.current?.();
       },
       onDisconnect: () => {
         setIsConnected(false);
-        onDisconnect?.();
+        onDisconnectRef.current?.();
       },
-      onError: (error: any) => {
+      onError: (error: Event) => {
         setIsConnected(false);
         setReconnectCount(prev => prev + 1);
-        onError?.(error);
+        onErrorRef.current?.(error);
       }
     });
 
     // Update initial connection state
     setIsConnected(wsManager.isConnected(url));
 
-    return unsubscribe;
-  }, [url, enabled, onMessage, onConnect, onDisconnect, onError]);
+    return () => {
+      // Cleanup subscription on unmount or when dependencies change
+      unsubscribe();
+    };
+  }, [url, enabled]); // Only re-subscribe when url or enabled changes
 
   const sendMessage = useCallback((data: any) => {
     if (!wsManager.sendMessage(url, data)) {
@@ -78,12 +101,10 @@ export const useWebSocket = ({
   }, [url]);
 
   const connect = useCallback(() => {
-    console.log(`[useWebSocket] Manual connect requested for: ${url}`);
     wsManager.forceReconnect(url);
   }, [url]);
 
   const disconnect = useCallback(() => {
-    console.log(`[useWebSocket] Manual disconnect requested for: ${url}`);
     wsManager.disconnect(url);
   }, [url]);
 
