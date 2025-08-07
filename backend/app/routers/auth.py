@@ -1,7 +1,7 @@
 from datetime import timedelta
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi import APIRouter, Depends, HTTPException, status, Request, Response
 from fastapi.security import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
 
@@ -59,6 +59,15 @@ async def login(
         data={"sub": user.username}, expires_delta=access_token_expires
     )
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/logout")
+async def logout(response: Response) -> Any:
+    """Clear authentication cookies and log out user."""
+    response.delete_cookie("auth_token")
+    response.delete_cookie("access_token")
+    response.delete_cookie("Authorization")
+    return {"detail": "Logged out"}
 
 
 @router.post("/cli-login", response_model=Token)
