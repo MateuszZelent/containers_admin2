@@ -334,7 +334,7 @@ class WebSocketManager {
 
     connectionInfo.reconnectCount = 0;
     connectionInfo.manualClose = true;
-    connectionInfo.ws.close(1012, 'Manual reconnect');
+    connectionInfo.ws.close(1000, 'Manual reconnect');
   }
 
   /**
