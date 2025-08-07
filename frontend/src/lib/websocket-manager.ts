@@ -23,6 +23,7 @@ interface ConnectionInfo {
   isConnecting: boolean;
   reconnectCount: number;
   reconnectTimeout?: NodeJS.Timeout;
+  manualClose?: boolean;
 }
 
 class WebSocketManager {
@@ -112,26 +113,38 @@ class WebSocketManager {
 
     ws.onclose = (event) => {
       console.log(`[WSManager] Disconnected from: ${url} (code: ${event.code})`);
+      const shouldReconnectImmediately = connectionInfo.manualClose;
+      connectionInfo.manualClose = false;
       connectionInfo.isConnecting = false;
-      
+
       // Notify all subscribers
       connectionInfo.subscribers.forEach(subscriber => {
         subscriber.onDisconnect?.();
       });
 
+      if (shouldReconnectImmediately) {
+        // Manual reconnect requested
+        if (connectionInfo.subscribers.size > 0) {
+          this.reconnect(url);
+        } else {
+          this.connections.delete(url);
+        }
+        return;
+      }
+
       // Auto-reconnect if there are still subscribers
-      if (connectionInfo.subscribers.size > 0 && 
+      if (connectionInfo.subscribers.size > 0 &&
           connectionInfo.reconnectCount < this.maxReconnectAttempts) {
-        
+
         const delay = Math.min(1000 * Math.pow(2, connectionInfo.reconnectCount), 30000);
         console.log(`[WSManager] Reconnecting to ${url} in ${delay}ms (attempt ${connectionInfo.reconnectCount + 1})`);
-        
+
         connectionInfo.reconnectTimeout = setTimeout(() => {
           if (connectionInfo.subscribers.size > 0) {
             this.reconnect(url);
           }
         }, delay);
-        
+
         connectionInfo.reconnectCount++;
       } else {
         // No more subscribers or max attempts reached - cleanup
@@ -256,6 +269,41 @@ class WebSocketManager {
     });
     
     return stats;
+  }
+
+  /**
+   * Force immediate reconnection for a given URL
+   */
+  forceReconnect(url: string) {
+    const connectionInfo = this.connections.get(url);
+    if (!connectionInfo) return;
+
+    if (connectionInfo.reconnectTimeout) {
+      clearTimeout(connectionInfo.reconnectTimeout);
+      connectionInfo.reconnectTimeout = undefined;
+    }
+
+    connectionInfo.reconnectCount = 0;
+    connectionInfo.manualClose = true;
+    connectionInfo.ws.close(1012, 'Manual reconnect');
+  }
+
+  /**
+   * Disconnect and remove all subscribers for a given URL
+   */
+  disconnect(url: string) {
+    const connectionInfo = this.connections.get(url);
+    if (!connectionInfo) return;
+
+    if (connectionInfo.reconnectTimeout) {
+      clearTimeout(connectionInfo.reconnectTimeout);
+    }
+
+    // Notify subscribers before clearing
+    connectionInfo.subscribers.forEach(sub => sub.onDisconnect?.());
+    connectionInfo.subscribers.clear();
+    connectionInfo.ws.close(1000, 'Manual disconnect');
+    this.connections.delete(url);
   }
 }
 
