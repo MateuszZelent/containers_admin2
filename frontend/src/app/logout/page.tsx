@@ -2,21 +2,31 @@
 
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { authApi } from "@/lib/api-client";
+import { useAuth } from "@/contexts/AuthContext";
 
 export default function LogoutPage() {
   const router = useRouter();
+  const { logout } = useAuth();
 
   useEffect(() => {
     const performLogout = async () => {
-      await authApi.logout();
+      console.log('[LogoutPage] Performing logout');
       
-      // Wymuszamy pełne przeładowanie strony
-      window.location.href = '/login';
+      try {
+        // Use AuthContext logout which handles all cleanup
+        logout();
+        
+        // Navigate to login page
+        router.push('/login');
+      } catch (error) {
+        console.error('[LogoutPage] Logout error:', error);
+        // Fallback - force navigation even if logout fails
+        window.location.href = '/login';
+      }
     };
     
     performLogout();
-  }, [router]);
+  }, [router, logout]);
 
   return (
     <div className="flex h-screen w-full items-center justify-center">

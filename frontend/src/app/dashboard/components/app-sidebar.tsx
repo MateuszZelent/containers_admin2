@@ -313,7 +313,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     AMUcontainers
                   </span>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    v0.4
+                    v0.5 (07.08.2025)
                   </span>
                 </div>
               </a>

@@ -1,5 +1,6 @@
 import axios, { AxiosInstance } from 'axios';
 import { toast } from "sonner"; // Dodajemy import toast
+import { handleApiError, isTokenExpiredError } from './auth-utils';
 
 // CLI Token Types
 export interface CLIToken {
@@ -99,38 +100,13 @@ apiClient.interceptors.response.use(
         data: error.response.data,
       });
 
-      if (error.response.status === 401 || error.response.status === 403) {
-        // Sprawdź czy komunikat błędu zawiera "Could not validate credentials"
-        const errorDetail = error.response.data?.detail;
-        if (typeof errorDetail === 'string' && errorDetail.includes("Could not validate credentials22")) {
-          console.log('Authentication error: Token invalid or expired');
-          
-          // Wyloguj użytkownika - wyczyść localStorage
-          localStorage.removeItem('auth_token');
-          localStorage.removeItem('user_data');
-          localStorage.removeItem('user_data_timestamp');
-          
-          // Powiadom użytkownika
-          if (typeof window !== "undefined") {
-            toast.error("Sesja wygasła. Wymagane ponowne logowanie.", {
-              duration: 8000,
-              closeButton: true
-            });
-          }
-          
-          // Przekieruj na stronę logowania
-          if (typeof window !== "undefined") {
-            // Zachowaj aktualną ścieżkę, aby móc wrócić po zalogowaniu
-            const currentPath = window.location.pathname;
-            if (currentPath !== '/login' && !currentPath.includes('/logout')) {
-              localStorage.setItem('login_redirect', currentPath);
-            }
-            
-            // Przekieruj na stronę logowania
-            window.location.href = '/login';
-          }
-        }
-      } else if (error.response.status === 500) {
+      // Use the new auth error handler
+      if (handleApiError(error)) {
+        // Error was handled by auth utils, no need to continue
+        return Promise.reject(error);
+      }
+
+      if (error.response.status === 500) {
         // Specjalna obsługa dla błędu 500
         console.log('INTERNAL SERVER ERROR (500). Response data:', error.response.data);
         // Tutaj możesz wyświetlić użytkownikowi generyczny komunikat

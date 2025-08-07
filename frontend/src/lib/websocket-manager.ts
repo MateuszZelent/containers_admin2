@@ -3,6 +3,8 @@
  * Zapewnia singleton pattern dla połączeń WebSocket w całej aplikacji
  */
 
+import { handleTokenExpiration, isTokenExpiredError } from './auth-utils';
+
 export interface WebSocketMessage {
   type: string;
   timestamp: string;
@@ -125,6 +127,19 @@ class WebSocketManager {
           return;
         }
         
+        // Check for auth error messages
+        if (data.type === 'error' && data.message) {
+          const message = data.message.toLowerCase();
+          if (message.includes('unauthorized') || 
+              message.includes('invalid token') || 
+              message.includes('token expired') ||
+              message.includes('could not validate credentials')) {
+            console.log(`[WSManager] Auth error message received: ${data.message}`);
+            handleTokenExpiration();
+            return;
+          }
+        }
+        
         // Notify all subscribers
         connectionInfo.subscribers.forEach(subscriber => {
           subscriber.onMessage?.(data);
@@ -136,6 +151,14 @@ class WebSocketManager {
 
     ws.onclose = (event) => {
       console.log(`[WSManager] Disconnected from: ${url} (code: ${event.code})`);
+      
+      // Check if close code indicates authentication issues
+      if (event.code === 1008 || event.code === 4001 || event.code === 4003) {
+        console.log(`[WSManager] Authentication error detected (code: ${event.code})`);
+        handleTokenExpiration();
+        return;
+      }
+      
       const shouldReconnectImmediately = connectionInfo.manualClose;
       connectionInfo.manualClose = false;
       connectionInfo.isConnecting = false;
@@ -178,6 +201,9 @@ class WebSocketManager {
     ws.onerror = (error) => {
       console.error(`[WSManager] Error on: ${url}`, error);
       connectionInfo.isConnecting = false;
+      
+      // Check if error might be auth-related (this is harder to detect in WebSocket errors)
+      // We'll rely more on close codes and backend error messages
       
       // Notify all subscribers
       connectionInfo.subscribers.forEach(subscriber => {

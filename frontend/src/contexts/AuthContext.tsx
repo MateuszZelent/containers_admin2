@@ -8,6 +8,7 @@ interface AuthContextType {
   token: string | null;
   user: any | null;
   refreshAuth: () => void;
+  logout: () => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -33,10 +34,18 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
     };
 
+    // Listen for forced logout events
+    const handleLogoutEvent = () => {
+      console.log('[AuthProvider] Received logout event');
+      logout();
+    };
+
     window.addEventListener('storage', handleStorageChange);
+    window.addEventListener('auth:logout', handleLogoutEvent);
     
     return () => {
       window.removeEventListener('storage', handleStorageChange);
+      window.removeEventListener('auth:logout', handleLogoutEvent);
     };
   }, []);
 
@@ -77,12 +86,42 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   };
 
+  const logout = () => {
+    console.log('[AuthProvider] Logging out...');
+    
+    // Clear localStorage
+    localStorage.removeItem('auth_token');
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('user_data');
+    localStorage.removeItem('user_data_timestamp');
+    localStorage.removeItem('auth_token_expires');
+    
+    // Clear sessionStorage
+    sessionStorage.clear();
+    
+    // Update state
+    setIsAuthenticated(false);
+    setToken(null);
+    setUser(null);
+    
+    // Clear any API client auth headers
+    try {
+      const apiClient = require('@/lib/api-client').default;
+      delete apiClient.defaults.headers.common['Authorization'];
+    } catch (error) {
+      console.warn('Could not clear API client headers:', error);
+    }
+    
+    console.log('[AuthProvider] Logout completed');
+  };
+
   const contextValue: AuthContextType = {
     isAuthenticated,
     isLoading,
     token,
     user,
     refreshAuth: checkAuth,
+    logout,
   };
 
   return (

@@ -9,6 +9,7 @@ import {
 } from "@tabler/icons-react"
 
 import { UserAvatar } from "@/components/ui/user-avatar"
+import { useAuth } from "@/contexts/AuthContext"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -42,6 +43,7 @@ interface UserData {
 export function NavUser({ user }: { user: UserData }) {
   const { isMobile } = useSidebar()
   const router = useRouter()
+  const { logout } = useAuth()
   const [userState, setUserState] = useState(user)
 
   // Listen for user data updates
@@ -65,13 +67,19 @@ export function NavUser({ user }: { user: UserData }) {
     };
   }, []);
 
-  const handleLogout = () => {
-    // Usuwamy wszystkie dane użytkownika
-    localStorage.removeItem('auth_token');
-    localStorage.removeItem('user_data');
-    localStorage.removeItem('user_data_timestamp');
-    
-    window.location.href = '/login';
+  const handleLogout = async () => {
+    console.log('[NavUser] Logout initiated');
+    try {
+      // Use AuthContext logout function which handles all cleanup
+      logout();
+      
+      // Navigate to login page
+      router.push('/login');
+    } catch (error) {
+      console.error('[NavUser] Logout error:', error);
+      // Fallback - force navigation even if logout fails
+      window.location.href = '/login';
+    }
   }
 
   // Ustalamy nazwę do wyświetlenia
