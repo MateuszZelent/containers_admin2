@@ -29,6 +29,7 @@ interface ConnectionInfo {
   lastConnectTime?: number;
   closeTimeout?: NodeJS.Timeout;
   cleanupScheduled?: boolean;
+  initialPingSent?: boolean;
 }
 
 class WebSocketManager {
@@ -38,6 +39,7 @@ class WebSocketManager {
   private connectionRateLimit = 5000; // 5 seconds between connection attempts
   private connectionCloseDelay = 3000; // Delay before closing unused connections
   private debug = false; // Set to true for verbose logging
+  private sendPingOnOpen = false; // Control whether to send an immediate ping on connection
   private static _instance: WebSocketManager | null = null;
 
   private constructor() {
@@ -167,15 +169,16 @@ class WebSocketManager {
       connectionInfo.reconnectCount = 0;
       connectionInfo.lastConnectTime = Date.now();
       connectionInfo.cleanupScheduled = false;
-      
+
       // Notify all subscribers
       connectionInfo.subscribers.forEach(subscriber => {
         subscriber.onConnect?.();
       });
 
-      // Send initial ping
-      if (ws.readyState === WebSocket.OPEN) {
+      // Optionally send an initial ping immediately after connection
+      if (this.sendPingOnOpen && ws.readyState === WebSocket.OPEN) {
         ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+        connectionInfo.initialPingSent = true;
       }
     };
 
@@ -187,6 +190,14 @@ class WebSocketManager {
         if (data.type === 'pong') {
           this.log(`Received pong from: ${url}`);
           return;
+        }
+
+        // If configured to wait for server acknowledgement, send ping after connection is established
+        if (!this.sendPingOnOpen && !connectionInfo.initialPingSent && data.type === 'connection_established') {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+            connectionInfo.initialPingSent = true;
+          }
         }
         
         // Check for auth error messages
@@ -289,6 +300,7 @@ class WebSocketManager {
     if (newWs) {
       connectionInfo.ws = newWs;
       connectionInfo.lastConnectTime = Date.now();
+      connectionInfo.initialPingSent = false;
       this.setupWebSocketHandlers(url, connectionInfo);
     } else {
       // Failed to create new connection
@@ -334,7 +346,8 @@ class WebSocketManager {
         subscribers: new Map(),
         isConnecting: true,
         reconnectCount: 0,
-        lastConnectTime: Date.now()
+        lastConnectTime: Date.now(),
+        initialPingSent: false
       };
       
       this.connections.set(url, connectionInfo);
