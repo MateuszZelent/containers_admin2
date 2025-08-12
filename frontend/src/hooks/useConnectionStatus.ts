@@ -294,54 +294,74 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
   }, []);
 
   // Refresh WebSocket status using stable state with fallback to raw values
-  const refreshWebSocketStatus = useCallback(() => {
-    // Always use stable state for consistent display
-    const activeState = stableWebSocketState;
+  const stableWebSocketStateRef = useRef(stableWebSocketState);
+  const rawWebSocketValuesRef = useRef({
+    isJobStatusConnected,
+    isTunnelHealthConnected,
+    isNotificationsConnected,
+    verificationCode,
+  });
 
-    const isCriticalWebSocketActive = 
-      activeState.isJobStatusConnected || 
-      activeState.isTunnelHealthConnected || 
+  useEffect(() => {
+    stableWebSocketStateRef.current = stableWebSocketState;
+  }, [stableWebSocketState]);
+
+  useEffect(() => {
+    rawWebSocketValuesRef.current = {
+      isJobStatusConnected,
+      isTunnelHealthConnected,
+      isNotificationsConnected,
+      verificationCode,
+    };
+  }, [isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected, verificationCode]);
+
+  const refreshWebSocketStatus = useCallback(() => {
+    const activeState = stableWebSocketStateRef.current;
+    const rawValues = rawWebSocketValuesRef.current;
+
+    const isCriticalWebSocketActive =
+      activeState.isJobStatusConnected ||
+      activeState.isTunnelHealthConnected ||
       activeState.isNotificationsConnected;
-    
+
     const wsStatus = isCriticalWebSocketActive ? 'active' : 'inactive';
-    
+
     const activeConnections = [
       activeState.isJobStatusConnected && 'jobs',
-      activeState.isTunnelHealthConnected && 'tunnels', 
+      activeState.isTunnelHealthConnected && 'tunnels',
       activeState.isNotificationsConnected && 'notifications'
     ].filter(Boolean);
-    
+
     debugLog.ws('[useConnectionStatus] WebSocket status update:', {
-      stableState: stableWebSocketState,
-      rawValues: { isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected },
-      activeState,
+      stableState: activeState,
+      rawValues,
       activeConnections,
       wsStatus
     });
-    
+
     if (isMountedRef.current) {
       setConnectionStatus(prev => {
         const currentWsStatus = prev.websocket.status;
         if (currentWsStatus === wsStatus && prev.websocket.verificationCode === activeState.verificationCode) {
           return prev;
         }
-        
+
         return {
           ...prev,
           websocket: {
             status: wsStatus,
             lastChecked: new Date(),
             verificationCode: activeState.verificationCode || undefined,
-            error: wsStatus === 'inactive' 
-              ? 'All WebSocket connections failed' 
-              : activeConnections.length < 3 
+            error: wsStatus === 'inactive'
+              ? 'All WebSocket connections failed'
+              : activeConnections.length < 3
                 ? `Partial connection: ${activeConnections.join(', ')} active`
                 : undefined,
           },
         };
       });
     }
-  }, [stableWebSocketState, isJobStatusConnected, isTunnelHealthConnected, isNotificationsConnected, verificationCode]);
+  }, []);
 
   // Refresh PCSS status - WebSocket only
   const refreshPCSSStatus = useCallback(async () => {
@@ -452,7 +472,7 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
   // Update WebSocket status when stable state changes
   useEffect(() => {
     refreshWebSocketStatus();
-  }, [refreshWebSocketStatus]);
+  }, [stableWebSocketState, refreshWebSocketStatus]);
 
   // Initialize
   useEffect(() => {
