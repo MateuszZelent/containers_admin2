@@ -41,7 +41,7 @@ export function ClusterStatsCard({
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false);
   const [isDetailsOpen, setIsDetailsOpen] = useState(false);
   
-  // Use props data instead of calling useClusterStatus again
+  // Use props from ConnectionStatusContext instead of calling useClusterStatus directly
   const clusterStatus = propClusterStatus;
   const isLoading = propLoading;
   const error = propError;

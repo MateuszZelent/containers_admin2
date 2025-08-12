@@ -16,7 +16,6 @@ import {
   RefreshCcw
 } from 'lucide-react';
 import { useConnectionStatusContext } from '@/contexts/ConnectionStatusContext';
-// import { useClusterStatus } from '@/hooks/useClusterStatus'; // REMOVED - using global context
 
 interface PCSSDebugPopupProps {
   isOpen: boolean;
@@ -169,7 +168,7 @@ export const PCSSDebugPopup = memo<PCSSDebugPopupProps>(({ isOpen, onClose }) =>
               <CardContent className="space-y-2">
                 {error && (
                   <div>
-                    <span className="text-sm font-medium">Błąd useClusterStatus:</span>
+                    <span className="text-sm font-medium">Błąd statusu klastra:</span>
                     <p className="text-sm text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-900/10 p-2 rounded mt-1">
                       {error}
                     </p>
@@ -281,7 +280,7 @@ export const PCSSDebugPopup = memo<PCSSDebugPopupProps>(({ isOpen, onClose }) =>
             <CardContent>
               <pre className="text-xs bg-muted/30 p-3 rounded overflow-x-auto">
 {JSON.stringify({
-  useClusterStatus: {
+  clusterStatusContext: {
     isWebSocketActive,
     loading,
     error,
