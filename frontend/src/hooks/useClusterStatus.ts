@@ -79,11 +79,10 @@ export function useClusterStatus(): UseClusterStatusReturn {
 
   // WebSocket connection
   const { 
-    isConnected, 
-    sendMessage, 
-    lastMessage, 
-    connect: connectWebSocket,
-    disconnect: disconnectWebSocket 
+    isConnected,
+    sendMessage,
+    lastMessage,
+    connect: connectWebSocket
   } = useWebSocket({
     url: '/ws/cluster/status'
   });
@@ -239,8 +238,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
     }, 15000); // 15 seconds for initial connection (increased from 10)
     
     return () => {
-      console.log('[useClusterStatus] Cleanup - WebSocket stats before disconnect:', wsManager.getStats());
-      disconnectWebSocket();
+      console.log('[useClusterStatus] Cleanup - WebSocket stats before cleanup:', wsManager.getStats());
       if (initialTimeoutRef.current) {
         clearTimeout(initialTimeoutRef.current);
         initialTimeoutRef.current = null;
@@ -248,7 +246,7 @@ export function useClusterStatus(): UseClusterStatusReturn {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current);
       }
-      console.log('[useClusterStatus] Cleanup - WebSocket stats after disconnect:', wsManager.getStats());
+      console.log('[useClusterStatus] Cleanup - WebSocket stats after cleanup:', wsManager.getStats());
     };
   }, []); // Empty dependency array - runs only once
 
