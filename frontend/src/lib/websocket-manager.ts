@@ -26,6 +26,8 @@ interface ConnectionInfo {
   reconnectCount: number;
   reconnectTimeout?: NodeJS.Timeout;
   manualClose?: boolean;
+  // When true, never auto-reconnect (e.g., server intentionally closed us)
+  doNotReconnect?: boolean;
   lastConnectTime?: number;
   closeTimeout?: NodeJS.Timeout;
   cleanupScheduled?: boolean;
@@ -202,6 +204,13 @@ class WebSocketManager {
     ws.onmessage = (event) => {
       try {
         const data: WebSocketMessage = JSON.parse(event.data);
+        // If backend informs this connection was replaced by a newer one
+        if (data.type === 'connection_replaced') {
+          this.log(`Connection replaced by newer one: ${url}`);
+          connectionInfo.doNotReconnect = true;
+          try { ws.close(1000, 'Replaced by newer connection'); } catch {}
+          return;
+        }
         
         // Handle pong messages
         if (data.type === 'pong') {
@@ -240,7 +249,7 @@ class WebSocketManager {
     };
 
     ws.onclose = (event) => {
-      this.log(`Disconnected from: ${url} (code: ${event.code})`);
+      this.log(`Disconnected from: ${url} (code: ${event.code}) reason: ${event.reason}`);
       
       // Check if close code indicates authentication issues
       if (event.code === 1008 || event.code === 4001 || event.code === 4003) {
@@ -256,6 +265,14 @@ class WebSocketManager {
       }
 
       const shouldReconnectImmediately = connectionInfo.manualClose;
+      const intentionallyClosed =
+        connectionInfo.doNotReconnect ||
+        (event.code === 1000 && (
+          event.reason === 'Replaced by newer connection' ||
+          event.reason === 'No subscribers' ||
+          event.reason === 'Manual disconnect' ||
+          event.reason === 'Manual reconnect'
+        ));
       connectionInfo.manualClose = false;
       connectionInfo.isConnecting = false;
 
@@ -264,10 +281,10 @@ class WebSocketManager {
         subscriber.onDisconnect?.();
       });
 
-      if (shouldReconnectImmediately) {
+    if (shouldReconnectImmediately || intentionallyClosed) {
         // Manual reconnect requested
         if (connectionInfo.subscribers.size > 0) {
-          this.reconnect(url);
+      if (!intentionallyClosed) this.reconnect(url);
         } else {
           this.connections.delete(url);
         }

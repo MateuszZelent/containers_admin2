@@ -7,11 +7,10 @@ import {
   IconDashboard,
   IconFileAi,
   IconFileDescription,
-  IconInnerShadowTop,
   IconListCheck,
   IconShield,
-} from "@tabler/icons-react"
-import { Cog, Zap, Plus } from "lucide-react"
+} from "@tabler/icons-react";
+import { Cog, Zap, Plus, Network } from "lucide-react";
 
 import {
   Sidebar,
@@ -85,7 +84,7 @@ const data = {
     {
       title: "AMUflow",
       url: "/dashboard/admin/amuflow",
-      icon: IconInnerShadowTop,
+      icon: Network,
       items: [
         {
           title: "Flow Designer",
@@ -306,8 +305,8 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               className="data-[slot=sidebar-menu-button]:!p-3 hover:bg-slate-100/30 dark:hover:bg-slate-800/30 transition-all duration-300 backdrop-blur-sm rounded-xl group"
             >
               <a href="#" className="flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/80 to-purple-600/80 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300">
-                  <IconInnerShadowTop className="!size-5 text-white" />
+                <div className="p-2 rounded-xl bg-gradient-to-br from-blue-500/80 to-purple-600/80 shadow-md group-hover:shadow-lg group-hover:scale-105 transition-all duration-300 flex items-center justify-center">
+                  <Network className="!size-5 text-white" />
                 </div>
                 <div className="flex flex-col">
                   <span className="text-base font-semibold bg-gradient-to-r from-slate-900 to-slate-700 dark:from-slate-100 dark:to-slate-300 bg-clip-text text-transparent">

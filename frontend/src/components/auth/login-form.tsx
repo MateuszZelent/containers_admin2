@@ -116,26 +116,26 @@ export function LoginForm() {
 
   return (
     <Form {...form}>
-  <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-7">
+      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
         {/* Username */}
         <FormField
           control={form.control}
           name="username"
           render={({ field }) => (
-            <FormItem className="relative">
+            <FormItem>
+              <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Nazwa użytkownika
+              </FormLabel>
               <FormControl>
                 <div className="relative">
-                  <User2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400 dark:text-blue-300 opacity-80 pointer-events-none" />
+                  <User2 className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
                   <Input
                     {...field}
-                    placeholder=" "
+                    placeholder="Wprowadź nazwę użytkownika"
                     autoComplete="username"
                     disabled={isLoading}
-                    className="peer pl-10 py-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40 transition-all text-base font-medium placeholder:opacity-0 autofill:shadow-[inset_0_0_0_1000px_rgba(241,245,249,0.8)] dark:autofill:shadow-[inset_0_0_0_1000px_rgba(30,41,59,0.8)]"
+                    className="pl-10 py-3 rounded-lg bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-blue-500/50 dark:focus:border-blue-400 dark:focus:ring-blue-400/50 transition-all text-base"
                   />
-                  <label className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-base pointer-events-none transition-all duration-200 origin-left scale-100 peer-placeholder-shown:scale-100 peer-placeholder-shown:top-1/2 peer-placeholder-shown:text-base peer-focus:scale-90 peer-focus:-translate-y-6 peer-focus:text-blue-500 dark:peer-focus:text-blue-300 peer-not-placeholder-shown:scale-90 peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:text-blue-500 dark:peer-not-placeholder-shown:text-blue-300">
-                    Nazwa użytkownika
-                  </label>
                 </div>
               </FormControl>
               <FormMessage />
@@ -147,21 +147,21 @@ export function LoginForm() {
           control={form.control}
           name="password"
           render={({ field }) => (
-            <FormItem className="relative">
+            <FormItem>
+              <FormLabel className="text-sm font-semibold text-slate-700 dark:text-slate-300">
+                Hasło
+              </FormLabel>
               <FormControl>
                 <div className="relative">
-                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-blue-400 dark:text-blue-300 opacity-80 pointer-events-none" />
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 dark:text-slate-500" />
                   <Input
                     {...field}
                     type="password"
                     autoComplete="current-password"
-                    placeholder=" "
+                    placeholder="Wprowadź hasło"
                     disabled={isLoading}
-                    className="peer pl-10 py-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 focus:border-blue-400 focus:ring-2 focus:ring-blue-200 dark:focus:ring-blue-900/40 transition-all text-base font-medium placeholder:opacity-0 autofill:shadow-[inset_0_0_0_1000px_rgba(241,245,249,0.8)] dark:autofill:shadow-[inset_0_0_0_1000px_rgba(30,41,59,0.8)]"
+                    className="pl-10 py-3 rounded-lg bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 focus:border-blue-500 focus:ring-blue-500/50 dark:focus:border-blue-400 dark:focus:ring-blue-400/50 transition-all text-base"
                   />
-                  <label className="absolute left-10 top-1/2 -translate-y-1/2 text-slate-500 dark:text-slate-400 text-base pointer-events-none transition-all duration-200 origin-left scale-100 peer-placeholder-shown:scale-100 peer-placeholder-shown:top-1/2 peer-placeholder-shown:text-base peer-focus:scale-90 peer-focus:-translate-y-6 peer-focus:text-blue-500 dark:peer-focus:text-blue-300 peer-not-placeholder-shown:scale-90 peer-not-placeholder-shown:-translate-y-6 peer-not-placeholder-shown:text-blue-500 dark:peer-not-placeholder-shown:text-blue-300">
-                    Hasło
-                  </label>
                 </div>
               </FormControl>
               <FormMessage />
@@ -173,16 +173,16 @@ export function LoginForm() {
           control={form.control}
           name="rememberMe"
           render={({ field }) => (
-            <FormItem className="flex flex-row items-center space-x-2">
+            <FormItem className="flex flex-row items-center space-x-3 pt-2">
               <FormControl>
                 <Checkbox
                   checked={field.value}
                   onCheckedChange={field.onChange}
                   disabled={isLoading}
-                  className="rounded-md border-slate-300 dark:border-slate-700 focus:ring-blue-400"
+                  className="w-5 h-5 rounded border-slate-300 dark:border-slate-600 data-[state=checked]:bg-blue-600 data-[state=checked]:text-white dark:data-[state=checked]:bg-blue-500"
                 />
               </FormControl>
-              <FormLabel className="text-sm font-medium text-slate-600 dark:text-slate-300 select-none">
+              <FormLabel className="text-sm font-medium text-slate-700 dark:text-slate-300 select-none cursor-pointer">
                 Zapamiętaj mnie
               </FormLabel>
             </FormItem>
@@ -190,11 +190,10 @@ export function LoginForm() {
         />
         <Button
           type="submit"
-          className="w-full py-3 rounded-xl bg-gradient-to-r from-blue-500 via-purple-500 to-indigo-500 text-white font-bold text-base shadow-lg border-0 hover:brightness-110 hover:scale-[1.02] active:scale-95 focus:ring-2 focus:ring-blue-300 focus:outline-none transition-all duration-150"
-          style={{boxShadow: '0 4px 24px 0 rgba(80,80,180,0.10)'}}
+          className="w-full py-3 rounded-lg bg-gradient-to-r from-blue-600 to-purple-600 text-white font-bold text-base shadow-lg hover:shadow-xl hover:brightness-110 active:scale-[0.98] focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-blue-500 dark:focus-visible:ring-offset-slate-900 transition-all duration-150"
           disabled={isLoading}
         >
-          {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          {isLoading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
           Zaloguj się
         </Button>
       </form>

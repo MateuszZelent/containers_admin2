@@ -89,13 +89,24 @@ async def job_status_websocket(
         # Now: co 10 sekund wysyłaj nowy losowy kod do klienta
         import asyncio
         async def periodic_code_sender():
+            # Send a heartbeat-like demo event every 10s.
+            # Stop quietly on disconnect.
             while True:
-                await asyncio.sleep(10)
-                code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
-                await websocket.send_text(json.dumps({
-                    "type": "periodic_code",
-                    "code": code
-                }))
+                try:
+                    await asyncio.sleep(10)
+                    code = ''.join(
+                        random.choices(
+                            string.ascii_uppercase + string.digits, k=6
+                        )
+                    )
+                    await websocket.send_text(json.dumps({
+                        "type": "periodic_code",
+                        "code": code
+                    }))
+                except Exception as e:
+                    # Normal when the socket is closed; keep logs at debug
+                    cluster_logger.debug(f"Stopping periodic_code_sender: {e}")
+                    break
 
         periodic_task = asyncio.create_task(periodic_code_sender())
 
@@ -118,8 +129,8 @@ async def job_status_websocket(
                     if job_id:
                         # Add to specific job channel
                         await websocket_manager.connect(
-                            websocket, 
-                            f"job_{job_id}", 
+                            websocket,
+                            f"job_{job_id}",
                             user_id
                         )
                         await websocket.send_text(json.dumps({
@@ -133,6 +144,13 @@ async def job_status_websocket(
                     "type": "error",
                     "message": "Invalid JSON message"
                 }))
+            except WebSocketDisconnect as e:
+                # Treat normal client close as expected
+                cluster_logger.info(
+                    "Job status client disconnected (code=%s)",
+                    getattr(e, 'code', 'unknown')
+                )
+                break
             except Exception as e:
                 cluster_logger.error(f"Error handling WebSocket message: {e}")
                 break
@@ -153,7 +171,9 @@ async def job_status_websocket(
 @router.websocket("/tunnels/health")
 async def tunnel_health_websocket(
     websocket: WebSocket,
-    token: Optional[str] = Query(None, description="JWT or CLI token for authentication")
+    token: Optional[str] = Query(
+        None, description="JWT or CLI token for authentication"
+    )
 ):
     """
     WebSocket endpoint for real-time SSH tunnel health monitoring.
@@ -173,7 +193,10 @@ async def tunnel_health_websocket(
         user = await get_current_user_websocket(token, db)
         user_id = str(user.id) if user else None
         
-        cluster_logger.info(f"WebSocket tunnel_health connection by user: {user.username if user else 'anonymous'}")
+        cluster_logger.info(
+            "WebSocket tunnel_health connection by user: %s",
+            user.username if user else 'anonymous'
+        )
         
     except Exception as e:
         cluster_logger.warning(f"WebSocket tunnel auth failed: {e}")
@@ -183,8 +206,8 @@ async def tunnel_health_websocket(
         db.close()
     
     connected = await websocket_manager.connect(
-        websocket, 
-        "tunnel_health", 
+        websocket,
+        "tunnel_health",
         user_id
     )
     
@@ -225,14 +248,16 @@ async def tunnel_health_websocket(
                     tunnel_id = data.get("tunnel_id")
                     if tunnel_id:
                         await websocket_manager.connect(
-                            websocket, 
-                            f"tunnel_{tunnel_id}", 
+                            websocket,
+                            f"tunnel_{tunnel_id}",
                             user_id
                         )
                         await websocket.send_text(json.dumps({
                             "type": "subscribed",
                             "tunnel_id": tunnel_id,
-                            "message": f"Subscribed to tunnel {tunnel_id} updates"
+                            "message": (
+                                f"Subscribed to tunnel {tunnel_id} updates"
+                            )
                         }))
                 
             except json.JSONDecodeError:
@@ -240,8 +265,16 @@ async def tunnel_health_websocket(
                     "type": "error",
                     "message": "Invalid JSON message"
                 }))
+            except WebSocketDisconnect as e:
+                cluster_logger.info(
+                    "Tunnel health client disconnected (code=%s)",
+                    getattr(e, 'code', 'unknown')
+                )
+                break
             except Exception as e:
-                cluster_logger.error(f"Error handling tunnel WebSocket message: {e}")
+                cluster_logger.error(
+                    "Error handling tunnel WebSocket message: %s", e
+                )
                 break
                 
     except WebSocketDisconnect:
@@ -275,8 +308,8 @@ async def notifications_websocket(
             cluster_logger.warning(f"Invalid WebSocket auth token: {e}")
     
     connected = await websocket_manager.connect(
-        websocket, 
-        "notifications", 
+        websocket,
+        "notifications",
         user_id
     )
     
@@ -317,8 +350,16 @@ async def notifications_websocket(
                     "type": "error",
                     "message": "Invalid JSON message"
                 }))
+            except WebSocketDisconnect as e:
+                cluster_logger.info(
+                    "Notifications client disconnected (code=%s)",
+                    getattr(e, 'code', 'unknown')
+                )
+                break
             except Exception as e:
-                cluster_logger.error(f"Error handling notification WebSocket message: {e}")
+                cluster_logger.error(
+                    "Error handling notification WebSocket message: %s", e
+                )
                 break
                 
     except WebSocketDisconnect:
@@ -353,8 +394,8 @@ async def admin_stats_websocket(
             return
     
     connected = await websocket_manager.connect(
-        websocket, 
-        "admin_stats", 
+        websocket,
+        "admin_stats",
         user_id
     )
     
@@ -404,7 +445,9 @@ async def admin_stats_websocket(
                     "message": "Invalid JSON message"
                 }))
             except Exception as e:
-                cluster_logger.error(f"Error handling admin WebSocket message: {e}")
+                cluster_logger.error(
+                    "Error handling admin WebSocket message: %s", e
+                )
                 break
                 
     except WebSocketDisconnect:
@@ -418,7 +461,9 @@ async def admin_stats_websocket(
 @router.websocket("/cluster/status")
 async def cluster_status_websocket(
     websocket: WebSocket,
-    token: Optional[str] = Query(None, description="JWT or CLI token for authentication")
+    token: Optional[str] = Query(
+        None, description="JWT or CLI token for authentication"
+    )
 ):
     """
     WebSocket endpoint for real-time cluster status updates.
@@ -434,7 +479,10 @@ async def cluster_status_websocket(
     - Queue statistics
     - Active session counts
     """
-    print(f"DEBUG: WebSocket connection attempt to /cluster/status with token: {token[:20] if token else 'None'}...")
+    print(
+        "DEBUG: WebSocket connection attempt to /cluster/status with token: "
+        f"{token[:20] if token else 'None'}..."
+    )
     
     # Get database session
     db = next(get_db())
@@ -446,8 +494,10 @@ async def cluster_status_websocket(
         
         print(f"DEBUG: Authentication successful for user: "
               f"{user.username if user else 'anonymous'} (id: {user_id})")
-        cluster_logger.info(f"WebSocket cluster_status connection attempt "
-                          f"by user: {user.username if user else 'anonymous'}")
+        cluster_logger.info(
+            "WebSocket cluster_status connection attempt by user: %s",
+            user.username if user else 'anonymous'
+        )
         
     except Exception as e:
         print(f"DEBUG: WebSocket authentication failed: {e}")
@@ -487,7 +537,9 @@ async def cluster_status_websocket(
         try:
             cluster_logger.info("DEBUG: Fetching initial cluster status...")
             initial_status = await cluster_service.get_cluster_status_summary()
-            cluster_logger.info(f"DEBUG: Got initial status: {type(initial_status)}")
+            cluster_logger.info(
+                "DEBUG: Got initial status: %s", type(initial_status)
+            )
             await websocket.send_text(json.dumps({
                 "type": "cluster_status",
                 "data": initial_status,
@@ -513,8 +565,9 @@ async def cluster_status_websocket(
                         "timestamp": datetime.utcnow().isoformat()
                     }))
                 except Exception as e:
-                    cluster_logger.error(f"Error sending periodic "
-                                       f"cluster status: {e}")
+                    cluster_logger.error(
+                        "Error sending periodic cluster status: %s", e
+                    )
                     break
 
         # Start the periodic task
@@ -535,18 +588,24 @@ async def cluster_status_websocket(
                 elif data.get("type") == "request_status":
                     # Send immediate status update
                     try:
-                        status = await cluster_service.get_cluster_status_summary()
+                        status = await cluster_service.\
+                            get_cluster_status_summary()
                         await websocket.send_text(json.dumps({
                             "type": "cluster_status",
                             "data": status,
                             "timestamp": datetime.utcnow().isoformat()
                         }))
                     except Exception as e:
-                        cluster_logger.error(f"Error sending requested "
-                                           f"cluster status: {e}")
+                        cluster_logger.error(
+                            "Error sending requested cluster status: %s", e
+                        )
                         
             except json.JSONDecodeError as e:
-                cluster_logger.error(f"JSON decode error: {e}, message was: {repr(message)}")
+                cluster_logger.error(
+                    "JSON decode error: %s, message was: %s",
+                    e,
+                    repr(message)
+                )
                 await websocket.send_text(json.dumps({
                     "type": "error",
                     "message": "Invalid JSON message"
@@ -555,9 +614,18 @@ async def cluster_status_websocket(
                 cluster_logger.info("Cluster status WebSocket disconnected")
                 break
             except Exception as e:
-                cluster_logger.error(f"Error handling cluster status WebSocket message: {e}")
-                cluster_logger.error(f"Message was: {repr(message) if 'message' in locals() else 'no message'}")
-                cluster_logger.error(f"Data was: {repr(data) if 'data' in locals() else 'no data'}")
+                cluster_logger.error(
+                    "Error handling cluster status WebSocket message: %s",
+                    e
+                )
+                cluster_logger.error(
+                    "Message was: %s",
+                    repr(message) if 'message' in locals() else 'no message'
+                )
+                cluster_logger.error(
+                    "Data was: %s",
+                    repr(data) if 'data' in locals() else 'no data'
+                )
                 import traceback
                 cluster_logger.error(f"Traceback: {traceback.format_exc()}")
                 break
@@ -658,13 +726,20 @@ async def tunnel_setup_websocket(
                         "type": "pong",
                         "timestamp": data.get("timestamp")
                     }))
-                    print(f"DEBUG: Sent pong response")
+                    print("DEBUG: Sent pong response")
                 
             except json.JSONDecodeError:
                 await websocket.send_text(json.dumps({
                     "type": "error",
                     "message": "Invalid JSON message"
                 }))
+            except WebSocketDisconnect as e:
+                cluster_logger.info(
+                    "Tunnel setup client disconnected for job %s (code=%s)",
+                    job_id,
+                    getattr(e, 'code', 'unknown')
+                )
+                break
             except Exception as e:
                 cluster_logger.error(
                     f"Error handling tunnel setup WebSocket message: {e}"
