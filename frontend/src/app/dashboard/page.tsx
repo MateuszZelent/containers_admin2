@@ -46,7 +46,6 @@ import { OptimizedResourceUsageChart } from "./components/optimized-resource-usa
 import { formatContainerName } from "@/lib/container-utils";
 import { TaskQueueDashboard } from "./components/task-queue-dashboard";
 import { CodeServerModal } from "@/components/code-server-modal";
-// import { useClusterStatus } from "@/hooks/useClusterStatus"; // REMOVED - using global context
 import { useTranslation } from "@/lib/i18n/LanguageContext";
 import { ConnectionStatusCard } from "@/components/connection-status-card";
 import { useConnectionStatusContext } from "@/contexts/ConnectionStatusContext";
