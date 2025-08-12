@@ -138,7 +138,9 @@ export function DomainReadinessModal({
   // WebSocket connection for tunnel setup
   const { isConnected: wsConnected } = useTunnelSetupWebSocket({
     jobId,
-    enabled: isOpen && !tunnelEstablished,
+    // Keep WS enabled for the entire modal lifecycle to avoid disconnects
+    // during transition between tunnel and domain setup phases
+    enabled: isOpen,
     onEvent: handleTunnelEvent,
     onConnect: () => {
       console.log('Tunnel setup WebSocket connected');
@@ -146,7 +148,7 @@ export function DomainReadinessModal({
     },
     onDisconnect: () => {
       console.log('Tunnel setup WebSocket disconnected');
-      if (isOpen) {
+      if (isOpen && currentStage !== 'ready') {
         addConsoleMessage('📡 Connection lost, retrying...', 'warning');
       }
     },

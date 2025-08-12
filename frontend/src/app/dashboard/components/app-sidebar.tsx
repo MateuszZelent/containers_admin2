@@ -26,6 +26,7 @@ import { NavMain } from "@/app//dashboard/components/nav-main"
 import { NavAdmin } from "@/app//dashboard/components/nav-admin"
 import { NavUser } from "@/app/dashboard/components/nav-user"
 import { userApi } from "@/lib/api-client"
+import { APP_VERSION, APP_VERSION_DATE } from "@/version"
 
 // Default data with navigation items
 const data = {
@@ -313,7 +314,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                     AMUcontainers
                   </span>
                   <span className="text-xs text-slate-500 dark:text-slate-400 font-medium">
-                    v0.5 (07.08.2025)
+                    v{APP_VERSION} ({APP_VERSION_DATE})
                   </span>
                 </div>
               </a>

@@ -29,15 +29,18 @@ interface ConnectionInfo {
   lastConnectTime?: number;
   closeTimeout?: NodeJS.Timeout;
   cleanupScheduled?: boolean;
+  heartbeatInterval?: NodeJS.Timeout;
   initialPingSent?: boolean;
 }
 
 class WebSocketManager {
   private connections = new Map<string, ConnectionInfo>();
-  private maxReconnectAttempts = 5;
+  // -1 means unlimited attempts while there are subscribers
+  private maxReconnectAttempts = -1;
   private reconnectInterval = 3000;
   private connectionRateLimit = 5000; // 5 seconds between connection attempts
   private connectionCloseDelay = 3000; // Delay before closing unused connections
+  private keepAliveIntervalMs = 25000; // Send periodic ping to keep connections alive
   private debug = false; // Set to true for verbose logging
   private sendPingOnOpen = false; // Control whether to send an immediate ping on connection
   private static _instance: WebSocketManager | null = null;
@@ -180,6 +183,20 @@ class WebSocketManager {
         ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
         connectionInfo.initialPingSent = true;
       }
+
+      // Start heartbeat keepalive
+      if (connectionInfo.heartbeatInterval) {
+        clearInterval(connectionInfo.heartbeatInterval);
+      }
+      connectionInfo.heartbeatInterval = setInterval(() => {
+        try {
+          if (ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({ type: 'ping', timestamp: new Date().toISOString() }));
+          }
+        } catch (e) {
+          this.warn(`Heartbeat ping failed for ${url}:`, e);
+        }
+      }, this.keepAliveIntervalMs);
     };
 
     ws.onmessage = (event) => {
@@ -232,6 +249,12 @@ class WebSocketManager {
         return;
       }
       
+      // Stop heartbeat
+      if (connectionInfo.heartbeatInterval) {
+        clearInterval(connectionInfo.heartbeatInterval);
+        connectionInfo.heartbeatInterval = undefined;
+      }
+
       const shouldReconnectImmediately = connectionInfo.manualClose;
       connectionInfo.manualClose = false;
       connectionInfo.isConnecting = false;
@@ -252,8 +275,8 @@ class WebSocketManager {
       }
 
       // Auto-reconnect if there are still subscribers
-      if (connectionInfo.subscribers.size > 0 &&
-          connectionInfo.reconnectCount < this.maxReconnectAttempts) {
+    if (connectionInfo.subscribers.size > 0 &&
+      (this.maxReconnectAttempts < 0 || connectionInfo.reconnectCount < this.maxReconnectAttempts)) {
 
         const delay = Math.min(1000 * Math.pow(2, connectionInfo.reconnectCount), 30000);
         this.log(`Reconnecting to ${url} in ${delay}ms (attempt ${connectionInfo.reconnectCount + 1})`);
@@ -267,7 +290,7 @@ class WebSocketManager {
         }, delay);
 
         connectionInfo.reconnectCount++;
-      } else if (connectionInfo.reconnectCount >= this.maxReconnectAttempts) {
+      } else if (this.maxReconnectAttempts >= 0 && connectionInfo.reconnectCount >= this.maxReconnectAttempts) {
         this.warn(`Max reconnect attempts reached for ${url}, giving up`);
         this.connections.delete(url);
       }
@@ -307,8 +330,8 @@ class WebSocketManager {
       connectionInfo.isConnecting = false;
       
       // Schedule another attempt if we still have subscribers
-      if (connectionInfo.subscribers.size > 0 &&
-          connectionInfo.reconnectCount < this.maxReconnectAttempts) {
+    if (connectionInfo.subscribers.size > 0 &&
+      (this.maxReconnectAttempts < 0 || connectionInfo.reconnectCount < this.maxReconnectAttempts)) {
         
         const delay = Math.min(1000 * Math.pow(2, connectionInfo.reconnectCount), 30000);
         connectionInfo.reconnectTimeout = setTimeout(() => {
@@ -404,6 +427,11 @@ class WebSocketManager {
         if (info.reconnectTimeout) {
           clearTimeout(info.reconnectTimeout);
           info.reconnectTimeout = undefined;
+        }
+        // Stop heartbeat while waiting for close
+        if (info.heartbeatInterval) {
+          clearInterval(info.heartbeatInterval);
+          info.heartbeatInterval = undefined;
         }
         
         info.closeTimeout = setTimeout(() => {
@@ -522,6 +550,11 @@ class WebSocketManager {
     
     if (connectionInfo.closeTimeout) {
       clearTimeout(connectionInfo.closeTimeout);
+    }
+
+    if (connectionInfo.heartbeatInterval) {
+      clearInterval(connectionInfo.heartbeatInterval);
+      connectionInfo.heartbeatInterval = undefined;
     }
 
     // Notify subscribers before clearing

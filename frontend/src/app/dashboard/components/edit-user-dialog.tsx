@@ -185,7 +185,7 @@ export function EditUserDialog({ user, open, onOpenChange, onUserUpdated }: Edit
               </Label>
               <Input
                 id="password"
-                type="password"
+                type="password" autoComplete="new-password"
                 value={formData.password}
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 className="col-span-3"

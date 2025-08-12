@@ -31,15 +31,52 @@ export function useTunnelSetupWebSocket({
   
   // Handle WebSocket messages
   const handleMessage = useCallback((message: any) => {
-    console.log('Received tunnel setup event:', message);
-    
-    // Check if this is a tunnel setup event
-    if (message.type && message.message && 
-        ['tunnel_connecting', 'tunnel_progress', 'tunnel_established', 'tunnel_error', 'tunnel_warning',
-         'setup_started', 'setup_progress', 'setup_error', 'setup_complete'].includes(message.type)) {
-      onEvent?.(message as TunnelSetupEvent);
+    // Normalize and accept broader event variants from backend
+    const normalize = (msg: any): TunnelSetupEvent | null => {
+      if (!msg || typeof msg !== 'object') return null;
+      if (!msg.type && msg.event) msg.type = msg.event;
+      if (!msg.message && msg.msg) msg.message = msg.msg;
+
+      // Map some legacy or alternative backend event names
+      const mappings: Record<string, TunnelSetupEvent['type']> = {
+        connecting: 'tunnel_connecting',
+        progress: 'tunnel_progress',
+        established: 'tunnel_established',
+        warning: 'tunnel_warning',
+        error: 'tunnel_error',
+        setup_begin: 'setup_started',
+        setup_start: 'setup_started',
+        setup_ok: 'setup_complete',
+      };
+
+      let type = msg.type as string;
+      if (type in mappings) type = mappings[type];
+
+      // Only allow the supported set
+      const allowed = new Set([
+        'tunnel_connecting', 'tunnel_progress', 'tunnel_established', 'tunnel_error', 'tunnel_warning',
+        'setup_started', 'setup_progress', 'setup_error', 'setup_complete'
+      ]);
+
+      if (!type || !allowed.has(type as any)) return null;
+      if (!msg.message) msg.message = '';
+
+      return {
+        type: type as TunnelSetupEvent['type'],
+        message: String(msg.message),
+        step: msg.step,
+        tunnel_id: msg.tunnel_id ?? msg.tunnelId,
+        details: msg.details,
+        error: msg.error
+      };
+    };
+
+    const normalized = normalize(message);
+    if (normalized) {
+      onEvent?.(normalized);
     } else {
-      console.warn('Invalid tunnel setup event format:', message);
+      // Non-fatal: log unknown messages for debugging
+      console.debug('[useTunnelSetupWebSocket] Ignoring non-setup message:', message);
     }
   }, [onEvent]);
 
