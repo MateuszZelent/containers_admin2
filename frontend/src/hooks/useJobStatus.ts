@@ -50,10 +50,10 @@ export const useJobStatus = ({
   onTunnelUpdate,
   onNotification,
   enabled = true,
-  // Selective enabling - domyślnie włączone dla kompatybilności wstecznej
+  // Selective enabling - only job status enabled by default for backwards compatibility
   enableJobStatus = true,
-  enableTunnelHealth = true,
-  enableNotifications = true
+  enableTunnelHealth = false,
+  enableNotifications = false
 }: UseJobStatusProps): UseJobStatusReturn => {
 
   // Check if user is authenticated

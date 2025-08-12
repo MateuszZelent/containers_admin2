@@ -103,11 +103,10 @@ export function useConnectionStatus(options: UseConnectionStatusOptions = {}): U
     isTunnelHealthConnected, 
     isNotificationsConnected, 
     verificationCode 
-  } = useJobStatus({ 
+  } = useJobStatus({
     enabled: true,
     // Tylko job status i notifications dla connection monitoring
     enableJobStatus: true,
-    enableTunnelHealth: false, // Nie potrzebne dla statusu połączenia
     enableNotifications: true
   });
   
